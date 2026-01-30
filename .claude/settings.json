@@ -1,0 +1,6 @@
+{
+  "enabledPlugins": {
+    "beads@beads-marketplace": true,
+    "superpowers@superpowers-marketplace": true
+  }
+}

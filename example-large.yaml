@@ -1,0 +1,245 @@
+meta:
+  id: systems/settlement/colonists
+  kind: gdd.node
+  version: 1
+  status: draft            # draft|review|approved
+  title: "Settlement: Colonists"
+  tags: [settlement, population, colonists, simulation]
+  owners: [design]         # optional, for teams
+  created_at: 2026-01-30
+  updated_at: 2026-01-30
+
+summary:
+  one_liner: "Named individuals who form the workforce and emotional stakes of the settlement."
+  intent: >
+    Colonists are your most valuable resource. Losing them should hurt. They have families, skills,
+    histories, needs, and morale that affect productivity and events.
+
+glossary:
+  colonist:
+    meaning: "A named individual unit with stats, needs, relationships and role capacity."
+  family:
+    meaning: "A relationship grouping (partners, children) with emotional/morale impact."
+
+refs:
+  uses:
+    - systems/settlement/housing
+    - systems/settlement/food
+    - systems/settlement/water
+  related:
+    - systems/settlement/morale
+    - systems/expeditions/overview
+  emits_events:
+    - events/colonist/born
+    - events/colonist/died
+    - events/colonist/morale_changed
+  vocabulary:
+    - vocab/needs
+    - vocab/life_stages
+
+content:
+  sections:
+    - id: population_growth
+      title: "Population Growth"
+      blocks:
+        - type: table
+          id: growth_methods
+          columns:
+            - key: method
+              type: enum
+              enum: [breeding, expedition_rescue]
+              display: "Method"
+            - key: description
+              type: markdown
+              display: "Description"
+          rows:
+            - method: breeding
+              description: "Adult colonists in relationships produce children."
+            - method: expedition_rescue
+              description: "Find and rescue survivors during expeditions."
+
+        - type: rule
+          id: population_limited_by_resources
+          text: "Population is limited by resources (Banished-style). Grow too fast without food infrastructure = starvation cascade."
+
+        - type: param
+          id: starting_population
+          key: starting_population_families
+          datatype: range_int
+          value: { min: 4, max: 5 }
+          notes: "Starting population: 4-5 families."
+
+        - type: mechanic
+          id: breeding_behavior
+          name: "Breeding behavior"
+          description: "Automatic when conditions are met. Player can force-assign relationships."
+          conditions:
+            all:
+              - has_resource: systems/settlement/housing
+              - has_resource: systems/settlement/food
+              - has_condition: "compatible_adults"
+          player_controls:
+            - "force_assign_relationships"
+
+    - id: life_stages
+      title: "Life Stages"
+      blocks:
+        - type: table
+          id: life_stages_table
+          columns:
+            - { key: stage, type: enum, enum: [child, adult, elder], display: "Stage" }
+            - { key: duration, type: string, display: "Duration" }
+            - { key: capabilities, type: markdown, display: "Capabilities" }
+          rows:
+            - stage: child
+              duration: TBD
+              capabilities: "Cannot work, must be fed, learns from parents."
+            - stage: adult
+              duration: "Majority of life"
+              capabilities: "Full worker, can breed, goes on expeditions."
+            - stage: elder
+              duration: "Final stage"
+              capabilities: "Reduced physical ability, experience bonuses?"
+
+        - type: list
+          id: death_causes
+          title: "Death occurs from"
+          items:
+            - starvation
+            - combat
+            - disease
+            - old_age
+            - accidents
+
+    - id: needs
+      title: "Needs"
+      blocks:
+        - type: table
+          id: needs_table
+          columns:
+            - { key: need, type: enum, enum: [food, water, shelter, warmth], display: "Need" }
+            - { key: effect_if_unmet, type: markdown, display: "Effect if Unmet" }
+          rows:
+            - need: food
+              effect_if_unmet: "Starvation → Death"
+            - need: water
+              effect_if_unmet: "Dehydration → Death"
+            - need: shelter
+              effect_if_unmet: "Exposure → Health decline"
+            - need: warmth
+              effect_if_unmet: "Cold → Health decline, Death in extreme"
+
+    - id: happiness_morale
+      title: "Happiness & Morale"
+      blocks:
+        - type: rule
+          id: happiness_affects_productivity
+          text: "Happiness affects productivity."
+
+        - type: table
+          id: morale_factors
+          columns:
+            - { key: positive, type: markdown, display: "Positive" }
+            - { key: negative, type: markdown, display: "Negative" }
+          rows:
+            - { positive: "Good food variety", negative: "Starvation/hunger" }
+            - { positive: "Comfortable shelter", negative: "Homelessness" }
+            - { positive: "Family nearby", negative: "Family death" }
+            - { positive: "Leisure/rest", negative: "Overwork" }
+            - { positive: "Successful expeditions", negative: "Failed expeditions, deaths" }
+
+        - type: mechanic
+          id: productivity_modifier
+          name: "Productivity modifier"
+          description: "Happy colonists work faster/better. Unhappy colonists work slower, may have negative events."
+          outputs:
+            - key: productivity_multiplier
+              datatype: float
+              range: { min: 0.5, max: 1.5 }
+              notes: "Exact curve TBD."
+
+    - id: physical_stats
+      title: "Physical Stats"
+      blocks:
+        - type: rule
+          id: stats_intro
+          text: "Colonists have three physical attributes that develop through work. Separate from skills."
+
+        - type: table
+          id: physical_attributes
+          columns:
+            - { key: stat, type: enum, enum: [strength, agility, toughness], display: "Stat" }
+            - { key: affects, type: markdown, display: "Affects" }
+            - { key: developed_by, type: markdown, display: "Developed By" }
+          rows:
+            - stat: strength
+              affects: "Melee damage, carry capacity"
+              developed_by: "Heavy labor (mining, smithing, construction)"
+            - stat: agility
+              affects: "Ranged damage, dodge, initiative"
+              developed_by: "Running tasks (porters, hunters, messengers)"
+            - stat: toughness
+              affects: "Damage resistance, injury threshold"
+              developed_by: "Physical hardship, combat experience"
+
+contracts:
+  feature: "Colonist needs and morale affect productivity and survival."
+  scenarios:
+    - id: starvation_leads_to_death
+      given:
+        - colonist:
+            id: c1
+            needs: { food: 0, water: 100, shelter: 100, warmth: 100 }
+      when:
+        - tick: { hours: 48 }
+      then:
+        - expect:
+            colonist_state: dead
+            cause: starvation
+        - expect_event:
+            id: events/colonist/died
+            fields:
+              colonist_id: c1
+              cause: starvation
+
+    - id: morale_affects_productivity
+      given:
+        - colonist:
+            id: c2
+            morale: 90
+            base_productivity: 1.0
+      when:
+        - assign_job: { colonist_id: c2, job: "construction" }
+        - tick: { hours: 8 }
+      then:
+        - expect:
+            productivity_multiplier_gt: 1.0
+
+issues:
+  - id: tbd_child_duration
+    type: tbd
+    severity: medium
+    location: "content.sections.life_stages.blocks.life_stages_table.rows[0].duration"
+    note: "Define child stage duration in game-time units."
+
+  - id: question_elder_bonuses
+    type: question
+    severity: low
+    location: "content.sections.life_stages.blocks.life_stages_table.rows[2].capabilities"
+    note: "What specific experience bonuses do elders provide?"
+
+  - id: tbd_productivity_curve
+    type: tbd
+    severity: high
+    location: "content.sections.happiness_morale.blocks.productivity_modifier.outputs.productivity_multiplier"
+    note: "Define morale->productivity curve and clamp behavior."
+
+llm_context:
+  include:
+    - summary
+    - glossary
+    - refs
+    - content.sections
+    - contracts.scenarios
+  exclude:
+    - meta.owners
