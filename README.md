@@ -1,4 +1,4 @@
-# Deco
+# Deco / Design Compilator
 
 Deco is a **design engine and CLI** for building games (and game systems) from **structured design**, not a swamp of Markdown files and forgotten references.
 

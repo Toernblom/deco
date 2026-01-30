@@ -14,6 +14,7 @@ A Go CLI that replaces traditional GDDs entirely. Your game design lives as stru
 | File location | Configurable, default `.deco/` |
 | History | Audit log (append-only: who, what, when) |
 | AI workflow | Both patch operations and full file rewrites |
+| Development | TDD - tests first, then implementation |
 
 ## Node Structure
 
