@@ -1,0 +1,73 @@
+id: systems/core
+kind: system
+version: 1
+status: approved
+title: "Core Game Loop"
+tags: [core, gameplay]
+summary: |
+  The snake moves continuously on a grid. Player controls direction.
+  Eating food grows the snake. Hitting walls or self ends the game.
+
+glossary:
+  snake: The player-controlled entity that grows when eating food
+  food: Collectible item that spawns randomly and increases score
+  grid: The playing field divided into discrete cells
+
+refs:
+  uses:
+    - target: items/food
+      context: "Food spawns on grid"
+
+content:
+  sections:
+    - name: Movement
+      blocks:
+        - type: param
+          id: tick_rate
+          name: "Tick Rate"
+          datatype: range_int
+          min: 100
+          max: 500
+          default: 200
+          unit: "ms"
+          description: "Time between snake movements"
+
+        - type: rule
+          id: direction_change
+          text: "Player can change direction with arrow keys. Cannot reverse directly into self."
+
+    - name: Win/Lose Conditions
+      blocks:
+        - type: table
+          id: end_conditions
+          columns:
+            - { key: condition, type: string, display: "Condition" }
+            - { key: result, type: enum, enum: [win, lose], display: "Result" }
+          rows:
+            - condition: "Snake fills entire grid"
+              result: win
+            - condition: "Snake head hits wall"
+              result: lose
+            - condition: "Snake head hits own body"
+              result: lose
+
+contracts:
+  - name: "Eating food grows snake"
+    scenario: "When snake head collides with food, snake grows by one segment"
+    given:
+      - "snake has length 3 at position (5,5)"
+      - "food exists at position (6,5)"
+    when:
+      - "snake moves right"
+    then:
+      - "snake length becomes 4"
+      - "score increases by food point value"
+
+  - name: "Wall collision ends game"
+    scenario: "Snake hitting a wall triggers game over"
+    given:
+      - "snake head at left edge (0,5)"
+    when:
+      - "snake moves left"
+    then:
+      - "game state becomes game_over"

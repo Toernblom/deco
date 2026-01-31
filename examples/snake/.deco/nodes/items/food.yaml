@@ -1,0 +1,40 @@
+id: items/food
+kind: item
+version: 1
+status: approved
+title: "Food"
+tags: [collectible, spawning]
+summary: |
+  Food items that spawn randomly on empty grid cells.
+  Collected by snake head collision.
+
+content:
+  sections:
+    - name: Food Types
+      blocks:
+        - type: table
+          id: food_types
+          columns:
+            - { key: type, type: string, display: "Type" }
+            - { key: points, type: string, display: "Points" }
+            - { key: spawn_chance, type: string, display: "Spawn Chance" }
+            - { key: duration, type: string, display: "Duration" }
+          rows:
+            - type: "Normal"
+              points: "10"
+              spawn_chance: "100%"
+              duration: "Permanent"
+            - type: "Bonus"
+              points: "50"
+              spawn_chance: "10%"
+              duration: "5 seconds"
+
+    - name: Spawning Rules
+      blocks:
+        - type: rule
+          id: spawn_location
+          text: "Food spawns only on empty cells (not occupied by snake body)"
+
+        - type: rule
+          id: always_one_food
+          text: "At least one normal food item is always present on the grid"

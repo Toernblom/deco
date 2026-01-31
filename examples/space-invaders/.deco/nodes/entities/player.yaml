@@ -1,0 +1,46 @@
+id: entities/player
+kind: entity
+version: 1
+status: approved
+title: "Player Ship"
+tags: [player, ship]
+summary: |
+  The player-controlled ship that fires projectiles at aliens.
+
+content:
+  sections:
+    - name: Stats
+      blocks:
+        - type: param
+          id: lives
+          name: "Starting Lives"
+          datatype: int
+          default: 3
+          description: "Number of hits player can take"
+
+        - type: param
+          id: fire_rate
+          name: "Fire Rate"
+          datatype: range_int
+          min: 1
+          max: 3
+          default: 1
+          unit: "projectiles on screen"
+          description: "Maximum simultaneous projectiles"
+
+        - type: param
+          id: move_speed
+          name: "Movement Speed"
+          datatype: int
+          default: 5
+          unit: "pixels/frame"
+
+    - name: Behavior
+      blocks:
+        - type: rule
+          id: constrained_movement
+          text: "Ship cannot move beyond screen boundaries"
+
+        - type: rule
+          id: invulnerability
+          text: "After being hit, player has 2 seconds of invulnerability"

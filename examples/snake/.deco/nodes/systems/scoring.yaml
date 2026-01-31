@@ -1,0 +1,43 @@
+id: systems/scoring
+kind: system
+version: 1
+status: approved
+title: "Scoring System"
+tags: [scoring, progression]
+summary: |
+  Points awarded for eating food. Higher scores unlock faster speeds.
+
+refs:
+  uses:
+    - target: systems/core
+      context: "Score increases when food eaten"
+    - target: items/food
+      context: "Each food type has point value"
+
+content:
+  sections:
+    - name: Point Values
+      blocks:
+        - type: table
+          id: points
+          columns:
+            - { key: action, type: string, display: "Action" }
+            - { key: points, type: string, display: "Points" }
+          rows:
+            - action: "Eat normal food"
+              points: "10"
+            - action: "Eat bonus food"
+              points: "50"
+
+    - name: Speed Scaling
+      blocks:
+        - type: mechanic
+          id: speed_increase
+          name: "Progressive Difficulty"
+          description: "Game speeds up as score increases"
+          conditions:
+            all:
+              - "score >= threshold"
+          outputs:
+            - "tick_rate decreases by 10ms per 100 points"
+            - "minimum tick_rate is 100ms"

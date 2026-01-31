@@ -1,0 +1,60 @@
+id: entities/aliens
+kind: entity
+version: 1
+status: approved
+title: "Alien Enemies"
+tags: [enemy, npc]
+summary: |
+  Alien invaders that move in formation and descend toward the player.
+
+content:
+  sections:
+    - name: Alien Types
+      blocks:
+        - type: table
+          id: alien_types
+          columns:
+            - { key: type, type: string, display: "Type" }
+            - { key: points, type: string, display: "Points" }
+            - { key: row, type: string, display: "Formation Row" }
+          rows:
+            - type: "Squid"
+              points: "30"
+              row: "Top"
+            - type: "Crab"
+              points: "20"
+              row: "Middle"
+            - type: "Octopus"
+              points: "10"
+              row: "Bottom"
+
+    - name: Movement Pattern
+      blocks:
+        - type: mechanic
+          id: formation_movement
+          name: "Formation Movement"
+          description: "All aliens move together as a unit"
+          outputs:
+            - "Move horizontally until edge alien hits boundary"
+            - "Drop one row and reverse direction"
+            - "Speed increases as fewer aliens remain"
+
+        - type: param
+          id: base_speed
+          name: "Base Speed"
+          datatype: int
+          default: 1
+          unit: "pixels/tick"
+
+    - name: Shooting
+      blocks:
+        - type: rule
+          id: alien_fire
+          text: "Random bottom-row alien fires every 1-3 seconds"
+
+        - type: param
+          id: projectile_speed
+          name: "Projectile Speed"
+          datatype: int
+          default: 3
+          unit: "pixels/frame"

@@ -1,0 +1,4 @@
+project_name: snake
+nodes_path: .deco/nodes
+history_path: .deco/history.jsonl
+version: 1

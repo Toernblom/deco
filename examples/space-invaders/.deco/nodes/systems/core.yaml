@@ -1,0 +1,65 @@
+id: systems/core
+kind: system
+version: 1
+status: approved
+title: "Core Gameplay"
+tags: [core, shooting]
+summary: |
+  Player ship at bottom shoots upward at descending alien waves.
+  Aliens move side-to-side, dropping down when reaching screen edge.
+  Game ends when aliens reach the bottom or player loses all lives.
+
+glossary:
+  player: The ship controlled by the player at the bottom of the screen
+  aliens: Enemy entities that descend in formation
+  wave: A complete set of aliens that must be destroyed
+
+refs:
+  uses:
+    - target: entities/player
+      context: "Player controls the ship"
+    - target: entities/aliens
+      context: "Aliens are the enemies"
+
+content:
+  sections:
+    - name: Controls
+      blocks:
+        - type: table
+          id: controls
+          columns:
+            - { key: input, type: string, display: "Input" }
+            - { key: action, type: string, display: "Action" }
+          rows:
+            - input: "Left Arrow"
+              action: "Move ship left"
+            - input: "Right Arrow"
+              action: "Move ship right"
+            - input: "Space"
+              action: "Fire projectile"
+
+    - name: Game Flow
+      blocks:
+        - type: mechanic
+          id: wave_progression
+          name: "Wave Progression"
+          description: "Clearing all aliens advances to next wave"
+          outputs:
+            - "Next wave starts with aliens lower"
+            - "Alien movement speed increases 10%"
+
+        - type: rule
+          id: game_over
+          text: "Game ends when player lives reach 0 or any alien reaches player row"
+
+contracts:
+  - name: "Shooting destroys alien"
+    scenario: "Player projectile hitting an alien destroys it and awards points"
+    given:
+      - "player at horizontal position 5"
+      - "alien at position (5,3) with 1 health"
+    when:
+      - "player fires projectile"
+    then:
+      - "alien is destroyed"
+      - "score increases by alien point value"
