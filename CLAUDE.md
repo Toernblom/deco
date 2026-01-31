@@ -36,12 +36,31 @@ bd sync               # Sync with git
 
 ## Session Completion
 
-Before ending a session: close finished issues, create issues for remaining work, then push.
+Before ending a session, follow this checklist:
 
-```bash
-bd close <id>           # Close completed work
-bd sync --flush-only    # Export beads
-git add -A && git commit -m "..." && git push
-```
+1. **Close finished issues**
+   ```bash
+   bd close <id1> <id2> ...
+   ```
 
-Work is not complete until `git push` succeeds.
+2. **Create handover issue (P0)**
+   ```bash
+   bd create --title="Session handover: <summary>" --type=task --priority=0 --notes="..."
+   ```
+
+   Include in notes:
+   - What was accomplished (issues closed, features implemented)
+   - Current project state (tests passing, working tree status)
+   - Recommended next steps (specific issue IDs and order)
+   - Any architectural decisions or important context
+   - Blockers or questions for CEO
+
+3. **Sync and push**
+   ```bash
+   bd sync                # Sync beads with git
+   git add -A && git commit -m "..." && git push
+   ```
+
+**Work is not complete until `git push` succeeds.**
+
+The handover issue ensures context preservation across sessions and helps the next session (or another agent) start effectively.
