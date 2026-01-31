@@ -454,3 +454,399 @@ func TestPatcher_UnsetRequiredField(t *testing.T) {
 		t.Fatal("expected error when unsetting required field, got nil")
 	}
 }
+
+// ===== APPLY OPERATION TESTS =====
+
+// Test applying a single set operation
+func TestPatcher_ApplySingleSet(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Old Title",
+	}
+
+	ops := []patcher.PatchOperation{
+		{Op: "set", Path: "title", Value: "New Title"},
+	}
+
+	err := p.Apply(&node, ops)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.Title != "New Title" {
+		t.Errorf("expected title 'New Title', got %q", node.Title)
+	}
+}
+
+// Test applying multiple operations in sequence
+func TestPatcher_ApplyMultipleOperations(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Old Title",
+		Tags:    []string{"tag1"},
+	}
+
+	ops := []patcher.PatchOperation{
+		{Op: "set", Path: "title", Value: "New Title"},
+		{Op: "append", Path: "tags", Value: "tag2"},
+		{Op: "set", Path: "summary", Value: "A summary"},
+	}
+
+	err := p.Apply(&node, ops)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.Title != "New Title" {
+		t.Errorf("expected title 'New Title', got %q", node.Title)
+	}
+
+	if len(node.Tags) != 2 || node.Tags[1] != "tag2" {
+		t.Errorf("expected tags [tag1, tag2], got %v", node.Tags)
+	}
+
+	if node.Summary != "A summary" {
+		t.Errorf("expected summary 'A summary', got %q", node.Summary)
+	}
+}
+
+// Test applying mixed set/append/unset operations
+func TestPatcher_ApplyMixedOperations(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Summary: "Old summary",
+		Tags:    []string{"tag1", "tag2"},
+	}
+
+	ops := []patcher.PatchOperation{
+		{Op: "set", Path: "title", Value: "Updated Title"},
+		{Op: "unset", Path: "summary"},
+		{Op: "append", Path: "tags", Value: "tag3"},
+		{Op: "set", Path: "tags[0]", Value: "new-tag1"},
+	}
+
+	err := p.Apply(&node, ops)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.Title != "Updated Title" {
+		t.Errorf("expected title 'Updated Title', got %q", node.Title)
+	}
+
+	if node.Summary != "" {
+		t.Errorf("expected summary to be empty, got %q", node.Summary)
+	}
+
+	if len(node.Tags) != 3 {
+		t.Fatalf("expected 3 tags, got %d", len(node.Tags))
+	}
+
+	if node.Tags[0] != "new-tag1" {
+		t.Errorf("expected first tag 'new-tag1', got %q", node.Tags[0])
+	}
+}
+
+// Test applying empty operations list (should succeed with no changes)
+func TestPatcher_ApplyEmptyOperations(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+	}
+
+	ops := []patcher.PatchOperation{}
+
+	err := p.Apply(&node, ops)
+
+	if err != nil {
+		t.Fatalf("expected no error for empty operations, got %v", err)
+	}
+
+	if node.Title != "Test" {
+		t.Errorf("expected title unchanged, got %q", node.Title)
+	}
+}
+
+// Test rollback on error - all operations should be reverted if one fails
+func TestPatcher_ApplyRollbackOnError(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Original Title",
+		Summary: "Original Summary",
+		Tags:    []string{"tag1"},
+	}
+
+	// Second operation will fail (invalid field)
+	ops := []patcher.PatchOperation{
+		{Op: "set", Path: "title", Value: "New Title"},
+		{Op: "set", Path: "invalid.field.path", Value: "value"}, // This should fail
+		{Op: "set", Path: "summary", Value: "New Summary"},
+	}
+
+	err := p.Apply(&node, ops)
+
+	if err == nil {
+		t.Fatal("expected error for invalid operation, got nil")
+	}
+
+	// All changes should be rolled back
+	if node.Title != "Original Title" {
+		t.Errorf("expected title rolled back to 'Original Title', got %q", node.Title)
+	}
+
+	if node.Summary != "Original Summary" {
+		t.Errorf("expected summary unchanged after rollback, got %q", node.Summary)
+	}
+
+	if len(node.Tags) != 1 || node.Tags[0] != "tag1" {
+		t.Errorf("expected tags unchanged after rollback, got %v", node.Tags)
+	}
+}
+
+// Test rollback with append operation failure
+func TestPatcher_ApplyRollbackWithAppend(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Original Title",
+		Tags:    []string{"tag1"},
+	}
+
+	// First operation succeeds, second fails (append to non-array)
+	ops := []patcher.PatchOperation{
+		{Op: "append", Path: "tags", Value: "tag2"},
+		{Op: "append", Path: "title", Value: "invalid"}, // Can't append to string
+	}
+
+	err := p.Apply(&node, ops)
+
+	if err == nil {
+		t.Fatal("expected error when appending to non-array, got nil")
+	}
+
+	// Tags should be rolled back to original state
+	if len(node.Tags) != 1 || node.Tags[0] != "tag1" {
+		t.Errorf("expected tags rolled back to [tag1], got %v", node.Tags)
+	}
+}
+
+// Test invalid operation type
+func TestPatcher_ApplyInvalidOperation(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+	}
+
+	ops := []patcher.PatchOperation{
+		{Op: "invalid", Path: "title", Value: "value"},
+	}
+
+	err := p.Apply(&node, ops)
+
+	if err == nil {
+		t.Fatal("expected error for invalid operation type, got nil")
+	}
+}
+
+// Test applying to nil node
+func TestPatcher_ApplyToNilNode(t *testing.T) {
+	p := patcher.New()
+
+	ops := []patcher.PatchOperation{
+		{Op: "set", Path: "title", Value: "Test"},
+	}
+
+	err := p.Apply(nil, ops)
+
+	if err == nil {
+		t.Fatal("expected error when applying to nil node, got nil")
+	}
+}
+
+// Test operations are applied in order
+func TestPatcher_ApplyOperationsInOrder(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Tags:    nil,
+	}
+
+	// Order matters: append to tags, then modify the appended element
+	ops := []patcher.PatchOperation{
+		{Op: "append", Path: "tags", Value: "tag1"},
+		{Op: "append", Path: "tags", Value: "tag2"},
+		{Op: "set", Path: "tags[1]", Value: "modified-tag2"},
+	}
+
+	err := p.Apply(&node, ops)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Tags) != 2 {
+		t.Fatalf("expected 2 tags, got %d", len(node.Tags))
+	}
+
+	if node.Tags[0] != "tag1" {
+		t.Errorf("expected first tag 'tag1', got %q", node.Tags[0])
+	}
+
+	if node.Tags[1] != "modified-tag2" {
+		t.Errorf("expected second tag 'modified-tag2', got %q", node.Tags[1])
+	}
+}
+
+// Test unset operation in apply
+func TestPatcher_ApplyUnsetOperation(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Summary: "Summary to remove",
+		Tags:    []string{"tag1", "tag2", "tag3"},
+	}
+
+	ops := []patcher.PatchOperation{
+		{Op: "unset", Path: "summary"},
+		{Op: "unset", Path: "tags[1]"}, // Remove "tag2"
+	}
+
+	err := p.Apply(&node, ops)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.Summary != "" {
+		t.Errorf("expected summary to be empty, got %q", node.Summary)
+	}
+
+	if len(node.Tags) != 2 {
+		t.Fatalf("expected 2 tags after unset, got %d", len(node.Tags))
+	}
+
+	if node.Tags[0] != "tag1" || node.Tags[1] != "tag3" {
+		t.Errorf("expected tags [tag1, tag3], got %v", node.Tags)
+	}
+}
+
+// Test rollback on unset required field error
+func TestPatcher_ApplyRollbackOnUnsetRequired(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Original Title",
+	}
+
+	// Try to unset a required field - should fail and rollback
+	ops := []patcher.PatchOperation{
+		{Op: "set", Path: "title", Value: "New Title"},
+		{Op: "unset", Path: "id"}, // Required field - should fail
+	}
+
+	err := p.Apply(&node, ops)
+
+	if err == nil {
+		t.Fatal("expected error when unsetting required field, got nil")
+	}
+
+	// Title should be rolled back
+	if node.Title != "Original Title" {
+		t.Errorf("expected title rolled back to 'Original Title', got %q", node.Title)
+	}
+
+	// ID should still exist
+	if node.ID != "test" {
+		t.Errorf("expected ID to remain 'test', got %q", node.ID)
+	}
+}
+
+// Test apply with append multiple values (variadic)
+func TestPatcher_ApplyAppendMultipleValues(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Tags:    []string{"tag1"},
+	}
+
+	// Note: For multiple values in append, we'd need to support array values
+	// or handle it specially. This tests appending an array as a single operation.
+	ops := []patcher.PatchOperation{
+		{Op: "append", Path: "tags", Value: "tag2"},
+		{Op: "append", Path: "tags", Value: "tag3"},
+	}
+
+	err := p.Apply(&node, ops)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Tags) != 3 {
+		t.Fatalf("expected 3 tags, got %d", len(node.Tags))
+	}
+
+	expected := []string{"tag1", "tag2", "tag3"}
+	for i, tag := range expected {
+		if node.Tags[i] != tag {
+			t.Errorf("expected tag[%d] to be %q, got %q", i, tag, node.Tags[i])
+		}
+	}
+}

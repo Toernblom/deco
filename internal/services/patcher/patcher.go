@@ -1,6 +1,8 @@
 package patcher
 
 import (
+	"bytes"
+	"encoding/gob"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -8,6 +10,13 @@ import (
 
 	"github.com/Toernblom/deco/internal/domain"
 )
+
+// PatchOperation represents a single patch operation in a batch.
+type PatchOperation struct {
+	Op    string      `json:"op"`    // Operation type: "set", "append", "unset"
+	Path  string      `json:"path"`  // Field path (supports dot notation and array indices)
+	Value interface{} `json:"value"` // Value to set or append (not used for unset)
+}
 
 // Patcher handles patch operations on nodes.
 type Patcher struct {
@@ -100,6 +109,76 @@ func (p *Patcher) Unset(node *domain.Node, path string) error {
 	}
 
 	return p.unsetValue(reflect.ValueOf(node).Elem(), parts)
+}
+
+// Apply applies a batch of patch operations to a node.
+// Operations are applied in order. If any operation fails, all changes are rolled back.
+// This provides transactional semantics for batch operations.
+func (p *Patcher) Apply(node *domain.Node, operations []PatchOperation) error {
+	if node == nil {
+		return fmt.Errorf("node is nil")
+	}
+
+	// If no operations, nothing to do
+	if len(operations) == 0 {
+		return nil
+	}
+
+	// Create a snapshot for rollback
+	snapshot, err := p.snapshot(node)
+	if err != nil {
+		return fmt.Errorf("failed to create snapshot: %w", err)
+	}
+
+	// Apply each operation in order
+	for i, op := range operations {
+		var err error
+
+		switch op.Op {
+		case "set":
+			err = p.Set(node, op.Path, op.Value)
+		case "append":
+			// For append, we need to handle single value vs array of values
+			err = p.Append(node, op.Path, op.Value)
+		case "unset":
+			err = p.Unset(node, op.Path)
+		default:
+			err = fmt.Errorf("unknown operation type %q", op.Op)
+		}
+
+		if err != nil {
+			// Rollback on error
+			p.restore(node, snapshot)
+			return fmt.Errorf("operation %d (%s %s) failed: %w", i, op.Op, op.Path, err)
+		}
+	}
+
+	return nil
+}
+
+// snapshot creates a deep copy of a node for rollback purposes
+func (p *Patcher) snapshot(node *domain.Node) (*domain.Node, error) {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	dec := gob.NewDecoder(&buf)
+
+	// Encode the node
+	if err := enc.Encode(node); err != nil {
+		return nil, err
+	}
+
+	// Decode into a new node
+	var snapshot domain.Node
+	if err := dec.Decode(&snapshot); err != nil {
+		return nil, err
+	}
+
+	return &snapshot, nil
+}
+
+// restore restores a node from a snapshot
+func (p *Patcher) restore(node *domain.Node, snapshot *domain.Node) {
+	*node = *snapshot
 }
 
 // setValue sets a value at the given path parts
