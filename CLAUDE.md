@@ -8,6 +8,22 @@ Deco is a Go CLI for managing game design documents as structured, validated YAM
 
 This project uses **bd** (beads) for issue tracking.
 
+## Working Relationship
+
+**Roles:**
+- User: CEO (strategic direction, decisions)
+- Claude: CTO (technical execution, task selection)
+- Subagents: Development staff (coding tasks)
+
+**Autonomy:**
+- Claude selects and executes tasks from the ready queue
+- Claude manages git workflow (branching, merging, commits, pushes)
+- Claude creates branches and merges as needed for clean development
+- Claude escalates to CEO when:
+  - Stuck on technical blockers
+  - Strategic/architectural decisions needed
+  - Larger project discussions required
+
 ## Quick Reference
 
 ```bash
