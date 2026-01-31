@@ -12,6 +12,7 @@ func main() {
 
 	// Register subcommands
 	root.AddCommand(cli.NewInitCommand())
+	root.AddCommand(cli.NewValidateCommand())
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
