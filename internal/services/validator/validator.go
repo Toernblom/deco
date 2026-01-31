@@ -3,9 +3,9 @@ package validator
 import (
 	"fmt"
 
-	"github.com/google/cel-go/cel"
 	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/errors"
+	"github.com/google/cel-go/cel"
 )
 
 // SchemaValidator validates that nodes have all required fields and correct types.

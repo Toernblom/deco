@@ -104,7 +104,7 @@ func TestShowCommand_MissingNode(t *testing.T) {
 
 		errMsg := err.Error()
 		if !strings.Contains(errMsg, "not found") &&
-		   !strings.Contains(errMsg, "does not exist") {
+			!strings.Contains(errMsg, "does not exist") {
 			t.Errorf("Expected error about missing node, got %q", errMsg)
 		}
 	})
@@ -163,8 +163,8 @@ func TestShowCommand_NoProject(t *testing.T) {
 
 		errMsg := err.Error()
 		if !strings.Contains(errMsg, ".deco") &&
-		   !strings.Contains(errMsg, "not initialized") &&
-		   !strings.Contains(errMsg, "not found") {
+			!strings.Contains(errMsg, "not initialized") &&
+			!strings.Contains(errMsg, "not found") {
 			t.Errorf("Expected error about missing .deco directory, got %q", errMsg)
 		}
 	})

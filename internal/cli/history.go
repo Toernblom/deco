@@ -88,10 +88,10 @@ type historyRow struct {
 
 func printHistoryTable(entries []domain.AuditEntry) {
 	// Calculate column widths
-	maxTimeLen := 4  // "TIME"
-	maxNodeLen := 4  // "NODE"
-	maxOpLen := 9    // "OPERATION"
-	maxUserLen := 4  // "USER"
+	maxTimeLen := 4 // "TIME"
+	maxNodeLen := 4 // "NODE"
+	maxOpLen := 9   // "OPERATION"
+	maxUserLen := 4 // "USER"
 
 	var rows []historyRow
 	for _, entry := range entries {

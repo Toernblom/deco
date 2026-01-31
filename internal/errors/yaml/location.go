@@ -158,17 +158,18 @@ func (t *LocationTracker) findNode(path string) *yaml.Node {
 
 // pathSegment represents a segment of a path (either a key or an array index)
 type pathSegment struct {
-	key   string
-	index int
+	key     string
+	index   int
 	isIndex bool
 }
 
 // parsePath parses a dot-notation path into segments.
 // Examples:
-//   "id" -> [{key: "id"}]
-//   "metadata.author" -> [{key: "metadata"}, {key: "author"}]
-//   "tags[0]" -> [{key: "tags"}, {index: 0, isIndex: true}]
-//   "[0].id" -> [{index: 0, isIndex: true}, {key: "id"}]
+//
+//	"id" -> [{key: "id"}]
+//	"metadata.author" -> [{key: "metadata"}, {key: "author"}]
+//	"tags[0]" -> [{key: "tags"}, {index: 0, isIndex: true}]
+//	"[0].id" -> [{index: 0, isIndex: true}, {key: "id"}]
 func parsePath(path string) []pathSegment {
 	var segments []pathSegment
 	parts := strings.Split(path, ".")

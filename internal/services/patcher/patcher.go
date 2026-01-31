@@ -387,9 +387,10 @@ func (p *Patcher) unsetValue(v reflect.Value, parts []string) error {
 
 // parsePath splits a path into parts
 // Examples:
-//   "title" -> ["title"]
-//   "meta.title" -> ["meta", "title"]
-//   "tags[0]" -> ["tags[0]"]
+//
+//	"title" -> ["title"]
+//	"meta.title" -> ["meta", "title"]
+//	"tags[0]" -> ["tags[0]"]
 func parsePath(path string) []string {
 	return strings.Split(path, ".")
 }

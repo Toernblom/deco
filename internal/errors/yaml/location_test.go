@@ -62,9 +62,9 @@ metadata:
 	}{
 		{"id", 1, 1},
 		{"metadata", 2, 1},
-		{"metadata.kind", 3, 3},              // Indented by 2 spaces
-		{"metadata.details", 4, 3},           // Indented by 2 spaces
-		{"metadata.details.version", 5, 5},   // Indented by 4 spaces
+		{"metadata.kind", 3, 3},            // Indented by 2 spaces
+		{"metadata.details", 4, 3},         // Indented by 2 spaces
+		{"metadata.details.version", 5, 5}, // Indented by 4 spaces
 	}
 
 	for _, tt := range tests {

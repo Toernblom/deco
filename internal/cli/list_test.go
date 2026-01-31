@@ -202,8 +202,8 @@ func TestListCommand_NoProject(t *testing.T) {
 
 		errMsg := err.Error()
 		if !strings.Contains(errMsg, ".deco") &&
-		   !strings.Contains(errMsg, "not initialized") &&
-		   !strings.Contains(errMsg, "not found") {
+			!strings.Contains(errMsg, "not initialized") &&
+			!strings.Contains(errMsg, "not found") {
 			t.Errorf("Expected error about missing .deco directory, got %q", errMsg)
 		}
 	})
@@ -266,8 +266,8 @@ history_path: .deco/history.jsonl
 
 	// Create multiple nodes with different kinds, statuses, and tags
 	nodes := []struct {
-		id     string
-		yaml   string
+		id   string
+		yaml string
 	}{
 		{
 			"sword-001",

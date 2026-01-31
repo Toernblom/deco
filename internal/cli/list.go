@@ -99,10 +99,10 @@ func runList(flags *listFlags) error {
 
 func printNodesTable(nodes []domain.Node) {
 	// Calculate column widths
-	maxIDLen := 2 // "ID"
-	maxKindLen := 4 // "KIND"
+	maxIDLen := 2     // "ID"
+	maxKindLen := 4   // "KIND"
 	maxStatusLen := 6 // "STATUS"
-	maxTitleLen := 5 // "TITLE"
+	maxTitleLen := 5  // "TITLE"
 
 	for _, node := range nodes {
 		if len(node.ID) > maxIDLen {

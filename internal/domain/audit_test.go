@@ -89,14 +89,14 @@ func TestAuditEntry_OperationTypes(t *testing.T) {
 
 func TestAuditEntry_BeforeAfterCapture(t *testing.T) {
 	before := map[string]interface{}{
-		"status": "draft",
-		"title":  "Old Title",
+		"status":  "draft",
+		"title":   "Old Title",
 		"version": 1,
 	}
 
 	after := map[string]interface{}{
-		"status": "approved",
-		"title":  "New Title",
+		"status":  "approved",
+		"title":   "New Title",
 		"version": 2,
 	}
 

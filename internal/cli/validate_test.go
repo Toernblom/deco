@@ -108,8 +108,8 @@ func TestValidateCommand_ErrorOutput(t *testing.T) {
 		// Check error message contains expected information
 		errMsg := err.Error()
 		if !strings.Contains(errMsg, "validation") &&
-		   !strings.Contains(errMsg, "error") &&
-		   !strings.Contains(errMsg, "failed") {
+			!strings.Contains(errMsg, "error") &&
+			!strings.Contains(errMsg, "failed") {
 			t.Errorf("Expected error message to mention validation or errors, got %q", errMsg)
 		}
 	})
@@ -180,8 +180,8 @@ func TestValidateCommand_NoProject(t *testing.T) {
 
 		errMsg := err.Error()
 		if !strings.Contains(errMsg, ".deco") &&
-		   !strings.Contains(errMsg, "not initialized") &&
-		   !strings.Contains(errMsg, "not found") {
+			!strings.Contains(errMsg, "not initialized") &&
+			!strings.Contains(errMsg, "not found") {
 			t.Errorf("Expected error about missing .deco directory, got %q", errMsg)
 		}
 	})

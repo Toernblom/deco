@@ -10,10 +10,10 @@ import (
 // Collector aggregates multiple errors during validation.
 // It handles deduplication, sorting, and limiting the number of errors returned.
 type Collector struct {
-	errors      []domain.DecoError
-	maxErrors   int  // 0 means no limit
-	totalCount  int  // Total errors added (including duplicates and truncated)
-	seen        map[string]bool // For deduplication
+	errors     []domain.DecoError
+	maxErrors  int             // 0 means no limit
+	totalCount int             // Total errors added (including duplicates and truncated)
+	seen       map[string]bool // For deduplication
 }
 
 // NewCollector creates a new error collector with no limit.
