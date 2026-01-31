@@ -20,6 +20,7 @@ func main() {
 	root.AddCommand(cli.NewAppendCommand())
 	root.AddCommand(cli.NewUnsetCommand())
 	root.AddCommand(cli.NewApplyCommand())
+	root.AddCommand(cli.NewHistoryCommand())
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
