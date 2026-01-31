@@ -1,0 +1,26 @@
+# bv (beads viewer) local config and caches
+.bv/
+
+# Go build artifacts
+/deco
+/deco.exe
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test artifacts
+*.test
+*.out
+coverage.html
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Claude Code local settings
+.claude/settings.local.json
