@@ -15,6 +15,10 @@
 *.out
 coverage.html
 
+# Go dependencies and workspace
+vendor/
+go.work
+
 # IDE and editor files
 .idea/
 .vscode/
@@ -24,3 +28,7 @@ coverage.html
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# OS files
+.DS_Store
+Thumbs.db
