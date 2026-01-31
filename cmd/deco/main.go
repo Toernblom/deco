@@ -15,6 +15,7 @@ func main() {
 	root.AddCommand(cli.NewValidateCommand())
 	root.AddCommand(cli.NewListCommand())
 	root.AddCommand(cli.NewShowCommand())
+	root.AddCommand(cli.NewQueryCommand())
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
