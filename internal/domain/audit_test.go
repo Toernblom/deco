@@ -296,3 +296,30 @@ func TestAuditEntry_Validation(t *testing.T) {
 		})
 	}
 }
+
+func TestAuditEntry_ReviewOperations(t *testing.T) {
+	tests := []struct {
+		name      string
+		operation string
+		wantErr   bool
+	}{
+		{"submit is valid", "submit", false},
+		{"approve is valid", "approve", false},
+		{"reject is valid", "reject", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			entry := domain.AuditEntry{
+				Timestamp: time.Now(),
+				NodeID:    "test/node",
+				Operation: tt.operation,
+				User:      "alice",
+			}
+			err := entry.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
