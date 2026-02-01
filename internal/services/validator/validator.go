@@ -224,6 +224,11 @@ func (cv *ConstraintValidator) Validate(node *domain.Node, allNodes []domain.Nod
 
 	// Evaluate each constraint
 	for _, constraint := range node.Constraints {
+		// Skip constraints that don't match the node's scope
+		if !cv.matchesScope(constraint.Scope, node) {
+			continue
+		}
+
 		if err := cv.evaluateConstraint(node, constraint, location, collector); err != nil {
 			// If there's an error parsing or evaluating the CEL expression,
 			// add it as an E042 error (CEL expression error)
@@ -235,6 +240,33 @@ func (cv *ConstraintValidator) Validate(node *domain.Node, allNodes []domain.Nod
 			})
 		}
 	}
+}
+
+// matchesScope checks if a constraint's scope applies to the given node.
+// Scope patterns:
+//   - "all" matches any node
+//   - exact kind match (e.g., "mechanic") matches nodes with that Kind
+//   - path pattern with glob (e.g., "systems/*") matches node IDs using filepath.Match
+func (cv *ConstraintValidator) matchesScope(scope string, node *domain.Node) bool {
+	if scope == "" || scope == "all" {
+		return true
+	}
+
+	// Try exact kind match first
+	if scope == node.Kind {
+		return true
+	}
+
+	// Try glob pattern match against node ID
+	if strings.Contains(scope, "*") || strings.Contains(scope, "?") {
+		// Use filepath.Match for glob pattern matching
+		matched, err := filepath.Match(scope, node.ID)
+		if err == nil && matched {
+			return true
+		}
+	}
+
+	return false
 }
 
 // evaluateConstraint evaluates a single constraint using CEL

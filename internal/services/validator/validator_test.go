@@ -475,6 +475,153 @@ func TestConstraintValidator_NoConstraints(t *testing.T) {
 	}
 }
 
+func TestConstraintValidator_ScopeMatching(t *testing.T) {
+	tests := []struct {
+		name          string
+		nodeID        string
+		nodeKind      string
+		scope         string
+		shouldApply   bool
+		expectedErrs  int // 0 if scope doesn't match, 1 if it does and constraint fails
+	}{
+		{
+			name:         "all scope matches any node",
+			nodeID:       "test-node",
+			nodeKind:     "mechanic",
+			scope:        "all",
+			shouldApply:  true,
+			expectedErrs: 1,
+		},
+		{
+			name:         "empty scope treated as all",
+			nodeID:       "test-node",
+			nodeKind:     "system",
+			scope:        "",
+			shouldApply:  true,
+			expectedErrs: 1,
+		},
+		{
+			name:         "exact kind match",
+			nodeID:       "test-node",
+			nodeKind:     "mechanic",
+			scope:        "mechanic",
+			shouldApply:  true,
+			expectedErrs: 1,
+		},
+		{
+			name:         "kind mismatch skips constraint",
+			nodeID:       "test-node",
+			nodeKind:     "system",
+			scope:        "mechanic",
+			shouldApply:  false,
+			expectedErrs: 0,
+		},
+		{
+			name:         "glob pattern matches ID",
+			nodeID:       "systems/combat/damage",
+			nodeKind:     "system",
+			scope:        "systems/combat/*",
+			shouldApply:  true,
+			expectedErrs: 1,
+		},
+		{
+			name:         "glob pattern no match",
+			nodeID:       "systems/ui/menu",
+			nodeKind:     "system",
+			scope:        "systems/combat/*",
+			shouldApply:  false,
+			expectedErrs: 0,
+		},
+		{
+			name:         "question mark glob",
+			nodeID:       "item-a",
+			nodeKind:     "item",
+			scope:        "item-?",
+			shouldApply:  true,
+			expectedErrs: 1,
+		},
+		{
+			name:         "pattern with multiple slashes",
+			nodeID:       "systems/combat/damage",
+			nodeKind:     "system",
+			scope:        "systems/*/*",
+			shouldApply:  true, // filepath.Match supports single * per path segment
+			expectedErrs: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cv := validator.NewConstraintValidator()
+
+			// Create a constraint that will always fail (version < 0 is always false for positive version)
+			constraint := domain.Constraint{
+				Expr:    "version < 0", // Always fails for valid nodes
+				Message: "This constraint always fails",
+				Scope:   tt.scope,
+			}
+
+			node := domain.Node{
+				ID:          tt.nodeID,
+				Kind:        tt.nodeKind,
+				Version:     1,
+				Status:      "draft",
+				Title:       "Test Node",
+				Constraints: []domain.Constraint{constraint},
+			}
+
+			collector := errors.NewCollectorWithLimit(100)
+			cv.Validate(&node, []domain.Node{node}, collector)
+
+			if collector.Count() != tt.expectedErrs {
+				t.Errorf("expected %d errors, got %d (shouldApply=%v)", tt.expectedErrs, collector.Count(), tt.shouldApply)
+			}
+		})
+	}
+}
+
+func TestConstraintValidator_ScopeWithMultipleConstraints(t *testing.T) {
+	cv := validator.NewConstraintValidator()
+
+	// Create constraints with different scopes and different expressions
+	// (to avoid deduplication based on code+summary)
+	constraints := []domain.Constraint{
+		{
+			Expr:    "version < 0", // Always fails
+			Message: "Mechanic constraint failed",
+			Scope:   "mechanic",
+		},
+		{
+			Expr:    "version < -1", // Always fails - different expression
+			Message: "System constraint failed",
+			Scope:   "system",
+		},
+		{
+			Expr:    "version < -2", // Always fails - different expression
+			Message: "All constraint failed",
+			Scope:   "all",
+		},
+	}
+
+	// System node should only fail on "system" and "all" scoped constraints
+	node := domain.Node{
+		ID:          "test-system",
+		Kind:        "system",
+		Version:     1,
+		Status:      "draft",
+		Title:       "Test System",
+		Constraints: constraints,
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, []domain.Node{node}, collector)
+
+	// Should have 2 errors: one from "system" scope, one from "all" scope
+	if collector.Count() != 2 {
+		t.Errorf("expected 2 errors (system + all scopes), got %d", collector.Count())
+	}
+}
+
 // ===== VALIDATOR ORCHESTRATOR TESTS =====
 
 // Test orchestrator runs all validators
