@@ -1612,3 +1612,52 @@ func TestOrchestrator_ValidatesContentRequirements(t *testing.T) {
 		t.Error("expected orchestrator to catch content requirement error (E046)")
 	}
 }
+
+// Test orchestrator validates block requirements
+func TestOrchestrator_ValidatesBlockRequirements(t *testing.T) {
+	orch := validator.NewOrchestrator()
+
+	nodes := []domain.Node{
+		{
+			ID:      "node1",
+			Kind:    "system",
+			Version: 1,
+			Status:  "draft",
+			Title:   "Node 1",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Rules",
+						Blocks: []domain.Block{
+							{
+								Type: "rule",
+								Data: map[string]interface{}{
+									"id": "test_rule",
+									// missing "text" - should fail
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	collector := orch.ValidateAll(nodes)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for rule block missing text")
+	}
+
+	errs := collector.Errors()
+	found := false
+	for _, err := range errs {
+		if err.Code == "E047" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected orchestrator to catch block requirement error (E047)")
+	}
+}
