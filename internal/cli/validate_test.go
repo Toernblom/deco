@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -499,4 +500,58 @@ contracts:
 	if err := os.WriteFile(nodePath, []byte(nodeYAML), 0644); err != nil {
 		t.Fatalf("Failed to create node with contract reference errors: %v", err)
 	}
+}
+
+func TestValidateCommand_ApprovalValidation(t *testing.T) {
+	t.Run("validates approval requirements from config", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectWithApprovalConfig(t, tmpDir, 2)
+		createApprovedNodeWithOneApproval(t, tmpDir)
+
+		cmd := NewValidateCommand()
+		cmd.SetArgs([]string{tmpDir})
+
+		err := cmd.Execute()
+		// Should have validation errors (E050 for insufficient approvals)
+		if err == nil {
+			t.Error("Expected validation error E050 for insufficient approvals")
+		}
+	})
+}
+
+func setupProjectWithApprovalConfig(t *testing.T, tmpDir string, requiredApprovals int) {
+	t.Helper()
+	decoDir := filepath.Join(tmpDir, ".deco")
+	nodesDir := filepath.Join(decoDir, "nodes")
+	os.MkdirAll(nodesDir, 0755)
+
+	configContent := fmt.Sprintf(`project_name: TestProject
+nodes_path: .deco/nodes
+history_path: .deco/history.jsonl
+version: 1
+required_approvals: %d
+`, requiredApprovals)
+	os.WriteFile(filepath.Join(decoDir, "config.yaml"), []byte(configContent), 0644)
+}
+
+func createApprovedNodeWithOneApproval(t *testing.T, tmpDir string) {
+	t.Helper()
+	nodeContent := `id: test/node
+kind: mechanic
+version: 1
+status: approved
+title: Test Node
+content:
+  sections:
+    - name: Overview
+      blocks:
+        - type: rule
+          text: A test rule
+reviewers:
+  - name: alice@example.com
+    timestamp: 2026-01-01T00:00:00Z
+    version: 1
+`
+	nodesDir := filepath.Join(tmpDir, ".deco", "nodes")
+	os.WriteFile(filepath.Join(nodesDir, "test-node.yaml"), []byte(nodeContent), 0644)
 }

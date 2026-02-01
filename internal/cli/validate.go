@@ -49,9 +49,9 @@ Exit codes:
 }
 
 func runValidate(flags *validateFlags) error {
-	// Load config to verify project exists
+	// Load config
 	configRepo := config.NewYAMLRepository(flags.targetDir)
-	_, err := configRepo.Load()
+	cfg, err := configRepo.Load()
 	if err != nil {
 		return fmt.Errorf(".deco directory not found or invalid: %w", err)
 	}
@@ -63,8 +63,8 @@ func runValidate(flags *validateFlags) error {
 		return fmt.Errorf("failed to load nodes: %w", err)
 	}
 
-	// Run validation (including unknown field detection)
-	orchestrator := validator.NewOrchestrator()
+	// Run validation with config-based settings (including unknown field detection)
+	orchestrator := validator.NewOrchestratorWithConfig(cfg.RequiredApprovals)
 	collector := orchestrator.ValidateAllWithDir(nodes, flags.targetDir)
 
 	// Check if there are errors
