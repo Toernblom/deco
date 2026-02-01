@@ -21,12 +21,13 @@ func NewValidateCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "validate [directory]",
 		Short: "Validate all nodes in the project",
-		Long: `Validate all nodes in the project against schema, references, and constraints.
+		Long: `Validate all nodes in the project against schema, references, constraints, and contracts.
 
 Checks:
   - Schema: All required fields are present
   - References: All referenced nodes exist
   - Constraints: All CEL expressions evaluate to true
+  - Contracts: Valid given/when/then structure, unique names, valid @node refs
 
 Exit codes:
   0: All nodes are valid

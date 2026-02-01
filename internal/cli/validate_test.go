@@ -88,6 +88,30 @@ func TestValidateCommand_InvalidNodes(t *testing.T) {
 			t.Error("Expected error for constraint violations, got nil")
 		}
 	})
+
+	t.Run("exits with code 1 for contract syntax errors", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectWithContractSyntaxErrors(t, tmpDir)
+
+		cmd := NewValidateCommand()
+		cmd.SetArgs([]string{tmpDir})
+		err := cmd.Execute()
+		if err == nil {
+			t.Error("Expected error for contract syntax errors, got nil")
+		}
+	})
+
+	t.Run("exits with code 1 for contract reference errors", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectWithContractReferenceErrors(t, tmpDir)
+
+		cmd := NewValidateCommand()
+		cmd.SetArgs([]string{tmpDir})
+		err := cmd.Execute()
+		if err == nil {
+			t.Error("Expected error for contract reference errors, got nil")
+		}
+	})
 }
 
 func TestValidateCommand_ErrorOutput(t *testing.T) {
@@ -388,5 +412,91 @@ constraints:
 	nodePath := filepath.Join(nodesDir, "test-item-001.yaml")
 	if err := os.WriteFile(nodePath, []byte(nodeYAML), 0644); err != nil {
 		t.Fatalf("Failed to create node with constraint: %v", err)
+	}
+}
+
+func setupProjectWithContractSyntaxErrors(t *testing.T, dir string) {
+	t.Helper()
+
+	// Create .deco structure
+	decoDir := filepath.Join(dir, ".deco")
+	nodesDir := filepath.Join(decoDir, "nodes")
+	if err := os.MkdirAll(nodesDir, 0755); err != nil {
+		t.Fatalf("Failed to create nodes directory: %v", err)
+	}
+
+	// Create config.yaml
+	configYAML := `version: 1
+project_name: contract-syntax-error-project
+nodes_path: .deco/nodes
+history_path: .deco/history.jsonl
+`
+	configPath := filepath.Join(decoDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("Failed to create config.yaml: %v", err)
+	}
+
+	// Create node with contract syntax errors (missing name, empty step)
+	nodeYAML := `id: test-feature-001
+kind: feature
+version: 1
+status: draft
+title: Test Feature
+contracts:
+  - name: ""
+    scenario: "Contract with missing name"
+    given:
+      - "some precondition"
+    when:
+      - ""
+    then:
+      - "expected result"
+`
+	nodePath := filepath.Join(nodesDir, "test-feature-001.yaml")
+	if err := os.WriteFile(nodePath, []byte(nodeYAML), 0644); err != nil {
+		t.Fatalf("Failed to create node with contract syntax errors: %v", err)
+	}
+}
+
+func setupProjectWithContractReferenceErrors(t *testing.T, dir string) {
+	t.Helper()
+
+	// Create .deco structure
+	decoDir := filepath.Join(dir, ".deco")
+	nodesDir := filepath.Join(decoDir, "nodes")
+	if err := os.MkdirAll(nodesDir, 0755); err != nil {
+		t.Fatalf("Failed to create nodes directory: %v", err)
+	}
+
+	// Create config.yaml
+	configYAML := `version: 1
+project_name: contract-ref-error-project
+nodes_path: .deco/nodes
+history_path: .deco/history.jsonl
+`
+	configPath := filepath.Join(decoDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("Failed to create config.yaml: %v", err)
+	}
+
+	// Create node with contract referencing non-existent node
+	nodeYAML := `id: test-feature-001
+kind: feature
+version: 1
+status: draft
+title: Test Feature
+contracts:
+  - name: "Test Flow"
+    scenario: "Contract with invalid node reference"
+    given:
+      - "@systems/nonexistent is active"
+    when:
+      - "player does something"
+    then:
+      - "expected result"
+`
+	nodePath := filepath.Join(nodesDir, "test-feature-001.yaml")
+	if err := os.WriteFile(nodePath, []byte(nodeYAML), 0644); err != nil {
+		t.Fatalf("Failed to create node with contract reference errors: %v", err)
 	}
 }
