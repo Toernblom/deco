@@ -17,6 +17,10 @@ type Config struct {
 	// Version is the config file format version.
 	Version int `yaml:"version" json:"version"`
 
+	// RequiredApprovals is the number of approvals needed for a node to be approved.
+	// Defaults to 1.
+	RequiredApprovals int `yaml:"required_approvals" json:"required_approvals"`
+
 	// Custom allows projects to add arbitrary configuration fields.
 	Custom map[string]interface{} `yaml:"custom,omitempty" json:"custom,omitempty"`
 }

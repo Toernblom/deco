@@ -251,3 +251,50 @@ func TestYAMLRepository_EmptyCustom(t *testing.T) {
 		t.Error("Expected empty Custom map")
 	}
 }
+
+func TestConfig_RequiredApprovals(t *testing.T) {
+	t.Run("loads required_approvals from config", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		decoDir := filepath.Join(tmpDir, ".deco")
+		os.MkdirAll(decoDir, 0755)
+
+		configContent := `project_name: TestProject
+nodes_path: .deco/nodes
+history_path: .deco/history.jsonl
+version: 1
+required_approvals: 2
+`
+		os.WriteFile(filepath.Join(decoDir, "config.yaml"), []byte(configContent), 0644)
+
+		repo := config.NewYAMLRepository(tmpDir)
+		cfg, err := repo.Load()
+		if err != nil {
+			t.Fatalf("Failed to load config: %v", err)
+		}
+		if cfg.RequiredApprovals != 2 {
+			t.Errorf("Expected RequiredApprovals=2, got %d", cfg.RequiredApprovals)
+		}
+	})
+
+	t.Run("defaults to 1 if not specified", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		decoDir := filepath.Join(tmpDir, ".deco")
+		os.MkdirAll(decoDir, 0755)
+
+		configContent := `project_name: TestProject
+nodes_path: .deco/nodes
+history_path: .deco/history.jsonl
+version: 1
+`
+		os.WriteFile(filepath.Join(decoDir, "config.yaml"), []byte(configContent), 0644)
+
+		repo := config.NewYAMLRepository(tmpDir)
+		cfg, err := repo.Load()
+		if err != nil {
+			t.Fatalf("Failed to load config: %v", err)
+		}
+		if cfg.RequiredApprovals != 1 {
+			t.Errorf("Expected RequiredApprovals=1 (default), got %d", cfg.RequiredApprovals)
+		}
+	})
+}

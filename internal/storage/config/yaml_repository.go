@@ -43,6 +43,11 @@ func (r *YAMLRepository) Load() (Config, error) {
 		return Config{}, fmt.Errorf("failed to parse config YAML: %w", err)
 	}
 
+	// Default required_approvals to 1 if not set
+	if cfg.RequiredApprovals == 0 {
+		cfg.RequiredApprovals = 1
+	}
+
 	return cfg, nil
 }
 
