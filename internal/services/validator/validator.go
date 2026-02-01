@@ -31,44 +31,57 @@ func (sv *SchemaValidator) Validate(node *domain.Node, collector *errors.Collect
 		return
 	}
 
+	// Helper to create location from node source file
+	nodeLocation := func() *domain.Location {
+		if node.SourceFile == "" {
+			return nil
+		}
+		return &domain.Location{File: node.SourceFile}
+	}
+
 	// Check required fields
 	if node.ID == "" {
 		collector.Add(domain.DecoError{
-			Code:    "E008",
-			Summary: "Missing required field: ID",
-			Detail:  "Node ID is required",
+			Code:     "E008",
+			Summary:  "Missing required field: ID",
+			Detail:   "Node ID is required",
+			Location: nodeLocation(),
 		})
 	}
 
 	if node.Kind == "" {
 		collector.Add(domain.DecoError{
-			Code:    "E008",
-			Summary: "Missing required field: Kind",
-			Detail:  "Node Kind is required",
+			Code:     "E008",
+			Summary:  "Missing required field: Kind",
+			Detail:   "Node Kind is required",
+			Location: nodeLocation(),
 		})
 	}
 
 	if node.Version == 0 {
 		collector.Add(domain.DecoError{
-			Code:    "E008",
-			Summary: "Missing required field: Version",
-			Detail:  "Node Version is required and must be > 0",
+			Code:     "E008",
+			Summary:  "Missing required field: Version",
+			Detail:   "Node Version is required and must be > 0",
+			Location: nodeLocation(),
 		})
 	}
 
 	if node.Status == "" {
 		collector.Add(domain.DecoError{
-			Code:    "E008",
-			Summary: "Missing required field: Status",
-			Detail:  "Node Status is required",
+			Code:     "E008",
+			Summary:  "Missing required field: Status",
+			Detail:   "Node Status is required",
+			Location: nodeLocation(),
 		})
 	}
 
 	if node.Title == "" {
 		collector.Add(domain.DecoError{
-			Code:    "E008",
-			Summary: "Missing required field: Title",
-			Detail:  "Node Title is required",
+			Code:     "E008",
+			Summary:  "Missing required field: Title",
+			Detail:   "Node Title is required",
+			Location: nodeLocation(),
 		})
 	}
 }
@@ -93,6 +106,12 @@ func (cv *ContentValidator) Validate(node *domain.Node, collector *errors.Collec
 		return
 	}
 
+	// Helper to create location from node source file
+	var location *domain.Location
+	if node.SourceFile != "" {
+		location = &domain.Location{File: node.SourceFile}
+	}
+
 	// Check if content exists and has at least one section
 	if node.Content == nil || len(node.Content.Sections) == 0 {
 		collector.Add(domain.DecoError{
@@ -100,6 +119,7 @@ func (cv *ContentValidator) Validate(node *domain.Node, collector *errors.Collec
 			Summary:    fmt.Sprintf("Node %q with status %q requires content", node.ID, node.Status),
 			Detail:     "Approved and published nodes must have content with at least one section. Draft nodes may omit content.",
 			Suggestion: "Add a content section with at least one block, or change status to 'draft' while content is being developed.",
+			Location:   location,
 		})
 	}
 }
@@ -133,13 +153,20 @@ func (rv *ReferenceValidator) Validate(nodes []domain.Node, collector *errors.Co
 
 	// Check each node's references
 	for _, node := range nodes {
+		// Helper to create location from node source file
+		var location *domain.Location
+		if node.SourceFile != "" {
+			location = &domain.Location{File: node.SourceFile}
+		}
+
 		// Check Uses references
 		for _, refLink := range node.Refs.Uses {
 			if !nodeIDs[refLink.Target] {
 				err := domain.DecoError{
-					Code:    "E020",
-					Summary: "Reference not found: " + refLink.Target,
-					Detail:  "Referenced node '" + refLink.Target + "' does not exist",
+					Code:     "E020",
+					Summary:  "Reference not found: " + refLink.Target,
+					Detail:   "Referenced node '" + refLink.Target + "' does not exist",
+					Location: location,
 				}
 
 				// Generate suggestion for similar IDs
@@ -156,9 +183,10 @@ func (rv *ReferenceValidator) Validate(nodes []domain.Node, collector *errors.Co
 		for _, refLink := range node.Refs.Related {
 			if !nodeIDs[refLink.Target] {
 				err := domain.DecoError{
-					Code:    "E020",
-					Summary: "Reference not found: " + refLink.Target,
-					Detail:  "Referenced node '" + refLink.Target + "' does not exist",
+					Code:     "E020",
+					Summary:  "Reference not found: " + refLink.Target,
+					Detail:   "Referenced node '" + refLink.Target + "' does not exist",
+					Location: location,
 				}
 
 				// Generate suggestion for similar IDs
@@ -188,22 +216,29 @@ func (cv *ConstraintValidator) Validate(node *domain.Node, allNodes []domain.Nod
 		return
 	}
 
+	// Helper to create location from node source file
+	var location *domain.Location
+	if node.SourceFile != "" {
+		location = &domain.Location{File: node.SourceFile}
+	}
+
 	// Evaluate each constraint
 	for _, constraint := range node.Constraints {
-		if err := cv.evaluateConstraint(node, constraint, collector); err != nil {
+		if err := cv.evaluateConstraint(node, constraint, location, collector); err != nil {
 			// If there's an error parsing or evaluating the CEL expression,
 			// add it as an E042 error (CEL expression error)
 			collector.Add(domain.DecoError{
-				Code:    "E042",
-				Summary: "CEL expression error: " + constraint.Expr,
-				Detail:  err.Error(),
+				Code:     "E042",
+				Summary:  "CEL expression error: " + constraint.Expr,
+				Detail:   err.Error(),
+				Location: location,
 			})
 		}
 	}
 }
 
 // evaluateConstraint evaluates a single constraint using CEL
-func (cv *ConstraintValidator) evaluateConstraint(node *domain.Node, constraint domain.Constraint, collector *errors.Collector) error {
+func (cv *ConstraintValidator) evaluateConstraint(node *domain.Node, constraint domain.Constraint, location *domain.Location, collector *errors.Collector) error {
 	// Create CEL environment
 	env, err := cel.NewEnv(
 		cel.Variable("id", cel.StringType),
@@ -250,9 +285,10 @@ func (cv *ConstraintValidator) evaluateConstraint(node *domain.Node, constraint 
 		if !boolResult {
 			// Constraint violated
 			collector.Add(domain.DecoError{
-				Code:    "E041",
-				Summary: "Constraint violation: " + constraint.Expr,
-				Detail:  constraint.Message,
+				Code:     "E041",
+				Summary:  "Constraint violation: " + constraint.Expr,
+				Detail:   constraint.Message,
+				Location: location,
 			})
 		}
 	} else {
@@ -293,21 +329,37 @@ func NewDuplicateIDValidator() *DuplicateIDValidator {
 // Validate checks for duplicate node IDs across all nodes.
 func (dv *DuplicateIDValidator) Validate(nodes []domain.Node, collector *errors.Collector) {
 	// Track which IDs we've seen and where
-	seen := make(map[string]int) // ID -> index of first occurrence
+	type nodeInfo struct {
+		index      int
+		sourceFile string
+	}
+	seen := make(map[string]nodeInfo) // ID -> first occurrence info
 
 	for i, node := range nodes {
 		if node.ID == "" {
 			continue // Empty IDs are handled by schema validator
 		}
 
-		if firstIdx, exists := seen[node.ID]; exists {
+		if first, exists := seen[node.ID]; exists {
+			// Create location for the duplicate
+			var location *domain.Location
+			if node.SourceFile != "" {
+				location = &domain.Location{File: node.SourceFile}
+			}
+
+			detail := fmt.Sprintf("Node ID %q appears multiple times. Node IDs must be unique.", node.ID)
+			if first.sourceFile != "" && node.SourceFile != "" {
+				detail = fmt.Sprintf("Node ID %q appears in multiple files: %s and %s", node.ID, first.sourceFile, node.SourceFile)
+			}
+
 			collector.Add(domain.DecoError{
-				Code:    "E009",
-				Summary: fmt.Sprintf("Duplicate node ID: %s", node.ID),
-				Detail:  fmt.Sprintf("Node ID %q appears multiple times (first at index %d, duplicate at index %d). Node IDs must be unique.", node.ID, firstIdx, i),
+				Code:     "E009",
+				Summary:  fmt.Sprintf("Duplicate node ID: %s", node.ID),
+				Detail:   detail,
+				Location: location,
 			})
 		} else {
-			seen[node.ID] = i
+			seen[node.ID] = nodeInfo{index: i, sourceFile: node.SourceFile}
 		}
 	}
 }
@@ -326,20 +378,27 @@ func NewUnknownFieldValidator() *UnknownFieldValidator {
 }
 
 // ValidateYAML checks a raw YAML map for unknown top-level keys.
-// The nodeID is used for error reporting.
-func (uf *UnknownFieldValidator) ValidateYAML(nodeID string, rawKeys []string, collector *errors.Collector) {
+// The nodeID and filePath are used for error reporting.
+func (uf *UnknownFieldValidator) ValidateYAML(nodeID string, filePath string, rawKeys []string, collector *errors.Collector) {
 	// Collect known keys for suggestions
 	var knownKeys []string
 	for k := range knownTopLevelKeys {
 		knownKeys = append(knownKeys, k)
 	}
 
+	// Create location from file path
+	var location *domain.Location
+	if filePath != "" {
+		location = &domain.Location{File: filePath}
+	}
+
 	for _, key := range rawKeys {
 		if !knownTopLevelKeys[key] {
 			err := domain.DecoError{
-				Code:    "E010",
-				Summary: fmt.Sprintf("Unknown field %q in node %s", key, nodeID),
-				Detail:  fmt.Sprintf("Field %q is not a recognized top-level field. Use 'custom:' for extension data.", key),
+				Code:     "E010",
+				Summary:  fmt.Sprintf("Unknown field %q in node %s", key, nodeID),
+				Detail:   fmt.Sprintf("Field %q is not a recognized top-level field. Use 'custom:' for extension data.", key),
+				Location: location,
 			}
 
 			// Generate suggestion for similar field names
@@ -406,8 +465,8 @@ func (uf *UnknownFieldValidator) ValidateDirectory(rootDir string, collector *er
 			keys = append(keys, k)
 		}
 
-		// Validate keys
-		uf.ValidateYAML(nodeID, keys, collector)
+		// Validate keys (pass the file path for location reporting)
+		uf.ValidateYAML(nodeID, path, keys, collector)
 
 		return nil
 	})

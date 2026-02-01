@@ -35,21 +35,28 @@ func (bv *BlockValidator) Validate(node *domain.Node, collector *errors.Collecto
 		return
 	}
 
+	// Create location from node source file
+	var location *domain.Location
+	if node.SourceFile != "" {
+		location = &domain.Location{File: node.SourceFile}
+	}
+
 	for _, section := range node.Content.Sections {
 		for blockIdx, block := range section.Blocks {
-			bv.validateBlock(&block, node.ID, section.Name, blockIdx, collector)
+			bv.validateBlock(&block, node.ID, section.Name, blockIdx, location, collector)
 		}
 	}
 }
 
 // validateBlock dispatches to type-specific validation.
-func (bv *BlockValidator) validateBlock(block *domain.Block, nodeID, sectionName string, blockIdx int, collector *errors.Collector) {
+func (bv *BlockValidator) validateBlock(block *domain.Block, nodeID, sectionName string, blockIdx int, location *domain.Location, collector *errors.Collector) {
 	// Check for empty or unknown block type
 	if block.Type == "" {
 		collector.Add(domain.DecoError{
-			Code:    "E048",
-			Summary: "Block has no type",
-			Detail:  bv.formatLocation(nodeID, sectionName, blockIdx),
+			Code:     "E048",
+			Summary:  "Block has no type",
+			Detail:   bv.formatLocation(nodeID, sectionName, blockIdx),
+			Location: location,
 		})
 		return
 	}
@@ -62,9 +69,10 @@ func (bv *BlockValidator) validateBlock(block *domain.Block, nodeID, sectionName
 		}
 
 		err := domain.DecoError{
-			Code:    "E048",
-			Summary: fmt.Sprintf("Unknown block type: %s", block.Type),
-			Detail:  bv.formatLocation(nodeID, sectionName, blockIdx),
+			Code:     "E048",
+			Summary:  fmt.Sprintf("Unknown block type: %s", block.Type),
+			Detail:   bv.formatLocation(nodeID, sectionName, blockIdx),
+			Location: location,
 		}
 
 		suggs := bv.suggester.Suggest(block.Type, knownTypes)
@@ -79,39 +87,39 @@ func (bv *BlockValidator) validateBlock(block *domain.Block, nodeID, sectionName
 	// Dispatch to type-specific validators
 	switch block.Type {
 	case "rule":
-		bv.validateRule(block, nodeID, sectionName, blockIdx, collector)
+		bv.validateRule(block, nodeID, sectionName, blockIdx, location, collector)
 	case "table":
-		bv.validateTable(block, nodeID, sectionName, blockIdx, collector)
+		bv.validateTable(block, nodeID, sectionName, blockIdx, location, collector)
 	case "param":
-		bv.validateParam(block, nodeID, sectionName, blockIdx, collector)
+		bv.validateParam(block, nodeID, sectionName, blockIdx, location, collector)
 	case "mechanic":
-		bv.validateMechanic(block, nodeID, sectionName, blockIdx, collector)
+		bv.validateMechanic(block, nodeID, sectionName, blockIdx, location, collector)
 	case "list":
-		bv.validateList(block, nodeID, sectionName, blockIdx, collector)
+		bv.validateList(block, nodeID, sectionName, blockIdx, location, collector)
 	}
 }
 
 // validateRule checks that rule blocks have required fields.
 // Required: text
-func (bv *BlockValidator) validateRule(block *domain.Block, nodeID, sectionName string, blockIdx int, collector *errors.Collector) {
-	bv.requireField(block, "text", nodeID, sectionName, blockIdx, collector)
+func (bv *BlockValidator) validateRule(block *domain.Block, nodeID, sectionName string, blockIdx int, location *domain.Location, collector *errors.Collector) {
+	bv.requireField(block, "text", nodeID, sectionName, blockIdx, location, collector)
 }
 
 // validateTable checks that table blocks have required fields.
 // Required: columns, rows
-func (bv *BlockValidator) validateTable(block *domain.Block, nodeID, sectionName string, blockIdx int, collector *errors.Collector) {
-	bv.requireField(block, "columns", nodeID, sectionName, blockIdx, collector)
-	bv.requireField(block, "rows", nodeID, sectionName, blockIdx, collector)
+func (bv *BlockValidator) validateTable(block *domain.Block, nodeID, sectionName string, blockIdx int, location *domain.Location, collector *errors.Collector) {
+	bv.requireField(block, "columns", nodeID, sectionName, blockIdx, location, collector)
+	bv.requireField(block, "rows", nodeID, sectionName, blockIdx, location, collector)
 
 	// Validate column structure if columns exist
 	if columns, ok := block.Data["columns"]; ok {
-		bv.validateTableColumns(columns, nodeID, sectionName, blockIdx, collector)
+		bv.validateTableColumns(columns, nodeID, sectionName, blockIdx, location, collector)
 	}
 }
 
 // validateTableColumns checks that each column has required fields.
 // Required for each column: key
-func (bv *BlockValidator) validateTableColumns(columns interface{}, nodeID, sectionName string, blockIdx int, collector *errors.Collector) {
+func (bv *BlockValidator) validateTableColumns(columns interface{}, nodeID, sectionName string, blockIdx int, location *domain.Location, collector *errors.Collector) {
 	columnList, ok := columns.([]interface{})
 	if !ok {
 		return
@@ -125,9 +133,10 @@ func (bv *BlockValidator) validateTableColumns(columns interface{}, nodeID, sect
 
 		if _, hasKey := colMap["key"]; !hasKey {
 			collector.Add(domain.DecoError{
-				Code:    "E050",
-				Summary: fmt.Sprintf("Table column %d missing required field: key", colIdx),
-				Detail:  bv.formatLocation(nodeID, sectionName, blockIdx),
+				Code:     "E050",
+				Summary:  fmt.Sprintf("Table column %d missing required field: key", colIdx),
+				Detail:   bv.formatLocation(nodeID, sectionName, blockIdx),
+				Location: location,
 			})
 		}
 	}
@@ -135,31 +144,32 @@ func (bv *BlockValidator) validateTableColumns(columns interface{}, nodeID, sect
 
 // validateParam checks that param blocks have required fields.
 // Required: name, datatype
-func (bv *BlockValidator) validateParam(block *domain.Block, nodeID, sectionName string, blockIdx int, collector *errors.Collector) {
-	bv.requireField(block, "name", nodeID, sectionName, blockIdx, collector)
-	bv.requireField(block, "datatype", nodeID, sectionName, blockIdx, collector)
+func (bv *BlockValidator) validateParam(block *domain.Block, nodeID, sectionName string, blockIdx int, location *domain.Location, collector *errors.Collector) {
+	bv.requireField(block, "name", nodeID, sectionName, blockIdx, location, collector)
+	bv.requireField(block, "datatype", nodeID, sectionName, blockIdx, location, collector)
 }
 
 // validateMechanic checks that mechanic blocks have required fields.
 // Required: name, description
-func (bv *BlockValidator) validateMechanic(block *domain.Block, nodeID, sectionName string, blockIdx int, collector *errors.Collector) {
-	bv.requireField(block, "name", nodeID, sectionName, blockIdx, collector)
-	bv.requireField(block, "description", nodeID, sectionName, blockIdx, collector)
+func (bv *BlockValidator) validateMechanic(block *domain.Block, nodeID, sectionName string, blockIdx int, location *domain.Location, collector *errors.Collector) {
+	bv.requireField(block, "name", nodeID, sectionName, blockIdx, location, collector)
+	bv.requireField(block, "description", nodeID, sectionName, blockIdx, location, collector)
 }
 
 // validateList checks that list blocks have required fields.
 // Required: items
-func (bv *BlockValidator) validateList(block *domain.Block, nodeID, sectionName string, blockIdx int, collector *errors.Collector) {
-	bv.requireField(block, "items", nodeID, sectionName, blockIdx, collector)
+func (bv *BlockValidator) validateList(block *domain.Block, nodeID, sectionName string, blockIdx int, location *domain.Location, collector *errors.Collector) {
+	bv.requireField(block, "items", nodeID, sectionName, blockIdx, location, collector)
 }
 
 // requireField checks that a field exists in block.Data and adds an error if missing.
-func (bv *BlockValidator) requireField(block *domain.Block, field, nodeID, sectionName string, blockIdx int, collector *errors.Collector) {
+func (bv *BlockValidator) requireField(block *domain.Block, field, nodeID, sectionName string, blockIdx int, location *domain.Location, collector *errors.Collector) {
 	if _, ok := block.Data[field]; !ok {
 		collector.Add(domain.DecoError{
-			Code:    "E047",
-			Summary: fmt.Sprintf("Block type %q missing required field: %s", block.Type, field),
-			Detail:  bv.formatLocation(nodeID, sectionName, blockIdx),
+			Code:     "E047",
+			Summary:  fmt.Sprintf("Block type %q missing required field: %s", block.Type, field),
+			Detail:   bv.formatLocation(nodeID, sectionName, blockIdx),
+			Location: location,
 		})
 	}
 }

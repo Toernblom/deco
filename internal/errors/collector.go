@@ -131,19 +131,22 @@ func (c *Collector) Reset() {
 	c.seen = make(map[string]bool)
 }
 
-// deduplicationKey generates a unique key for an error based on code and location.
-// Errors with the same code and location are considered duplicates.
+// deduplicationKey generates a unique key for an error based on code, summary, and location.
+// Errors with the same code, summary, and specific location (file:line:column) are considered duplicates.
 func (c *Collector) deduplicationKey(err domain.DecoError) string {
 	if err.Location == nil {
 		// No location - use code + summary as key
 		return fmt.Sprintf("%s:%s", err.Code, err.Summary)
 	}
 
-	// Use code + file + line + column as key
-	// Different columns on the same line are different errors
 	loc := err.Location
-	if loc.Column > 0 {
+	// When we have specific line/column info, use that for deduplication
+	if loc.Line > 0 && loc.Column > 0 {
 		return fmt.Sprintf("%s:%s:%d:%d", err.Code, loc.File, loc.Line, loc.Column)
 	}
-	return fmt.Sprintf("%s:%s:%d", err.Code, loc.File, loc.Line)
+	if loc.Line > 0 {
+		return fmt.Sprintf("%s:%s:%d", err.Code, loc.File, loc.Line)
+	}
+	// File-only location: include summary to distinguish different errors in same file
+	return fmt.Sprintf("%s:%s:%s", err.Code, err.Summary, loc.File)
 }

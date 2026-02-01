@@ -698,7 +698,7 @@ func TestUnknownFieldValidator_AllKnownFields(t *testing.T) {
 	keys := []string{"id", "kind", "version", "status", "title", "tags", "content", "custom"}
 
 	collector := errors.NewCollectorWithLimit(100)
-	uf.ValidateYAML("test-node", keys, collector)
+	uf.ValidateYAML("test-node", "", keys, collector)
 
 	if collector.HasErrors() {
 		t.Errorf("expected no errors for known fields, got %d", collector.Count())
@@ -712,7 +712,7 @@ func TestUnknownFieldValidator_UnknownFieldDetected(t *testing.T) {
 	keys := []string{"id", "kind", "version", "status", "title", "unknown_field"}
 
 	collector := errors.NewCollectorWithLimit(100)
-	uf.ValidateYAML("test-node", keys, collector)
+	uf.ValidateYAML("test-node", "", keys, collector)
 
 	if !collector.HasErrors() {
 		t.Fatal("expected error for unknown field")
@@ -735,7 +735,7 @@ func TestUnknownFieldValidator_SuggestsCorrection(t *testing.T) {
 	keys := []string{"id", "kind", "version", "status", "title", "contnt"}
 
 	collector := errors.NewCollectorWithLimit(100)
-	uf.ValidateYAML("test-node", keys, collector)
+	uf.ValidateYAML("test-node", "", keys, collector)
 
 	if !collector.HasErrors() {
 		t.Fatal("expected error for typo field")
@@ -754,7 +754,7 @@ func TestUnknownFieldValidator_CustomAllowed(t *testing.T) {
 	keys := []string{"id", "kind", "version", "status", "title", "custom"}
 
 	collector := errors.NewCollectorWithLimit(100)
-	uf.ValidateYAML("test-node", keys, collector)
+	uf.ValidateYAML("test-node", "", keys, collector)
 
 	if collector.HasErrors() {
 		t.Errorf("expected custom field to be allowed, got %d errors", collector.Count())
@@ -773,7 +773,7 @@ func TestUnknownFieldValidator_AllSchemaFields(t *testing.T) {
 	}
 
 	collector := errors.NewCollectorWithLimit(100)
-	uf.ValidateYAML("test-node", keys, collector)
+	uf.ValidateYAML("test-node", "", keys, collector)
 
 	if collector.HasErrors() {
 		t.Errorf("expected no errors for all schema fields, got %d", collector.Count())
@@ -787,7 +787,7 @@ func TestUnknownFieldValidator_MultipleUnknownFields(t *testing.T) {
 	keys := []string{"id", "kind", "foo", "bar", "baz"}
 
 	collector := errors.NewCollectorWithLimit(100)
-	uf.ValidateYAML("test-node", keys, collector)
+	uf.ValidateYAML("test-node", "", keys, collector)
 
 	// Should have 3 errors (foo, bar, baz)
 	if collector.Count() != 3 {

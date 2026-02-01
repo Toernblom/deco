@@ -18,6 +18,9 @@ type Node struct {
 	Title   string   `json:"title" yaml:"title"`
 	Tags    []string `json:"tags,omitempty" yaml:"tags,omitempty"`
 
+	// Source location (set during load, not serialized)
+	SourceFile string `json:"-" yaml:"-"`
+
 	// References to other nodes
 	Refs Ref `json:"refs,omitempty" yaml:"refs,omitempty"`
 
