@@ -55,6 +55,37 @@ func TestComputeContentHash(t *testing.T) {
 	})
 }
 
+func TestGetLastContentHash(t *testing.T) {
+	t.Run("returns empty string when no history", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectForSync(t, tmpDir)
+
+		hash := getLastContentHash(tmpDir, "sword-001")
+		if hash != "" {
+			t.Errorf("Expected empty hash for no history, got %q", hash)
+		}
+	})
+
+	t.Run("returns hash from most recent entry", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectForSync(t, tmpDir)
+
+		// Write history with content hash
+		historyPath := filepath.Join(tmpDir, ".deco", "history.jsonl")
+		historyContent := `{"timestamp":"2026-01-01T00:00:00Z","node_id":"sword-001","operation":"create","user":"test","content_hash":"abc123def456"}
+{"timestamp":"2026-01-02T00:00:00Z","node_id":"sword-001","operation":"set","user":"test","content_hash":"xyz789uvw012"}
+`
+		if err := os.WriteFile(historyPath, []byte(historyContent), 0644); err != nil {
+			t.Fatalf("Failed to write history: %v", err)
+		}
+
+		hash := getLastContentHash(tmpDir, "sword-001")
+		if hash != "xyz789uvw012" {
+			t.Errorf("Expected 'xyz789uvw012', got %q", hash)
+		}
+	})
+}
+
 func TestSyncCommand_Structure(t *testing.T) {
 	t.Run("creates sync command", func(t *testing.T) {
 		cmd := NewSyncCommand()

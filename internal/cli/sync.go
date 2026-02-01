@@ -397,3 +397,23 @@ func computeContentHash(n domain.Node) string {
 	hash := sha256.Sum256(data)
 	return hex.EncodeToString(hash[:8])
 }
+
+// getLastContentHash retrieves the most recent content hash for a node from history
+// Returns empty string if no hash found
+func getLastContentHash(targetDir, nodeID string) string {
+	historyRepo := history.NewYAMLRepository(targetDir)
+
+	entries, err := historyRepo.Query(history.Filter{NodeID: nodeID})
+	if err != nil || len(entries) == 0 {
+		return ""
+	}
+
+	// Entries are sorted oldest first, get the last one
+	for i := len(entries) - 1; i >= 0; i-- {
+		if entries[i].ContentHash != "" {
+			return entries[i].ContentHash
+		}
+	}
+
+	return ""
+}
