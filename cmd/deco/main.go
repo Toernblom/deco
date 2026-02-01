@@ -29,6 +29,7 @@ func main() {
 	root.AddCommand(cli.NewDiffCommand())
 	root.AddCommand(cli.NewStatsCommand())
 	root.AddCommand(cli.NewReviewCommand())
+	root.AddCommand(cli.NewSyncCommand())
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

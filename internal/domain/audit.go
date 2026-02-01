@@ -40,9 +40,10 @@ func (a *AuditEntry) Validate() error {
 		"submit":  true, // draft -> review
 		"approve": true, // add approval
 		"reject":  true, // review -> draft
+		"sync":    true, // auto-fix unversioned edits
 	}
 	if !validOperations[a.Operation] {
-		return fmt.Errorf("audit entry Operation must be one of: create, update, delete, set, append, unset, move, submit, approve, reject")
+		return fmt.Errorf("audit entry Operation must be one of: create, update, delete, set, append, unset, move, submit, approve, reject, sync")
 	}
 
 	return nil
