@@ -28,7 +28,7 @@ func NewErrorCodeRegistry() *ErrorCodeRegistry {
 	registry.register("E007", "schema", "Invalid node structure")
 	registry.register("E008", "schema", "Missing required field")
 	registry.register("E009", "schema", "Invalid field type")
-	registry.register("E010", "schema", "Schema version mismatch")
+	registry.register("E010", "schema", "Unknown field")
 	registry.register("E011", "schema", "Unsupported schema version")
 	registry.register("E012", "schema", "Invalid metadata")
 	registry.register("E013", "schema", "Reserved for future use")

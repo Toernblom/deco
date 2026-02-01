@@ -2,10 +2,14 @@ package validator
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/errors"
 	"github.com/google/cel-go/cel"
+	"gopkg.in/yaml.v3"
 )
 
 // SchemaValidator validates that nodes have all required fields and correct types.
@@ -227,6 +231,26 @@ func (cv *ConstraintValidator) evaluateConstraint(node *domain.Node, constraint 
 	return nil
 }
 
+// knownTopLevelKeys defines the valid top-level keys in a node YAML file.
+// Any key not in this set (except for explicit extension mechanisms) is considered unknown.
+var knownTopLevelKeys = map[string]bool{
+	"id":          true,
+	"kind":        true,
+	"version":     true,
+	"status":      true,
+	"title":       true,
+	"tags":        true,
+	"refs":        true,
+	"content":     true,
+	"issues":      true,
+	"summary":     true,
+	"glossary":    true,
+	"contracts":   true,
+	"llm_context": true,
+	"constraints": true,
+	"custom":      true, // Explicit extension namespace
+}
+
 // DuplicateIDValidator detects nodes with duplicate IDs.
 type DuplicateIDValidator struct{}
 
@@ -257,21 +281,124 @@ func (dv *DuplicateIDValidator) Validate(nodes []domain.Node, collector *errors.
 	}
 }
 
+// UnknownFieldValidator detects unknown top-level keys in node YAML files.
+// This helps catch typos and prevents silent data loss from misspelled fields.
+type UnknownFieldValidator struct {
+	suggester *errors.Suggester
+}
+
+// NewUnknownFieldValidator creates a new unknown field validator.
+func NewUnknownFieldValidator() *UnknownFieldValidator {
+	return &UnknownFieldValidator{
+		suggester: errors.NewSuggester(),
+	}
+}
+
+// ValidateYAML checks a raw YAML map for unknown top-level keys.
+// The nodeID is used for error reporting.
+func (uf *UnknownFieldValidator) ValidateYAML(nodeID string, rawKeys []string, collector *errors.Collector) {
+	// Collect known keys for suggestions
+	var knownKeys []string
+	for k := range knownTopLevelKeys {
+		knownKeys = append(knownKeys, k)
+	}
+
+	for _, key := range rawKeys {
+		if !knownTopLevelKeys[key] {
+			err := domain.DecoError{
+				Code:    "E010",
+				Summary: fmt.Sprintf("Unknown field %q in node %s", key, nodeID),
+				Detail:  fmt.Sprintf("Field %q is not a recognized top-level field. Use 'custom:' for extension data.", key),
+			}
+
+			// Generate suggestion for similar field names
+			suggs := uf.suggester.Suggest(key, knownKeys)
+			if len(suggs) > 0 {
+				err.Suggestion = fmt.Sprintf("Did you mean %q?", suggs[0])
+			}
+
+			collector.Add(err)
+		}
+	}
+}
+
+// ValidateDirectory reads all YAML files in a nodes directory and checks for unknown fields.
+func (uf *UnknownFieldValidator) ValidateDirectory(rootDir string, collector *errors.Collector) {
+	nodesDir := filepath.Join(rootDir, ".deco", "nodes")
+
+	// Check if nodes directory exists
+	if _, err := os.Stat(nodesDir); os.IsNotExist(err) {
+		return
+	}
+
+	// Walk the nodes directory recursively
+	_ = filepath.Walk(nodesDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // Skip files with access errors
+		}
+
+		// Skip directories
+		if info.IsDir() {
+			return nil
+		}
+
+		// Only process .yaml files
+		if !strings.HasSuffix(path, ".yaml") {
+			return nil
+		}
+
+		// Read and parse the file
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil // Skip unreadable files
+		}
+
+		// Parse into a raw map to get all top-level keys
+		var rawMap map[string]interface{}
+		if err := yaml.Unmarshal(data, &rawMap); err != nil {
+			return nil // Skip unparseable files (will be caught by other validators)
+		}
+
+		// Get node ID from the file (for error reporting)
+		nodeID := ""
+		if id, ok := rawMap["id"].(string); ok {
+			nodeID = id
+		} else {
+			// Use relative path as fallback
+			relPath, _ := filepath.Rel(nodesDir, path)
+			nodeID = strings.TrimSuffix(relPath, ".yaml")
+		}
+
+		// Extract top-level keys
+		var keys []string
+		for k := range rawMap {
+			keys = append(keys, k)
+		}
+
+		// Validate keys
+		uf.ValidateYAML(nodeID, keys, collector)
+
+		return nil
+	})
+}
+
 // Orchestrator coordinates all validators and aggregates errors.
 type Orchestrator struct {
-	schemaValidator      *SchemaValidator
-	referenceValidator   *ReferenceValidator
-	constraintValidator  *ConstraintValidator
-	duplicateIDValidator *DuplicateIDValidator
+	schemaValidator       *SchemaValidator
+	referenceValidator    *ReferenceValidator
+	constraintValidator   *ConstraintValidator
+	duplicateIDValidator  *DuplicateIDValidator
+	unknownFieldValidator *UnknownFieldValidator
 }
 
 // NewOrchestrator creates a new validator orchestrator.
 func NewOrchestrator() *Orchestrator {
 	return &Orchestrator{
-		schemaValidator:      NewSchemaValidator(),
-		referenceValidator:   NewReferenceValidator(),
-		constraintValidator:  NewConstraintValidator(),
-		duplicateIDValidator: NewDuplicateIDValidator(),
+		schemaValidator:       NewSchemaValidator(),
+		referenceValidator:    NewReferenceValidator(),
+		constraintValidator:   NewConstraintValidator(),
+		duplicateIDValidator:  NewDuplicateIDValidator(),
+		unknownFieldValidator: NewUnknownFieldValidator(),
 	}
 }
 
@@ -294,6 +421,17 @@ func (o *Orchestrator) ValidateAll(nodes []domain.Node) *errors.Collector {
 	for _, node := range nodes {
 		o.constraintValidator.Validate(&node, nodes, collector)
 	}
+
+	return collector
+}
+
+// ValidateAllWithDir runs all validators including unknown field detection.
+// The rootDir is needed to read raw YAML files for unknown field checking.
+func (o *Orchestrator) ValidateAllWithDir(nodes []domain.Node, rootDir string) *errors.Collector {
+	collector := o.ValidateAll(nodes)
+
+	// Check for unknown top-level fields in YAML files
+	o.unknownFieldValidator.ValidateDirectory(rootDir, collector)
 
 	return collector
 }

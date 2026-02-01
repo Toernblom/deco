@@ -688,3 +688,109 @@ func TestOrchestrator_DetectsDuplicateIDs(t *testing.T) {
 		t.Error("expected to find duplicate ID error (E009)")
 	}
 }
+
+// ===== UNKNOWN FIELD VALIDATOR TESTS =====
+
+// Test no unknown fields
+func TestUnknownFieldValidator_AllKnownFields(t *testing.T) {
+	uf := validator.NewUnknownFieldValidator()
+
+	keys := []string{"id", "kind", "version", "status", "title", "tags", "content", "custom"}
+
+	collector := errors.NewCollectorWithLimit(100)
+	uf.ValidateYAML("test-node", keys, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for known fields, got %d", collector.Count())
+	}
+}
+
+// Test unknown field detected
+func TestUnknownFieldValidator_UnknownFieldDetected(t *testing.T) {
+	uf := validator.NewUnknownFieldValidator()
+
+	keys := []string{"id", "kind", "version", "status", "title", "unknown_field"}
+
+	collector := errors.NewCollectorWithLimit(100)
+	uf.ValidateYAML("test-node", keys, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for unknown field")
+	}
+
+	errs := collector.Errors()
+	if errs[0].Code != "E010" {
+		t.Errorf("expected error code E010, got %s", errs[0].Code)
+	}
+	if errs[0].Suggestion == "" {
+		t.Log("Note: no suggestion generated (expected for dissimilar field names)")
+	}
+}
+
+// Test typo in field name suggests correct field
+func TestUnknownFieldValidator_SuggestsCorrection(t *testing.T) {
+	uf := validator.NewUnknownFieldValidator()
+
+	// "contnt" is a typo for "content"
+	keys := []string{"id", "kind", "version", "status", "title", "contnt"}
+
+	collector := errors.NewCollectorWithLimit(100)
+	uf.ValidateYAML("test-node", keys, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for typo field")
+	}
+
+	errs := collector.Errors()
+	if errs[0].Suggestion == "" {
+		t.Error("expected suggestion for typo")
+	}
+}
+
+// Test custom field is allowed (extension namespace)
+func TestUnknownFieldValidator_CustomAllowed(t *testing.T) {
+	uf := validator.NewUnknownFieldValidator()
+
+	keys := []string{"id", "kind", "version", "status", "title", "custom"}
+
+	collector := errors.NewCollectorWithLimit(100)
+	uf.ValidateYAML("test-node", keys, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected custom field to be allowed, got %d errors", collector.Count())
+	}
+}
+
+// Test all known fields are accepted
+func TestUnknownFieldValidator_AllSchemaFields(t *testing.T) {
+	uf := validator.NewUnknownFieldValidator()
+
+	// All valid top-level fields from the Node struct
+	keys := []string{
+		"id", "kind", "version", "status", "title", "tags",
+		"refs", "content", "issues", "summary", "glossary",
+		"contracts", "llm_context", "constraints", "custom",
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	uf.ValidateYAML("test-node", keys, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for all schema fields, got %d", collector.Count())
+	}
+}
+
+// Test multiple unknown fields
+func TestUnknownFieldValidator_MultipleUnknownFields(t *testing.T) {
+	uf := validator.NewUnknownFieldValidator()
+
+	keys := []string{"id", "kind", "foo", "bar", "baz"}
+
+	collector := errors.NewCollectorWithLimit(100)
+	uf.ValidateYAML("test-node", keys, collector)
+
+	// Should have 3 errors (foo, bar, baz)
+	if collector.Count() != 3 {
+		t.Errorf("expected 3 unknown field errors, got %d", collector.Count())
+	}
+}

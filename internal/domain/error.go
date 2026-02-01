@@ -70,5 +70,10 @@ func (e DecoError) Error() string {
 		result += fmt.Sprintf(" (%s)", strings.Join(e.Context, ", "))
 	}
 
+	// Add suggestion if present
+	if e.Suggestion != "" {
+		result += fmt.Sprintf(" [Hint: %s]", e.Suggestion)
+	}
+
 	return result
 }
