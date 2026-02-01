@@ -2,6 +2,7 @@ package domain
 
 import (
 	"fmt"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -36,6 +37,7 @@ type Node struct {
 	Contracts   []Contract             `json:"contracts,omitempty" yaml:"contracts,omitempty"`
 	LLMContext  string                 `json:"llm_context,omitempty" yaml:"llm_context,omitempty"`
 	Constraints []Constraint           `json:"constraints,omitempty" yaml:"constraints,omitempty"`
+	Reviewers   []Reviewer             `json:"reviewers,omitempty" yaml:"reviewers,omitempty"`
 	Custom      map[string]interface{} `json:"custom,omitempty" yaml:"custom,omitempty"`
 }
 
@@ -118,6 +120,14 @@ type Contract struct {
 	Given    []string `json:"given,omitempty" yaml:"given,omitempty"`
 	When     []string `json:"when,omitempty" yaml:"when,omitempty"`
 	Then     []string `json:"then,omitempty" yaml:"then,omitempty"`
+}
+
+// Reviewer represents an approval record for a node version.
+type Reviewer struct {
+	Name      string    `json:"name" yaml:"name"`                         // reviewer email/username
+	Timestamp time.Time `json:"timestamp" yaml:"timestamp"`               // when approved
+	Version   int       `json:"version" yaml:"version"`                   // version that was approved
+	Note      string    `json:"note,omitempty" yaml:"note,omitempty"`     // optional comment
 }
 
 // Validate checks that all required fields are present and valid.

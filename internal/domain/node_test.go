@@ -3,6 +3,7 @@ package domain_test
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/Toernblom/deco/internal/domain"
 	"gopkg.in/yaml.v3"
@@ -388,4 +389,37 @@ rows:
 	if len(restoredRows) != len(originalRows) {
 		t.Errorf("rows length mismatch: got %d, want %d", len(restoredRows), len(originalRows))
 	}
+}
+
+func TestNode_ReviewerStruct(t *testing.T) {
+	t.Run("reviewer has required fields", func(t *testing.T) {
+		reviewer := domain.Reviewer{
+			Name:      "alice@example.com",
+			Timestamp: time.Now(),
+			Version:   1,
+			Note:      "LGTM",
+		}
+		if reviewer.Name == "" {
+			t.Error("Expected Name to be set")
+		}
+		if reviewer.Version != 1 {
+			t.Error("Expected Version to be 1")
+		}
+	})
+
+	t.Run("node can have reviewers", func(t *testing.T) {
+		node := domain.Node{
+			ID:      "test/node",
+			Kind:    "mechanic",
+			Version: 1,
+			Status:  "review",
+			Title:   "Test Node",
+			Reviewers: []domain.Reviewer{
+				{Name: "alice@example.com", Timestamp: time.Now(), Version: 1},
+			},
+		}
+		if len(node.Reviewers) != 1 {
+			t.Errorf("Expected 1 reviewer, got %d", len(node.Reviewers))
+		}
+	})
 }
