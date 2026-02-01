@@ -434,6 +434,97 @@ tags:
 	})
 }
 
+func TestRunSync_ErrorAccumulation(t *testing.T) {
+	t.Run("returns error exit when node fails to load", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectForSync(t, tmpDir)
+
+		// Create an invalid node (malformed YAML)
+		invalidNodePath := filepath.Join(tmpDir, ".deco", "nodes", "broken-001.yaml")
+		invalidYAML := `id: broken-001
+kind: item
+version: invalid_should_be_int
+status: draft
+title: Broken Node
+`
+		os.WriteFile(invalidNodePath, []byte(invalidYAML), 0644)
+
+		flags := &syncFlags{targetDir: tmpDir, quiet: true}
+		exitCode, err := runSync(flags)
+
+		if err == nil {
+			t.Error("Expected error when node fails to load")
+		}
+		if exitCode != syncExitError {
+			t.Errorf("Expected exit code %d, got %d", syncExitError, exitCode)
+		}
+	})
+
+	t.Run("accumulates multiple errors and still exits with error", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectForSync(t, tmpDir)
+
+		// Create multiple invalid nodes
+		for i := 1; i <= 3; i++ {
+			invalidNodePath := filepath.Join(tmpDir, ".deco", "nodes", fmt.Sprintf("broken-%03d.yaml", i))
+			invalidYAML := fmt.Sprintf(`id: broken-%03d
+kind: item
+version: not_a_number
+status: draft
+title: Broken Node %d
+`, i, i)
+			os.WriteFile(invalidNodePath, []byte(invalidYAML), 0644)
+		}
+
+		flags := &syncFlags{targetDir: tmpDir, quiet: true}
+		exitCode, err := runSync(flags)
+
+		if err == nil {
+			t.Error("Expected error when multiple nodes fail to load")
+		}
+		if exitCode != syncExitError {
+			t.Errorf("Expected exit code %d, got %d", syncExitError, exitCode)
+		}
+		// Error message should indicate multiple errors
+		if err != nil && !strings.Contains(err.Error(), "3") {
+			t.Errorf("Expected error to mention 3 errors, got: %v", err)
+		}
+	})
+
+	t.Run("valid nodes still process when some nodes fail", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectForSync(t, tmpDir)
+
+		// Create an invalid node alongside the valid one
+		invalidNodePath := filepath.Join(tmpDir, ".deco", "nodes", "broken-001.yaml")
+		invalidYAML := `id: broken-001
+kind: item
+version: not_a_number
+status: draft
+title: Broken Node
+`
+		os.WriteFile(invalidNodePath, []byte(invalidYAML), 0644)
+
+		flags := &syncFlags{targetDir: tmpDir, quiet: true}
+		exitCode, _ := runSync(flags)
+
+		// Should return error because one node failed
+		if exitCode != syncExitError {
+			t.Errorf("Expected exit code %d (some nodes failed), got %d", syncExitError, exitCode)
+		}
+
+		// But the valid node should still be baselined
+		historyPath := filepath.Join(tmpDir, ".deco", "history.jsonl")
+		content, err := os.ReadFile(historyPath)
+		if err != nil {
+			t.Fatalf("Expected history file to exist: %v", err)
+		}
+		if !strings.Contains(string(content), "sword-001") {
+			t.Error("Expected valid node to still be baselined despite other failures")
+		}
+	})
+}
+
 // Test helpers
 
 func setupProjectForSync(t *testing.T, dir string) {

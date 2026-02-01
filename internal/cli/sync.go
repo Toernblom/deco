@@ -108,6 +108,7 @@ func runSync(flags *syncFlags) (int, error) {
 	nodeRepo := node.NewYAMLRepository(flags.targetDir)
 	var syncResults []syncResult
 	var baselinedNodes []string
+	var errors []string
 
 	for _, nodePath := range nodePaths {
 		nodeID := discovery.PathToID(nodePath)
@@ -117,6 +118,10 @@ func runSync(flags *syncFlags) (int, error) {
 
 		currentNode, err := nodeRepo.Load(nodeID)
 		if err != nil {
+			errors = append(errors, fmt.Sprintf("failed to load %s: %v", nodeID, err))
+			if !flags.quiet {
+				fmt.Fprintf(os.Stderr, "Error: failed to load %s: %v\n", nodeID, err)
+			}
 			continue
 		}
 
@@ -127,8 +132,9 @@ func runSync(flags *syncFlags) (int, error) {
 			// No history - baseline this node
 			if !flags.dryRun {
 				if err := logBaselineOperation(flags.targetDir, nodeID, currentHash); err != nil {
+					errors = append(errors, fmt.Sprintf("failed to baseline %s: %v", nodeID, err))
 					if !flags.quiet {
-						fmt.Fprintf(os.Stderr, "Warning: failed to baseline %s: %v\n", nodeID, err)
+						fmt.Fprintf(os.Stderr, "Error: failed to baseline %s: %v\n", nodeID, err)
 					}
 					continue
 				}
@@ -152,8 +158,9 @@ func runSync(flags *syncFlags) (int, error) {
 
 		if !flags.dryRun {
 			if err := applySyncWithHash(flags.targetDir, &currentNode, nodeRepo, currentHash); err != nil {
+				errors = append(errors, fmt.Sprintf("failed to sync %s: %v", nodeID, err))
 				if !flags.quiet {
-					fmt.Fprintf(os.Stderr, "Warning: failed to sync %s: %v\n", nodeID, err)
+					fmt.Fprintf(os.Stderr, "Error: failed to sync %s: %v\n", nodeID, err)
 				}
 				continue
 			}
@@ -184,6 +191,14 @@ func runSync(flags *syncFlags) (int, error) {
 			}
 			fmt.Println(strings.Join(parts, ", "))
 		}
+	}
+
+	// Report errors if any occurred
+	if len(errors) > 0 {
+		if !flags.quiet {
+			fmt.Fprintf(os.Stderr, "\n%d error(s) occurred during sync\n", len(errors))
+		}
+		return syncExitError, fmt.Errorf("%d sync error(s)", len(errors))
 	}
 
 	if flags.dryRun {
