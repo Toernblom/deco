@@ -1382,3 +1382,233 @@ func TestOrchestrator_ValidatesContractNodeRefs(t *testing.T) {
 		t.Error("expected orchestrator to catch invalid node reference error (E102)")
 	}
 }
+
+// ===== CONTENT VALIDATOR TESTS =====
+
+// Test draft node without content (should pass)
+func TestContentValidator_DraftWithoutContent(t *testing.T) {
+	cv := validator.NewContentValidator()
+
+	node := domain.Node{
+		ID:      "test-node",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test Node",
+		// No content
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for draft node without content, got %d: %v", collector.Count(), collector.Errors())
+	}
+}
+
+// Test approved node without content (should fail)
+func TestContentValidator_ApprovedWithoutContent(t *testing.T) {
+	cv := validator.NewContentValidator()
+
+	node := domain.Node{
+		ID:      "test-node",
+		Kind:    "system",
+		Version: 1,
+		Status:  "approved",
+		Title:   "Test Node",
+		// No content
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for approved node without content")
+	}
+
+	errs := collector.Errors()
+	if errs[0].Code != "E046" {
+		t.Errorf("expected error code E046, got %s", errs[0].Code)
+	}
+}
+
+// Test published node without content (should fail)
+func TestContentValidator_PublishedWithoutContent(t *testing.T) {
+	cv := validator.NewContentValidator()
+
+	node := domain.Node{
+		ID:      "test-node",
+		Kind:    "system",
+		Version: 1,
+		Status:  "published",
+		Title:   "Test Node",
+		// No content
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for published node without content")
+	}
+
+	errs := collector.Errors()
+	if errs[0].Code != "E046" {
+		t.Errorf("expected error code E046, got %s", errs[0].Code)
+	}
+}
+
+// Test approved node with empty content (no sections, should fail)
+func TestContentValidator_ApprovedWithEmptyContent(t *testing.T) {
+	cv := validator.NewContentValidator()
+
+	node := domain.Node{
+		ID:      "test-node",
+		Kind:    "system",
+		Version: 1,
+		Status:  "approved",
+		Title:   "Test Node",
+		Content: &domain.Content{
+			Sections: []domain.Section{}, // Empty sections
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for approved node with empty content")
+	}
+
+	errs := collector.Errors()
+	if errs[0].Code != "E046" {
+		t.Errorf("expected error code E046, got %s", errs[0].Code)
+	}
+}
+
+// Test approved node with content (should pass)
+func TestContentValidator_ApprovedWithContent(t *testing.T) {
+	cv := validator.NewContentValidator()
+
+	node := domain.Node{
+		ID:      "test-node",
+		Kind:    "system",
+		Version: 1,
+		Status:  "approved",
+		Title:   "Test Node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Overview",
+					Blocks: []domain.Block{
+						{Type: "rule", Data: map[string]interface{}{"text": "A rule"}},
+					},
+				},
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for approved node with content, got %d: %v", collector.Count(), collector.Errors())
+	}
+}
+
+// Test published node with content (should pass)
+func TestContentValidator_PublishedWithContent(t *testing.T) {
+	cv := validator.NewContentValidator()
+
+	node := domain.Node{
+		ID:      "test-node",
+		Kind:    "system",
+		Version: 1,
+		Status:  "published",
+		Title:   "Test Node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Overview",
+					Blocks: []domain.Block{
+						{Type: "rule", Data: map[string]interface{}{"text": "A rule"}},
+					},
+				},
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for published node with content, got %d: %v", collector.Count(), collector.Errors())
+	}
+}
+
+// Test deprecated node without content (should pass - not approved/published)
+func TestContentValidator_DeprecatedWithoutContent(t *testing.T) {
+	cv := validator.NewContentValidator()
+
+	node := domain.Node{
+		ID:      "test-node",
+		Kind:    "system",
+		Version: 1,
+		Status:  "deprecated",
+		Title:   "Test Node",
+		// No content
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for deprecated node without content, got %d: %v", collector.Count(), collector.Errors())
+	}
+}
+
+// Test nil node (should pass)
+func TestContentValidator_NilNode(t *testing.T) {
+	cv := validator.NewContentValidator()
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(nil, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for nil node, got %d", collector.Count())
+	}
+}
+
+// Test orchestrator validates content requirements
+func TestOrchestrator_ValidatesContentRequirements(t *testing.T) {
+	orch := validator.NewOrchestrator()
+
+	nodes := []domain.Node{
+		{
+			ID:      "node1",
+			Kind:    "system",
+			Version: 1,
+			Status:  "approved",
+			Title:   "Node 1",
+			// No content - should fail
+		},
+	}
+
+	collector := orch.ValidateAll(nodes)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for approved node without content")
+	}
+
+	errs := collector.Errors()
+	found := false
+	for _, err := range errs {
+		if err.Code == "E046" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected orchestrator to catch content requirement error (E046)")
+	}
+}

@@ -73,6 +73,37 @@ func (sv *SchemaValidator) Validate(node *domain.Node, collector *errors.Collect
 	}
 }
 
+// ContentValidator validates that approved/published nodes have content.
+// Draft nodes are allowed to be content-free.
+type ContentValidator struct{}
+
+// NewContentValidator creates a new content validator.
+func NewContentValidator() *ContentValidator {
+	return &ContentValidator{}
+}
+
+// Validate checks that approved/published nodes have content with at least one section.
+func (cv *ContentValidator) Validate(node *domain.Node, collector *errors.Collector) {
+	if node == nil {
+		return
+	}
+
+	// Only require content for approved or published nodes
+	if node.Status != "approved" && node.Status != "published" {
+		return
+	}
+
+	// Check if content exists and has at least one section
+	if node.Content == nil || len(node.Content.Sections) == 0 {
+		collector.Add(domain.DecoError{
+			Code:       "E046",
+			Summary:    fmt.Sprintf("Node %q with status %q requires content", node.ID, node.Status),
+			Detail:     "Approved and published nodes must have content with at least one section. Draft nodes may omit content.",
+			Suggestion: "Add a content section with at least one block, or change status to 'draft' while content is being developed.",
+		})
+	}
+}
+
 // ReferenceValidator validates that all node references resolve to existing nodes.
 type ReferenceValidator struct {
 	suggester *errors.Suggester
@@ -385,6 +416,7 @@ func (uf *UnknownFieldValidator) ValidateDirectory(rootDir string, collector *er
 // Orchestrator coordinates all validators and aggregates errors.
 type Orchestrator struct {
 	schemaValidator       *SchemaValidator
+	contentValidator      *ContentValidator
 	referenceValidator    *ReferenceValidator
 	constraintValidator   *ConstraintValidator
 	duplicateIDValidator  *DuplicateIDValidator
@@ -396,6 +428,7 @@ type Orchestrator struct {
 func NewOrchestrator() *Orchestrator {
 	return &Orchestrator{
 		schemaValidator:       NewSchemaValidator(),
+		contentValidator:      NewContentValidator(),
 		referenceValidator:    NewReferenceValidator(),
 		constraintValidator:   NewConstraintValidator(),
 		duplicateIDValidator:  NewDuplicateIDValidator(),
@@ -414,6 +447,11 @@ func (o *Orchestrator) ValidateAll(nodes []domain.Node) *errors.Collector {
 	// Run schema validation on each node
 	for _, node := range nodes {
 		o.schemaValidator.Validate(&node, collector)
+	}
+
+	// Run content validation on each node (approved/published require content)
+	for _, node := range nodes {
+		o.contentValidator.Validate(&node, collector)
 	}
 
 	// Run reference validation on all nodes
