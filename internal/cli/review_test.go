@@ -103,3 +103,72 @@ func readNodeFileByID(t *testing.T, tmpDir, nodeID string) string {
 	}
 	return string(content)
 }
+
+func TestReviewCommand_Approve(t *testing.T) {
+	t.Run("approve adds reviewer to node", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupReviewProject(t, tmpDir)
+		createNodeWithStatus(t, tmpDir, "test/node", "review")
+
+		cmd := NewReviewCommand()
+		cmd.SetArgs([]string{"approve", "test/node", tmpDir})
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		nodeYAML := readNodeFileByID(t, tmpDir, "test/node")
+		if !strings.Contains(nodeYAML, "reviewers:") {
+			t.Error("Expected reviewers field to be added")
+		}
+	})
+
+	t.Run("approve with note includes note in reviewer", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupReviewProject(t, tmpDir)
+		createNodeWithStatus(t, tmpDir, "test/node", "review")
+
+		cmd := NewReviewCommand()
+		cmd.SetArgs([]string{"approve", "test/node", "--note", "LGTM", tmpDir})
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		nodeYAML := readNodeFileByID(t, tmpDir, "test/node")
+		if !strings.Contains(nodeYAML, "LGTM") {
+			t.Errorf("Expected note 'LGTM' in node, got: %s", nodeYAML)
+		}
+	})
+
+	t.Run("approve transitions to approved when requirements met", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupReviewProject(t, tmpDir) // requires 1 approval
+		createNodeWithStatus(t, tmpDir, "test/node", "review")
+
+		cmd := NewReviewCommand()
+		cmd.SetArgs([]string{"approve", "test/node", tmpDir})
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		nodeYAML := readNodeFileByID(t, tmpDir, "test/node")
+		if !strings.Contains(nodeYAML, "status: approved") {
+			t.Errorf("Expected status 'approved', got: %s", nodeYAML)
+		}
+	})
+
+	t.Run("approve fails if not in review status", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupReviewProject(t, tmpDir)
+		createNodeWithStatus(t, tmpDir, "test/node", "draft")
+
+		cmd := NewReviewCommand()
+		cmd.SetArgs([]string{"approve", "test/node", tmpDir})
+		err := cmd.Execute()
+		if err == nil {
+			t.Error("Expected error when approving non-review node")
+		}
+	})
+}

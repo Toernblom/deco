@@ -33,6 +33,7 @@ Subcommands:
 	}
 
 	cmd.AddCommand(newSubmitCommand())
+	cmd.AddCommand(newApproveCommand())
 
 	return cmd
 }
@@ -124,4 +125,106 @@ func logReviewOperation(targetDir, nodeID, operation, oldStatus, newStatus, note
 	}
 
 	return historyRepo.Append(entry)
+}
+
+type approveFlags struct {
+	targetDir string
+	nodeID    string
+	note      string
+	quiet     bool
+}
+
+func newApproveCommand() *cobra.Command {
+	flags := &approveFlags{}
+
+	cmd := &cobra.Command{
+		Use:   "approve <node-id> [directory]",
+		Short: "Approve a node under review",
+		Long:  `Approve a node under review. Adds your approval and transitions to 'approved' if requirements are met.`,
+		Args:  cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			flags.nodeID = args[0]
+			if len(args) > 1 {
+				flags.targetDir = args[1]
+			} else {
+				flags.targetDir = "."
+			}
+			return runApprove(flags)
+		},
+	}
+
+	cmd.Flags().StringVar(&flags.note, "note", "", "Optional approval note")
+	cmd.Flags().BoolVarP(&flags.quiet, "quiet", "q", false, "Suppress output")
+
+	return cmd
+}
+
+func runApprove(flags *approveFlags) error {
+	// Load config
+	configRepo := config.NewYAMLRepository(flags.targetDir)
+	cfg, err := configRepo.Load()
+	if err != nil {
+		return fmt.Errorf(".deco directory not found or invalid: %w", err)
+	}
+
+	// Load the node
+	nodeRepo := node.NewYAMLRepository(flags.targetDir)
+	n, err := nodeRepo.Load(flags.nodeID)
+	if err != nil {
+		return fmt.Errorf("node %q not found: %w", flags.nodeID, err)
+	}
+
+	// Validate current status
+	if n.Status != "review" {
+		return fmt.Errorf("cannot approve node %q: status is %q, must be 'review'", flags.nodeID, n.Status)
+	}
+
+	// Get current user
+	username := "unknown"
+	if u, err := user.Current(); err == nil {
+		username = u.Username
+	}
+
+	// Add reviewer
+	reviewer := domain.Reviewer{
+		Name:      username,
+		Timestamp: time.Now(),
+		Version:   n.Version,
+		Note:      flags.note,
+	}
+	n.Reviewers = append(n.Reviewers, reviewer)
+
+	// Count approvals for current version
+	validApprovals := 0
+	for _, r := range n.Reviewers {
+		if r.Version == n.Version {
+			validApprovals++
+		}
+	}
+
+	// Transition to approved if requirements met
+	oldStatus := n.Status
+	if validApprovals >= cfg.RequiredApprovals {
+		n.Status = "approved"
+	}
+
+	// Save the node
+	if err := nodeRepo.Save(n); err != nil {
+		return fmt.Errorf("failed to save node: %w", err)
+	}
+
+	// Log approve operation
+	if err := logReviewOperation(flags.targetDir, n.ID, "approve", oldStatus, n.Status, flags.note); err != nil {
+		fmt.Printf("Warning: failed to log approve operation: %v\n", err)
+	}
+
+	if !flags.quiet {
+		if n.Status == "approved" {
+			fmt.Printf("Approved %s (status: review -> approved, %d/%d approvals)\n", flags.nodeID, validApprovals, cfg.RequiredApprovals)
+		} else {
+			fmt.Printf("Added approval to %s (%d/%d approvals needed)\n", flags.nodeID, validApprovals, cfg.RequiredApprovals)
+		}
+	}
+
+	return nil
 }
