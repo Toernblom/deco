@@ -14,6 +14,7 @@ func main() {
 	root.AddCommand(cli.NewInitCommand())
 	root.AddCommand(cli.NewCreateCommand())
 	root.AddCommand(cli.NewRmCommand())
+	root.AddCommand(cli.NewIssuesCommand())
 	root.AddCommand(cli.NewValidateCommand())
 	root.AddCommand(cli.NewListCommand())
 	root.AddCommand(cli.NewShowCommand())
