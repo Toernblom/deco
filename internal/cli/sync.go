@@ -40,19 +40,21 @@ func NewSyncCommand() *cobra.Command {
 		Long: `Detect manually-edited nodes and fix their metadata.
 
 When nodes are edited directly (bypassing the CLI), their version and
-review status may become stale. This command detects such changes and:
+review status may become stale. This command detects such changes by
+comparing content hashes and:
 
 1. Bumps the version number
 2. Resets status to "draft" (if was approved/review)
 3. Clears reviewers
 4. Logs the sync operation to history
 
-Use as a pre-commit hook to ensure all changes are properly versioned.
+Nodes without history are automatically baselined (their current state
+is recorded without modification).
 
 Exit codes:
-  0 - No changes needed
+  0 - No changes needed (or baseline only)
   1 - Files modified, re-commit needed
-  2 - Error (not a git repo, invalid nodes)
+  2 - Error (invalid project)
 
 Examples:
   deco sync              # Sync nodes in current directory
