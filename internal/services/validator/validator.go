@@ -389,6 +389,7 @@ type Orchestrator struct {
 	constraintValidator   *ConstraintValidator
 	duplicateIDValidator  *DuplicateIDValidator
 	unknownFieldValidator *UnknownFieldValidator
+	contractValidator     *ContractValidator
 }
 
 // NewOrchestrator creates a new validator orchestrator.
@@ -399,6 +400,7 @@ func NewOrchestrator() *Orchestrator {
 		constraintValidator:   NewConstraintValidator(),
 		duplicateIDValidator:  NewDuplicateIDValidator(),
 		unknownFieldValidator: NewUnknownFieldValidator(),
+		contractValidator:     NewContractValidator(),
 	}
 }
 
@@ -421,6 +423,9 @@ func (o *Orchestrator) ValidateAll(nodes []domain.Node) *errors.Collector {
 	for _, node := range nodes {
 		o.constraintValidator.Validate(&node, nodes, collector)
 	}
+
+	// Run contract validation on all nodes
+	o.contractValidator.ValidateAll(nodes, collector)
 
 	return collector
 }

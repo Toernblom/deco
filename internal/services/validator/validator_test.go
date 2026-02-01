@@ -794,3 +794,374 @@ func TestUnknownFieldValidator_MultipleUnknownFields(t *testing.T) {
 		t.Errorf("expected 3 unknown field errors, got %d", collector.Count())
 	}
 }
+
+// ===== CONTRACT VALIDATOR TESTS =====
+
+// Test valid contract with all steps
+func TestContractValidator_ValidContract(t *testing.T) {
+	cv := validator.NewContractValidator()
+
+	node := domain.Node{
+		ID:      "test-node",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test Node",
+		Contracts: []domain.Contract{
+			{
+				Name:     "Basic Flow",
+				Scenario: "Test scenario description",
+				Given:    []string{"the player is in the game"},
+				When:     []string{"the player performs an action"},
+				Then:     []string{"the expected outcome occurs"},
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for valid contract, got %d: %v", collector.Count(), collector.Errors())
+	}
+}
+
+// Test contract missing name (E100)
+func TestContractValidator_MissingName(t *testing.T) {
+	cv := validator.NewContractValidator()
+
+	node := domain.Node{
+		ID:      "test-node",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test Node",
+		Contracts: []domain.Contract{
+			{
+				Name:  "", // Missing name
+				Given: []string{"some precondition"},
+				When:  []string{"some action"},
+				Then:  []string{"some result"},
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for missing contract name")
+	}
+
+	errs := collector.Errors()
+	if errs[0].Code != "E100" {
+		t.Errorf("expected error code E100, got %s", errs[0].Code)
+	}
+}
+
+// Test duplicate contract names within a node (E103)
+func TestContractValidator_DuplicateNames(t *testing.T) {
+	cv := validator.NewContractValidator()
+
+	node := domain.Node{
+		ID:      "test-node",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test Node",
+		Contracts: []domain.Contract{
+			{
+				Name:  "Same Name",
+				Given: []string{"precondition 1"},
+				When:  []string{"action 1"},
+				Then:  []string{"result 1"},
+			},
+			{
+				Name:  "Same Name", // Duplicate
+				Given: []string{"precondition 2"},
+				When:  []string{"action 2"},
+				Then:  []string{"result 2"},
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for duplicate contract name")
+	}
+
+	errs := collector.Errors()
+	found := false
+	for _, err := range errs {
+		if err.Code == "E103" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected to find duplicate name error (E103)")
+	}
+}
+
+// Test empty step (E101)
+func TestContractValidator_EmptyStep(t *testing.T) {
+	cv := validator.NewContractValidator()
+
+	node := domain.Node{
+		ID:      "test-node",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test Node",
+		Contracts: []domain.Contract{
+			{
+				Name:  "Test Contract",
+				Given: []string{"valid step", ""}, // Empty step
+				When:  []string{"action"},
+				Then:  []string{"result"},
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for empty step")
+	}
+
+	errs := collector.Errors()
+	found := false
+	for _, err := range errs {
+		if err.Code == "E101" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected to find empty step error (E101)")
+	}
+}
+
+// Test contract with no steps (E104)
+func TestContractValidator_NoSteps(t *testing.T) {
+	cv := validator.NewContractValidator()
+
+	node := domain.Node{
+		ID:      "test-node",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test Node",
+		Contracts: []domain.Contract{
+			{
+				Name:     "Empty Contract",
+				Scenario: "Has no steps",
+				Given:    []string{},
+				When:     []string{},
+				Then:     []string{},
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for contract with no steps")
+	}
+
+	errs := collector.Errors()
+	found := false
+	for _, err := range errs {
+		if err.Code == "E104" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected to find no steps error (E104)")
+	}
+}
+
+// Test contract with only given steps (valid)
+func TestContractValidator_OnlyGivenSteps(t *testing.T) {
+	cv := validator.NewContractValidator()
+
+	node := domain.Node{
+		ID:      "test-node",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test Node",
+		Contracts: []domain.Contract{
+			{
+				Name:  "Setup Only",
+				Given: []string{"the system is initialized"},
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for contract with only given steps, got %d: %v", collector.Count(), collector.Errors())
+	}
+}
+
+// Test node with no contracts (should pass)
+func TestContractValidator_NoContracts(t *testing.T) {
+	cv := validator.NewContractValidator()
+
+	node := domain.Node{
+		ID:        "test-node",
+		Kind:      "system",
+		Version:   1,
+		Status:    "draft",
+		Title:     "Test Node",
+		Contracts: []domain.Contract{},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for node without contracts, got %d", collector.Count())
+	}
+}
+
+// Test nil node (should pass)
+func TestContractValidator_NilNode(t *testing.T) {
+	cv := validator.NewContractValidator()
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(nil, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for nil node, got %d", collector.Count())
+	}
+}
+
+// Test multiple contracts - one valid, one invalid
+func TestContractValidator_MultipleContracts(t *testing.T) {
+	cv := validator.NewContractValidator()
+
+	node := domain.Node{
+		ID:      "test-node",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test Node",
+		Contracts: []domain.Contract{
+			{
+				Name:  "Valid Contract",
+				Given: []string{"precondition"},
+				When:  []string{"action"},
+				Then:  []string{"result"},
+			},
+			{
+				Name:  "", // Invalid: missing name
+				Given: []string{"precondition"},
+				When:  []string{"action"},
+				Then:  []string{"result"},
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for invalid contract")
+	}
+
+	// Should only have 1 error (missing name in second contract)
+	if collector.Count() != 1 {
+		t.Errorf("expected 1 error, got %d", collector.Count())
+	}
+}
+
+// Test ValidateAll across multiple nodes
+func TestContractValidator_ValidateAll(t *testing.T) {
+	cv := validator.NewContractValidator()
+
+	nodes := []domain.Node{
+		{
+			ID:      "node1",
+			Kind:    "system",
+			Version: 1,
+			Status:  "draft",
+			Title:   "Node 1",
+			Contracts: []domain.Contract{
+				{Name: "Contract 1", Given: []string{"step"}},
+			},
+		},
+		{
+			ID:      "node2",
+			Kind:    "system",
+			Version: 1,
+			Status:  "draft",
+			Title:   "Node 2",
+			Contracts: []domain.Contract{
+				{Name: "", Given: []string{"step"}}, // Invalid: missing name
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.ValidateAll(nodes, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for invalid contract in node2")
+	}
+
+	if collector.Count() != 1 {
+		t.Errorf("expected 1 error, got %d", collector.Count())
+	}
+}
+
+// Test orchestrator includes contract validation
+func TestOrchestrator_ValidatesContracts(t *testing.T) {
+	orch := validator.NewOrchestrator()
+
+	nodes := []domain.Node{
+		{
+			ID:      "node1",
+			Kind:    "system",
+			Version: 1,
+			Status:  "draft",
+			Title:   "Node 1",
+			Contracts: []domain.Contract{
+				{
+					Name:  "Duplicate",
+					Given: []string{"step"},
+				},
+				{
+					Name:  "Duplicate", // Same name - should trigger E103
+					Given: []string{"step"},
+				},
+			},
+		},
+	}
+
+	collector := orch.ValidateAll(nodes)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for duplicate contract names")
+	}
+
+	errs := collector.Errors()
+	found := false
+	for _, err := range errs {
+		if err.Code == "E103" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected orchestrator to catch duplicate contract name error (E103)")
+	}
+}
