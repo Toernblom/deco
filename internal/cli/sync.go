@@ -201,10 +201,7 @@ func runSync(flags *syncFlags) (int, error) {
 		return syncExitError, fmt.Errorf("%d sync error(s)", len(errors))
 	}
 
-	if flags.dryRun {
-		return syncExitClean, nil
-	}
-
+	// Return modified exit code if changes would be (or were) made
 	if len(syncResults) > 0 {
 		return syncExitModified, nil
 	}

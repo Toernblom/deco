@@ -335,7 +335,7 @@ reviewers:
 }
 
 func TestRunSync_DryRun(t *testing.T) {
-	t.Run("dry-run does not modify files", func(t *testing.T) {
+	t.Run("dry-run does not modify files but returns modified exit code", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		setupProjectForSync(t, tmpDir)
 
@@ -368,15 +368,40 @@ tags:
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
-		// Dry-run returns clean (0) since no actual changes were made
-		if exitCode != syncExitClean {
-			t.Errorf("Expected exit code %d for dry-run, got %d", syncExitClean, exitCode)
+		// Dry-run returns modified (1) when changes WOULD be made
+		if exitCode != syncExitModified {
+			t.Errorf("Expected exit code %d for dry-run with changes, got %d", syncExitModified, exitCode)
 		}
 
 		// Verify file was NOT modified
 		content, _ := os.ReadFile(nodePath)
 		if strings.Contains(string(content), "version: 2") {
 			t.Error("Dry-run should not modify files")
+		}
+	})
+
+	t.Run("dry-run returns clean when no changes needed", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectForSync(t, tmpDir)
+
+		// Baseline with current hash (no changes)
+		nodeRepo := node.NewYAMLRepository(tmpDir)
+		n, _ := nodeRepo.Load("sword-001")
+		hash := ComputeContentHash(n)
+
+		historyPath := filepath.Join(tmpDir, ".deco", "history.jsonl")
+		historyContent := fmt.Sprintf(`{"timestamp":"2026-01-01T00:00:00Z","node_id":"sword-001","operation":"create","user":"test","content_hash":"%s"}`, hash)
+		os.WriteFile(historyPath, []byte(historyContent+"\n"), 0644)
+
+		flags := &syncFlags{targetDir: tmpDir, dryRun: true, quiet: true}
+		exitCode, err := runSync(flags)
+
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		// Dry-run returns clean (0) when no changes would be made
+		if exitCode != syncExitClean {
+			t.Errorf("Expected exit code %d for dry-run with no changes, got %d", syncExitClean, exitCode)
 		}
 	})
 }
