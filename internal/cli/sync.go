@@ -2,6 +2,8 @@ package cli
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -363,4 +365,35 @@ func logSyncOperation(targetDir, nodeID string, oldVersion, newVersion int, oldS
 	}
 
 	return historyRepo.Append(entry)
+}
+
+// contentFields holds only the fields that affect content hash
+type contentFields struct {
+	Title   string          `yaml:"title"`
+	Summary string          `yaml:"summary"`
+	Tags    []string        `yaml:"tags,omitempty"`
+	Refs    domain.Ref      `yaml:"refs,omitempty"`
+	Issues  []domain.Issue  `yaml:"issues,omitempty"`
+	Content *domain.Content `yaml:"content,omitempty"`
+}
+
+// computeContentHash computes a SHA-256 hash of the content fields
+// Returns 16 hex characters (first 64 bits of the hash)
+func computeContentHash(n domain.Node) string {
+	fields := contentFields{
+		Title:   n.Title,
+		Summary: n.Summary,
+		Tags:    n.Tags,
+		Refs:    n.Refs,
+		Issues:  n.Issues,
+		Content: n.Content,
+	}
+
+	data, err := yaml.Marshal(fields)
+	if err != nil {
+		return ""
+	}
+
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:8])
 }

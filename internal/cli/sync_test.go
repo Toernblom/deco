@@ -10,6 +10,51 @@ import (
 	"github.com/Toernblom/deco/internal/domain"
 )
 
+func TestComputeContentHash(t *testing.T) {
+	node := domain.Node{
+		ID:      "test-001",
+		Kind:    "item",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test Title",
+		Summary: "Test summary",
+		Tags:    []string{"tag1", "tag2"},
+	}
+
+	t.Run("returns consistent hash for same content", func(t *testing.T) {
+		hash1 := computeContentHash(node)
+		hash2 := computeContentHash(node)
+		if hash1 != hash2 {
+			t.Errorf("Expected consistent hash, got %s and %s", hash1, hash2)
+		}
+		if len(hash1) != 16 {
+			t.Errorf("Expected 16 char hash, got %d chars", len(hash1))
+		}
+	})
+
+	t.Run("returns different hash for different content", func(t *testing.T) {
+		modified := node
+		modified.Title = "Different Title"
+		hash1 := computeContentHash(node)
+		hash2 := computeContentHash(modified)
+		if hash1 == hash2 {
+			t.Error("Expected different hash for different content")
+		}
+	})
+
+	t.Run("ignores metadata fields", func(t *testing.T) {
+		modified := node
+		modified.Version = 99
+		modified.Status = "approved"
+		modified.Reviewers = []domain.Reviewer{{Name: "alice", Version: 1}}
+		hash1 := computeContentHash(node)
+		hash2 := computeContentHash(modified)
+		if hash1 != hash2 {
+			t.Error("Expected same hash when only metadata differs")
+		}
+	})
+}
+
 func TestSyncCommand_Structure(t *testing.T) {
 	t.Run("creates sync command", func(t *testing.T) {
 		cmd := NewSyncCommand()
