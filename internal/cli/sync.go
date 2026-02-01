@@ -1,15 +1,11 @@
 package cli
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/user"
-	"path/filepath"
-	"reflect"
 	"strings"
 	"time"
 
@@ -100,45 +96,52 @@ func runSync(flags *syncFlags) (int, error) {
 		return syncExitError, fmt.Errorf(".deco directory not found or invalid: %w", err)
 	}
 
-	// Verify we're in a git repository
-	if !isGitRepo(flags.targetDir) {
-		return syncExitError, fmt.Errorf("not a git repository")
-	}
-
-	// Get modified node files
-	modifiedFiles, err := getModifiedNodeFiles(flags.targetDir)
+	// Discover all nodes
+	discovery := node.NewFileDiscovery(flags.targetDir)
+	nodePaths, err := discovery.DiscoverAll()
 	if err != nil {
-		return syncExitError, fmt.Errorf("failed to get modified files: %w", err)
+		return syncExitError, fmt.Errorf("failed to discover nodes: %w", err)
 	}
 
-	if len(modifiedFiles) == 0 {
+	if len(nodePaths) == 0 {
 		return syncExitClean, nil
 	}
 
 	nodeRepo := node.NewYAMLRepository(flags.targetDir)
-	var results []syncResult
+	var syncResults []syncResult
+	var baselinedNodes []string
 
-	for _, filePath := range modifiedFiles {
-		// Load current node from working tree
-		nodeID := extractNodeID(filePath)
+	for _, nodePath := range nodePaths {
+		nodeID := discovery.PathToID(nodePath)
 		if nodeID == "" {
 			continue
 		}
 
 		currentNode, err := nodeRepo.Load(nodeID)
 		if err != nil {
-			continue // Skip nodes that can't be loaded
+			continue
 		}
 
-		// Get HEAD version of the node
-		headNode, err := getNodeFromHEAD(flags.targetDir, filePath)
-		if err != nil {
-			continue // New file or can't read HEAD version
+		currentHash := computeContentHash(currentNode)
+		lastHash := getLastContentHash(flags.targetDir, nodeID)
+
+		if lastHash == "" {
+			// No history - baseline this node
+			if !flags.dryRun {
+				if err := logBaselineOperation(flags.targetDir, nodeID, currentHash); err != nil {
+					if !flags.quiet {
+						fmt.Fprintf(os.Stderr, "Warning: failed to baseline %s: %v\n", nodeID, err)
+					}
+					continue
+				}
+			}
+			baselinedNodes = append(baselinedNodes, nodeID)
+			continue
 		}
 
-		// Compare content semantically
-		if !contentChanged(headNode, currentNode) {
-			continue // Only metadata changed, skip
+		if currentHash == lastHash {
+			// No change
+			continue
 		}
 
 		// Content changed - need to sync
@@ -150,8 +153,7 @@ func runSync(flags *syncFlags) (int, error) {
 		}
 
 		if !flags.dryRun {
-			// Apply sync changes
-			if err := applySync(flags.targetDir, &currentNode, nodeRepo); err != nil {
+			if err := applySyncWithHash(flags.targetDir, &currentNode, nodeRepo, currentHash); err != nil {
 				if !flags.quiet {
 					fmt.Fprintf(os.Stderr, "Warning: failed to sync %s: %v\n", nodeID, err)
 				}
@@ -159,164 +161,66 @@ func runSync(flags *syncFlags) (int, error) {
 			}
 		}
 
-		results = append(results, result)
-	}
-
-	if len(results) == 0 {
-		return syncExitClean, nil
+		syncResults = append(syncResults, result)
 	}
 
 	// Output results
 	if !flags.quiet {
-		if flags.dryRun {
-			fmt.Print("Would sync: ")
-		} else {
-			fmt.Print("Synced: ")
+		if len(baselinedNodes) > 0 {
+			if flags.dryRun {
+				fmt.Printf("Would baseline: %s (%d nodes)\n", strings.Join(baselinedNodes, ", "), len(baselinedNodes))
+			} else {
+				fmt.Printf("Baselined: %s (%d nodes)\n", strings.Join(baselinedNodes, ", "), len(baselinedNodes))
+			}
 		}
 
-		parts := make([]string, len(results))
-		for i, r := range results {
-			parts[i] = fmt.Sprintf("%s (v%d→v%d)", r.nodeID, r.oldVersion, r.newVersion)
+		if len(syncResults) > 0 {
+			if flags.dryRun {
+				fmt.Print("Would sync: ")
+			} else {
+				fmt.Print("Synced: ")
+			}
+			parts := make([]string, len(syncResults))
+			for i, r := range syncResults {
+				parts[i] = fmt.Sprintf("%s (v%d→v%d)", r.nodeID, r.oldVersion, r.newVersion)
+			}
+			fmt.Println(strings.Join(parts, ", "))
 		}
-		fmt.Println(strings.Join(parts, ", "))
 	}
 
 	if flags.dryRun {
 		return syncExitClean, nil
 	}
 
-	return syncExitModified, nil
+	if len(syncResults) > 0 {
+		return syncExitModified, nil
+	}
+
+	return syncExitClean, nil
 }
 
-// isGitRepo checks if the directory is inside a git repository
-func isGitRepo(dir string) bool {
-	cmd := exec.Command("git", "rev-parse", "--git-dir")
-	cmd.Dir = dir
-	return cmd.Run() == nil
+// logBaselineOperation records initial state for a node without modification
+func logBaselineOperation(targetDir, nodeID, contentHash string) error {
+	historyRepo := history.NewYAMLRepository(targetDir)
+
+	username := "unknown"
+	if u, err := user.Current(); err == nil {
+		username = u.Username
+	}
+
+	entry := domain.AuditEntry{
+		Timestamp:   time.Now(),
+		NodeID:      nodeID,
+		Operation:   "baseline",
+		User:        username,
+		ContentHash: contentHash,
+	}
+
+	return historyRepo.Append(entry)
 }
 
-// getModifiedNodeFiles returns list of node files modified since HEAD
-func getModifiedNodeFiles(targetDir string) ([]string, error) {
-	cmd := exec.Command("git", "diff", "--name-only", "HEAD")
-	cmd.Dir = targetDir
-	output, err := cmd.Output()
-	if err != nil {
-		// If HEAD doesn't exist (new repo), there are no changes to sync
-		return nil, nil
-	}
-
-	var nodeFiles []string
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		// Only include .yaml files in .deco/nodes/
-		if strings.HasPrefix(line, ".deco/nodes/") && strings.HasSuffix(line, ".yaml") {
-			nodeFiles = append(nodeFiles, line)
-		}
-	}
-
-	return nodeFiles, nil
-}
-
-// extractNodeID gets the node ID from a file path like .deco/nodes/sword-001.yaml
-func extractNodeID(filePath string) string {
-	base := filepath.Base(filePath)
-	if !strings.HasSuffix(base, ".yaml") {
-		return ""
-	}
-	return strings.TrimSuffix(base, ".yaml")
-}
-
-// getNodeFromHEAD loads a node from the HEAD commit
-func getNodeFromHEAD(targetDir, filePath string) (domain.Node, error) {
-	cmd := exec.Command("git", "show", "HEAD:"+filePath)
-	cmd.Dir = targetDir
-	output, err := cmd.Output()
-	if err != nil {
-		return domain.Node{}, err
-	}
-
-	var n domain.Node
-	if err := yaml.Unmarshal(output, &n); err != nil {
-		return domain.Node{}, err
-	}
-
-	return n, nil
-}
-
-// contentChanged compares content fields between two nodes
-// Returns true if any content field differs (ignoring metadata)
-func contentChanged(old, new domain.Node) bool {
-	// Content fields that trigger sync:
-	// title, summary, content, tags, refs, issues
-
-	if old.Title != new.Title {
-		return true
-	}
-	if old.Summary != new.Summary {
-		return true
-	}
-	if !tagsEqual(old.Tags, new.Tags) {
-		return true
-	}
-	if !refsEqual(old.Refs, new.Refs) {
-		return true
-	}
-	if !issuesEqual(old.Issues, new.Issues) {
-		return true
-	}
-	if !contentEqual(old.Content, new.Content) {
-		return true
-	}
-
-	return false
-}
-
-// tagsEqual compares two tag slices
-func tagsEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
-// refsEqual compares two Ref structs
-func refsEqual(a, b domain.Ref) bool {
-	return reflect.DeepEqual(a, b)
-}
-
-// issuesEqual compares two Issue slices
-func issuesEqual(a, b []domain.Issue) bool {
-	return reflect.DeepEqual(a, b)
-}
-
-// contentEqual compares two Content structs
-func contentEqual(a, b *domain.Content) bool {
-	if a == nil && b == nil {
-		return true
-	}
-	if a == nil || b == nil {
-		return false
-	}
-	// Use YAML serialization for deep comparison
-	aYAML, err1 := yaml.Marshal(a)
-	bYAML, err2 := yaml.Marshal(b)
-	if err1 != nil || err2 != nil {
-		return false
-	}
-	return bytes.Equal(aYAML, bYAML)
-}
-
-// applySync applies sync changes to a node
-func applySync(targetDir string, n *domain.Node, nodeRepo *node.YAMLRepository) error {
+// applySyncWithHash applies sync changes and logs with content hash
+func applySyncWithHash(targetDir string, n *domain.Node, nodeRepo *node.YAMLRepository, contentHash string) error {
 	oldVersion := n.Version
 	oldStatus := n.Status
 
@@ -336,12 +240,12 @@ func applySync(targetDir string, n *domain.Node, nodeRepo *node.YAMLRepository) 
 		return err
 	}
 
-	// Log to history
-	return logSyncOperation(targetDir, n.ID, oldVersion, n.Version, oldStatus, n.Status)
+	// Log to history with content hash
+	return logSyncOperationWithHash(targetDir, n.ID, oldVersion, n.Version, oldStatus, n.Status, contentHash)
 }
 
-// logSyncOperation adds a sync entry to the history log
-func logSyncOperation(targetDir, nodeID string, oldVersion, newVersion int, oldStatus, newStatus string) error {
+// logSyncOperationWithHash adds a sync entry with content hash
+func logSyncOperationWithHash(targetDir, nodeID string, oldVersion, newVersion int, oldStatus, newStatus, contentHash string) error {
 	historyRepo := history.NewYAMLRepository(targetDir)
 
 	username := "unknown"
@@ -350,10 +254,11 @@ func logSyncOperation(targetDir, nodeID string, oldVersion, newVersion int, oldS
 	}
 
 	entry := domain.AuditEntry{
-		Timestamp: time.Now(),
-		NodeID:    nodeID,
-		Operation: "sync",
-		User:      username,
+		Timestamp:   time.Now(),
+		NodeID:      nodeID,
+		Operation:   "sync",
+		User:        username,
+		ContentHash: contentHash,
 		Before: map[string]interface{}{
 			"version": oldVersion,
 			"status":  oldStatus,
