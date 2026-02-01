@@ -8,6 +8,8 @@ Deco is a Go CLI for managing game design documents as structured, validated YAM
 
 This project uses **bd** (beads) for issue tracking.
 
+See docs/index.md before searching the code structure for better context.
+
 ## Working Relationship
 
 **Roles:**
