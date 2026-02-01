@@ -4,9 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/user"
+	"reflect"
+	"strconv"
+	"strings"
+	"time"
 
+	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/services/patcher"
 	"github.com/Toernblom/deco/internal/storage/config"
+	"github.com/Toernblom/deco/internal/storage/history"
 	"github.com/Toernblom/deco/internal/storage/node"
 	"github.com/spf13/cobra"
 )
@@ -93,6 +100,12 @@ func runApply(flags *applyFlags) error {
 		return fmt.Errorf("node %q not found: %w", flags.nodeID, err)
 	}
 
+	// Capture before values for history
+	beforeValues := make(map[string]interface{})
+	for _, op := range operations {
+		beforeValues[op.Path] = getFieldValueApply(&n, op.Path)
+	}
+
 	// Apply the patch operations
 	p := patcher.New()
 	err = p.Apply(&n, operations)
@@ -107,6 +120,14 @@ func runApply(flags *applyFlags) error {
 		return nil
 	}
 
+	// Capture after values for history
+	afterValues := make(map[string]interface{})
+	for _, op := range operations {
+		if op.Op != "unset" {
+			afterValues[op.Path] = getFieldValueApply(&n, op.Path)
+		}
+	}
+
 	// Increment version
 	n.Version++
 
@@ -116,9 +137,85 @@ func runApply(flags *applyFlags) error {
 		return fmt.Errorf("failed to save node: %w", err)
 	}
 
+	// Log apply operation in history
+	if err := logApplyOperation(flags.targetDir, n.ID, beforeValues, afterValues); err != nil {
+		fmt.Printf("Warning: failed to log apply operation: %v\n", err)
+	}
+
 	if !flags.quiet {
 		fmt.Printf("Applied %d operation(s) to %s (version %d)\n", len(operations), flags.nodeID, n.Version)
 	}
 
 	return nil
+}
+
+// getFieldValueApply extracts a field value from a node using reflection
+func getFieldValueApply(n *domain.Node, path string) interface{} {
+	parts := strings.Split(path, ".")
+	v := reflect.ValueOf(n).Elem()
+
+	for _, part := range parts {
+		// Handle array index notation
+		if idx := strings.Index(part, "["); idx != -1 {
+			fieldName := part[:idx]
+			endIdx := strings.Index(part, "]")
+			if endIdx == -1 {
+				return nil
+			}
+			indexStr := part[idx+1 : endIdx]
+			index, err := strconv.Atoi(indexStr)
+			if err != nil {
+				return nil
+			}
+
+			field := v.FieldByName(capitalizeFirstApply(fieldName))
+			if !field.IsValid() || field.Kind() != reflect.Slice {
+				return nil
+			}
+			if index < 0 || index >= field.Len() {
+				return nil
+			}
+			v = field.Index(index)
+			continue
+		}
+
+		field := v.FieldByName(capitalizeFirstApply(part))
+		if !field.IsValid() {
+			return nil
+		}
+		v = field
+	}
+
+	if v.IsValid() && v.CanInterface() {
+		return v.Interface()
+	}
+	return nil
+}
+
+func capitalizeFirstApply(s string) string {
+	if s == "" {
+		return ""
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// logApplyOperation adds an apply entry to the history log
+func logApplyOperation(targetDir, nodeID string, beforeValues, afterValues map[string]interface{}) error {
+	historyRepo := history.NewYAMLRepository(targetDir)
+
+	username := "unknown"
+	if u, err := user.Current(); err == nil {
+		username = u.Username
+	}
+
+	entry := domain.AuditEntry{
+		Timestamp: time.Now(),
+		NodeID:    nodeID,
+		Operation: "update",
+		User:      username,
+		Before:    beforeValues,
+		After:     afterValues,
+	}
+
+	return historyRepo.Append(entry)
 }

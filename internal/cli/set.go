@@ -3,11 +3,16 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"os/user"
+	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/services/patcher"
 	"github.com/Toernblom/deco/internal/storage/config"
+	"github.com/Toernblom/deco/internal/storage/history"
 	"github.com/Toernblom/deco/internal/storage/node"
 	"github.com/spf13/cobra"
 )
@@ -73,6 +78,9 @@ func runSet(flags *setFlags) error {
 		return fmt.Errorf("node %q not found: %w", flags.nodeID, err)
 	}
 
+	// Capture old value for history
+	oldValue := getFieldValue(&n, flags.path)
+
 	// Parse the value to appropriate type
 	value := parseValue(flags.value)
 
@@ -92,11 +100,87 @@ func runSet(flags *setFlags) error {
 		return fmt.Errorf("failed to save node: %w", err)
 	}
 
+	// Log set operation in history
+	if err := logSetOperation(flags.targetDir, n.ID, flags.path, oldValue, value); err != nil {
+		fmt.Printf("Warning: failed to log set operation: %v\n", err)
+	}
+
 	if !flags.quiet {
 		fmt.Printf("Updated %s.%s = %v (version %d)\n", flags.nodeID, flags.path, value, n.Version)
 	}
 
 	return nil
+}
+
+// getFieldValue extracts a field value from a node using reflection
+func getFieldValue(n *domain.Node, path string) interface{} {
+	parts := strings.Split(path, ".")
+	v := reflect.ValueOf(n).Elem()
+
+	for _, part := range parts {
+		// Handle array index notation
+		if idx := strings.Index(part, "["); idx != -1 {
+			fieldName := part[:idx]
+			endIdx := strings.Index(part, "]")
+			if endIdx == -1 {
+				return nil
+			}
+			indexStr := part[idx+1 : endIdx]
+			index, err := strconv.Atoi(indexStr)
+			if err != nil {
+				return nil
+			}
+
+			field := v.FieldByName(capitalizeFirstSet(fieldName))
+			if !field.IsValid() || field.Kind() != reflect.Slice {
+				return nil
+			}
+			if index < 0 || index >= field.Len() {
+				return nil
+			}
+			v = field.Index(index)
+			continue
+		}
+
+		field := v.FieldByName(capitalizeFirstSet(part))
+		if !field.IsValid() {
+			return nil
+		}
+		v = field
+	}
+
+	if v.IsValid() && v.CanInterface() {
+		return v.Interface()
+	}
+	return nil
+}
+
+func capitalizeFirstSet(s string) string {
+	if s == "" {
+		return ""
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// logSetOperation adds a set entry to the history log
+func logSetOperation(targetDir, nodeID, path string, oldValue, newValue interface{}) error {
+	historyRepo := history.NewYAMLRepository(targetDir)
+
+	username := "unknown"
+	if u, err := user.Current(); err == nil {
+		username = u.Username
+	}
+
+	entry := domain.AuditEntry{
+		Timestamp: time.Now(),
+		NodeID:    nodeID,
+		Operation: "set",
+		User:      username,
+		Before:    map[string]interface{}{path: oldValue},
+		After:     map[string]interface{}{path: newValue},
+	}
+
+	return historyRepo.Append(entry)
 }
 
 // parseValue attempts to parse a string value into the appropriate Go type.

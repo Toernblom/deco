@@ -2,10 +2,13 @@ package cli
 
 import (
 	"fmt"
+	"os/user"
 	"strings"
+	"time"
 
 	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/storage/config"
+	"github.com/Toernblom/deco/internal/storage/history"
 	"github.com/Toernblom/deco/internal/storage/node"
 	"github.com/spf13/cobra"
 )
@@ -88,8 +91,39 @@ func runCreate(id string, flags *createFlags) error {
 		return fmt.Errorf("failed to save node: %w", err)
 	}
 
+	// Log creation in history
+	if err := logCreation(flags.targetDir, newNode); err != nil {
+		fmt.Printf("Warning: failed to log creation: %v\n", err)
+	}
+
 	fmt.Printf("Created node: %s\n", id)
 	return nil
+}
+
+// logCreation adds a creation entry to the history log
+func logCreation(targetDir string, createdNode domain.Node) error {
+	historyRepo := history.NewYAMLRepository(targetDir)
+
+	username := "unknown"
+	if u, err := user.Current(); err == nil {
+		username = u.Username
+	}
+
+	entry := domain.AuditEntry{
+		Timestamp: time.Now(),
+		NodeID:    createdNode.ID,
+		Operation: "create",
+		User:      username,
+		After: map[string]interface{}{
+			"id":      createdNode.ID,
+			"kind":    createdNode.Kind,
+			"version": createdNode.Version,
+			"status":  createdNode.Status,
+			"title":   createdNode.Title,
+		},
+	}
+
+	return historyRepo.Append(entry)
 }
 
 // deriveTitle creates a human-readable title from the node ID
