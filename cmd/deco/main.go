@@ -26,6 +26,7 @@ func main() {
 	root.AddCommand(cli.NewHistoryCommand())
 	root.AddCommand(cli.NewMvCommand())
 	root.AddCommand(cli.NewGraphCommand())
+	root.AddCommand(cli.NewDiffCommand())
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

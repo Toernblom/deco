@@ -23,6 +23,7 @@ deco/
 │   │   ├── apply.go                # Apply structured patch files
 │   │   ├── mv.go                   # Move/rename nodes with ref updates
 │   │   ├── history.go              # View audit log
+│   │   ├── diff.go                 # Show node change history
 │   │   └── *_test.go               # Tests for each command
 │   │
 │   ├── domain/                     # Core domain models
