@@ -561,10 +561,11 @@ type Orchestrator struct {
 	unknownFieldValidator *UnknownFieldValidator
 	contractValidator     *ContractValidator
 	blockValidator        *BlockValidator
+	approvalValidator     *ApprovalValidator
 }
 
-// NewOrchestrator creates a new validator orchestrator.
-func NewOrchestrator() *Orchestrator {
+// NewOrchestratorWithConfig creates a validator orchestrator with config-based settings.
+func NewOrchestratorWithConfig(requiredApprovals int) *Orchestrator {
 	return &Orchestrator{
 		schemaValidator:       NewSchemaValidator(),
 		contentValidator:      NewContentValidator(),
@@ -574,7 +575,13 @@ func NewOrchestrator() *Orchestrator {
 		unknownFieldValidator: NewUnknownFieldValidator(),
 		contractValidator:     NewContractValidator(),
 		blockValidator:        NewBlockValidator(),
+		approvalValidator:     NewApprovalValidator(requiredApprovals),
 	}
+}
+
+// NewOrchestrator creates a new validator orchestrator.
+func NewOrchestrator() *Orchestrator {
+	return NewOrchestratorWithConfig(1)
 }
 
 // ValidateAll runs all validators on the provided nodes and returns aggregated errors.
@@ -609,6 +616,13 @@ func (o *Orchestrator) ValidateAll(nodes []domain.Node) *errors.Collector {
 
 	// Run contract validation on all nodes
 	o.contractValidator.ValidateAll(nodes, collector)
+
+	// Run approval validator on each node
+	if o.approvalValidator != nil {
+		for i := range nodes {
+			o.approvalValidator.Validate(&nodes[i], collector)
+		}
+	}
 
 	return collector
 }

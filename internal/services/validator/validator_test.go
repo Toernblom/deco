@@ -1903,3 +1903,37 @@ func TestApprovalValidator(t *testing.T) {
 		}
 	})
 }
+
+func TestOrchestrator_ApprovalValidation(t *testing.T) {
+	t.Run("orchestrator validates approvals", func(t *testing.T) {
+		orch := validator.NewOrchestratorWithConfig(2) // 2 required approvals
+
+		nodes := []domain.Node{
+			{
+				ID:         "test/approved",
+				Kind:       "mechanic",
+				Version:    1,
+				Status:     "approved",
+				Title:      "Test",
+				SourceFile: "test.yaml",
+				Reviewers: []domain.Reviewer{
+					{Name: "alice", Timestamp: time.Now(), Version: 1},
+				},
+			},
+		}
+
+		collector := orch.ValidateAll(nodes)
+
+		// Should have error for insufficient approvals
+		hasApprovalError := false
+		for _, err := range collector.Errors() {
+			if err.Code == "E050" {
+				hasApprovalError = true
+				break
+			}
+		}
+		if !hasApprovalError {
+			t.Error("Expected approval validation error E050")
+		}
+	})
+}
