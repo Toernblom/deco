@@ -10,12 +10,16 @@ import (
 
 // ContractValidator validates contract scenarios within nodes.
 // It checks for proper given/when/then structure, valid field types,
-// and unique scenario names within each node.
-type ContractValidator struct{}
+// unique scenario names within each node, and valid node references.
+type ContractValidator struct {
+	suggester *errors.Suggester
+}
 
 // NewContractValidator creates a new contract validator.
 func NewContractValidator() *ContractValidator {
-	return &ContractValidator{}
+	return &ContractValidator{
+		suggester: errors.NewSuggester(),
+	}
 }
 
 // Validate checks all contracts in a node for syntax errors.
@@ -92,8 +96,52 @@ func (cv *ContractValidator) validateStructure(nodeID string, scenario *domain.S
 }
 
 // ValidateAll checks all contracts across multiple nodes.
+// This includes syntax validation and node reference validation.
 func (cv *ContractValidator) ValidateAll(nodes []domain.Node, collector *errors.Collector) {
+	// Build set of existing node IDs for reference validation
+	nodeIDs := make(map[string]bool)
+	var allIDs []string
+	for _, node := range nodes {
+		nodeIDs[node.ID] = true
+		allIDs = append(allIDs, node.ID)
+	}
+
+	// Validate each node's contracts
 	for _, node := range nodes {
 		cv.Validate(&node, collector)
+		cv.validateNodeRefs(&node, nodeIDs, allIDs, collector)
+	}
+}
+
+// validateNodeRefs checks that all @node.id references in contract steps
+// point to existing nodes in the design graph.
+func (cv *ContractValidator) validateNodeRefs(node *domain.Node, nodeIDs map[string]bool, allIDs []string, collector *errors.Collector) {
+	if node == nil || len(node.Contracts) == 0 {
+		return
+	}
+
+	for _, contract := range node.Contracts {
+		scenario := domain.ParseContract(contract)
+
+		// Check each step's node references
+		for _, step := range scenario.AllSteps() {
+			for _, ref := range step.NodeRefs {
+				if !nodeIDs[ref] {
+					err := domain.DecoError{
+						Code:    "E102",
+						Summary: fmt.Sprintf("Invalid node reference: @%s", ref),
+						Detail:  fmt.Sprintf("in node %s, contract %q, %s step %d: referenced node %q does not exist", node.ID, scenario.Name, step.StepType, step.StepNumber, ref),
+					}
+
+					// Generate suggestion for similar IDs
+					suggs := cv.suggester.Suggest(ref, allIDs)
+					if len(suggs) > 0 {
+						err.Suggestion = fmt.Sprintf("Did you mean '@%s'?", suggs[0])
+					}
+
+					collector.Add(err)
+				}
+			}
+		}
 	}
 }

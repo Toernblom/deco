@@ -1165,3 +1165,220 @@ func TestOrchestrator_ValidatesContracts(t *testing.T) {
 		t.Error("expected orchestrator to catch duplicate contract name error (E103)")
 	}
 }
+
+// ===== CONTRACT NODE REFERENCE VALIDATION TESTS =====
+
+// Test valid node references in contract
+func TestContractValidator_ValidNodeRefs(t *testing.T) {
+	cv := validator.NewContractValidator()
+
+	nodes := []domain.Node{
+		{ID: "systems/combat", Kind: "system", Version: 1, Status: "draft", Title: "Combat System"},
+		{ID: "mechanics/damage", Kind: "mechanic", Version: 1, Status: "draft", Title: "Damage Mechanic"},
+		{
+			ID:      "features/attack",
+			Kind:    "feature",
+			Version: 1,
+			Status:  "draft",
+			Title:   "Attack Feature",
+			Contracts: []domain.Contract{
+				{
+					Name:  "Attack Flow",
+					Given: []string{"@systems/combat is active"},
+					When:  []string{"player attacks using @mechanics/damage"},
+					Then:  []string{"damage is applied"},
+				},
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.ValidateAll(nodes, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for valid node references, got %d: %v", collector.Count(), collector.Errors())
+	}
+}
+
+// Test invalid node reference (E102)
+func TestContractValidator_InvalidNodeRef(t *testing.T) {
+	cv := validator.NewContractValidator()
+
+	nodes := []domain.Node{
+		{ID: "systems/combat", Kind: "system", Version: 1, Status: "draft", Title: "Combat System"},
+		{
+			ID:      "features/attack",
+			Kind:    "feature",
+			Version: 1,
+			Status:  "draft",
+			Title:   "Attack Feature",
+			Contracts: []domain.Contract{
+				{
+					Name:  "Attack Flow",
+					Given: []string{"@systems/combat is active"},
+					When:  []string{"player attacks using @mechanics/nonexistent"}, // Invalid ref
+					Then:  []string{"damage is applied"},
+				},
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.ValidateAll(nodes, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for invalid node reference")
+	}
+
+	errs := collector.Errors()
+	found := false
+	for _, err := range errs {
+		if err.Code == "E102" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected to find invalid node reference error (E102)")
+	}
+}
+
+// Test suggestion for typo in node reference
+func TestContractValidator_NodeRefSuggestion(t *testing.T) {
+	cv := validator.NewContractValidator()
+
+	nodes := []domain.Node{
+		{ID: "systems/combat", Kind: "system", Version: 1, Status: "draft", Title: "Combat System"},
+		{
+			ID:      "features/attack",
+			Kind:    "feature",
+			Version: 1,
+			Status:  "draft",
+			Title:   "Attack Feature",
+			Contracts: []domain.Contract{
+				{
+					Name:  "Attack Flow",
+					Given: []string{"@systems/combt is active"}, // Typo: combt instead of combat
+					When:  []string{"player attacks"},
+					Then:  []string{"damage is applied"},
+				},
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.ValidateAll(nodes, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for typo in node reference")
+	}
+
+	errs := collector.Errors()
+	if errs[0].Suggestion == "" {
+		t.Error("expected suggestion for similar node ID")
+	}
+}
+
+// Test multiple invalid node references
+func TestContractValidator_MultipleInvalidNodeRefs(t *testing.T) {
+	cv := validator.NewContractValidator()
+
+	nodes := []domain.Node{
+		{ID: "systems/combat", Kind: "system", Version: 1, Status: "draft", Title: "Combat System"},
+		{
+			ID:      "features/attack",
+			Kind:    "feature",
+			Version: 1,
+			Status:  "draft",
+			Title:   "Attack Feature",
+			Contracts: []domain.Contract{
+				{
+					Name:  "Attack Flow",
+					Given: []string{"@missing/node1 is active"},
+					When:  []string{"player attacks using @missing/node2"},
+					Then:  []string{"@missing/node3 is updated"},
+				},
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.ValidateAll(nodes, collector)
+
+	// Should have 3 errors (one for each missing reference)
+	if collector.Count() != 3 {
+		t.Errorf("expected 3 errors for invalid references, got %d", collector.Count())
+	}
+}
+
+// Test contract without node references (should pass)
+func TestContractValidator_NoNodeRefs(t *testing.T) {
+	cv := validator.NewContractValidator()
+
+	nodes := []domain.Node{
+		{
+			ID:      "features/simple",
+			Kind:    "feature",
+			Version: 1,
+			Status:  "draft",
+			Title:   "Simple Feature",
+			Contracts: []domain.Contract{
+				{
+					Name:  "Simple Flow",
+					Given: []string{"the system is ready"},
+					When:  []string{"user performs action"},
+					Then:  []string{"expected result occurs"},
+				},
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.ValidateAll(nodes, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for contract without node refs, got %d: %v", collector.Count(), collector.Errors())
+	}
+}
+
+// Test orchestrator validates contract node references
+func TestOrchestrator_ValidatesContractNodeRefs(t *testing.T) {
+	orch := validator.NewOrchestrator()
+
+	nodes := []domain.Node{
+		{ID: "systems/combat", Kind: "system", Version: 1, Status: "draft", Title: "Combat System"},
+		{
+			ID:      "features/attack",
+			Kind:    "feature",
+			Version: 1,
+			Status:  "draft",
+			Title:   "Attack Feature",
+			Contracts: []domain.Contract{
+				{
+					Name:  "Attack Flow",
+					Given: []string{"@systems/nonexistent is active"}, // Invalid ref
+					When:  []string{"player attacks"},
+					Then:  []string{"damage is applied"},
+				},
+			},
+		},
+	}
+
+	collector := orch.ValidateAll(nodes)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for invalid node reference")
+	}
+
+	errs := collector.Errors()
+	found := false
+	for _, err := range errs {
+		if err.Code == "E102" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected orchestrator to catch invalid node reference error (E102)")
+	}
+}
