@@ -244,6 +244,53 @@ func TestReviewCommand_Status(t *testing.T) {
 	})
 }
 
+func TestReviewWorkflow_Integration(t *testing.T) {
+	t.Run("full workflow: draft -> review -> approved -> edit -> draft", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupReviewProject(t, tmpDir)
+		createDraftNode(t, tmpDir, "test/node")
+
+		// 1. Submit for review
+		submitCmd := NewReviewCommand()
+		submitCmd.SetArgs([]string{"submit", "test/node", tmpDir})
+		if err := submitCmd.Execute(); err != nil {
+			t.Fatalf("Submit failed: %v", err)
+		}
+
+		nodeYAML := readNodeFileByID(t, tmpDir, "test/node")
+		if !strings.Contains(nodeYAML, "status: review") {
+			t.Fatalf("Expected status 'review' after submit")
+		}
+
+		// 2. Approve
+		approveCmd := NewReviewCommand()
+		approveCmd.SetArgs([]string{"approve", "test/node", "--note", "LGTM", tmpDir})
+		if err := approveCmd.Execute(); err != nil {
+			t.Fatalf("Approve failed: %v", err)
+		}
+
+		nodeYAML = readNodeFileByID(t, tmpDir, "test/node")
+		if !strings.Contains(nodeYAML, "status: approved") {
+			t.Fatalf("Expected status 'approved' after approve")
+		}
+
+		// 3. Edit (should reset to draft)
+		setCmd := NewSetCommand()
+		setCmd.SetArgs([]string{"test/node", "title", "Updated Title", tmpDir})
+		if err := setCmd.Execute(); err != nil {
+			t.Fatalf("Set failed: %v", err)
+		}
+
+		nodeYAML = readNodeFileByID(t, tmpDir, "test/node")
+		if !strings.Contains(nodeYAML, "status: draft") {
+			t.Fatalf("Expected status 'draft' after edit")
+		}
+		if strings.Contains(nodeYAML, "reviewers:") {
+			t.Fatalf("Expected reviewers to be cleared after edit")
+		}
+	})
+}
+
 func createNodeWithReviewers(t *testing.T, tmpDir, nodeID, status string, numReviewers int) {
 	t.Helper()
 	nodeContent := `id: ` + nodeID + `
