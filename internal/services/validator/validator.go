@@ -347,6 +347,7 @@ var knownTopLevelKeys = map[string]bool{
 	"contracts":   true,
 	"llm_context": true,
 	"constraints": true,
+	"reviewers":   true, // Review workflow approvals
 	"custom":      true, // Explicit extension namespace
 }
 
@@ -502,6 +503,52 @@ func (uf *UnknownFieldValidator) ValidateDirectory(rootDir string, collector *er
 
 		return nil
 	})
+}
+
+// ApprovalValidator validates that approved nodes have sufficient approvals.
+type ApprovalValidator struct {
+	requiredApprovals int
+}
+
+// NewApprovalValidator creates a new approval validator.
+func NewApprovalValidator(requiredApprovals int) *ApprovalValidator {
+	return &ApprovalValidator{requiredApprovals: requiredApprovals}
+}
+
+// Validate checks that approved nodes have enough current-version approvals.
+func (av *ApprovalValidator) Validate(node *domain.Node, collector *errors.Collector) {
+	if node == nil {
+		return
+	}
+
+	// Only check approved nodes
+	if node.Status != "approved" {
+		return
+	}
+
+	// Helper to create location from node source file
+	var location *domain.Location
+	if node.SourceFile != "" {
+		location = &domain.Location{File: node.SourceFile}
+	}
+
+	// Count approvals for current version
+	validApprovals := 0
+	for _, r := range node.Reviewers {
+		if r.Version == node.Version {
+			validApprovals++
+		}
+	}
+
+	if validApprovals < av.requiredApprovals {
+		collector.Add(domain.DecoError{
+			Code:       "E050",
+			Summary:    fmt.Sprintf("Node %q requires %d approval(s), has %d", node.ID, av.requiredApprovals, validApprovals),
+			Detail:     fmt.Sprintf("Approved nodes must have at least %d approval(s) for version %d. Current approvals: %d.", av.requiredApprovals, node.Version, validApprovals),
+			Suggestion: "Use 'deco review approve' to add approvals, or change status back to 'draft' or 'review'.",
+			Location:   location,
+		})
+	}
 }
 
 // Orchestrator coordinates all validators and aggregates errors.

@@ -2,6 +2,7 @@ package validator_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/errors"
@@ -1807,4 +1808,98 @@ func TestOrchestrator_ValidatesBlockRequirements(t *testing.T) {
 	if !found {
 		t.Error("expected orchestrator to catch block requirement error (E047)")
 	}
+}
+
+// ===== APPROVAL VALIDATOR TESTS =====
+
+func TestApprovalValidator(t *testing.T) {
+	t.Run("approved node without enough approvals fails", func(t *testing.T) {
+		av := validator.NewApprovalValidator(2) // require 2 approvals
+		collector := errors.NewCollector()
+
+		node := &domain.Node{
+			ID:         "test/node",
+			Kind:       "mechanic",
+			Version:    1,
+			Status:     "approved",
+			Title:      "Test",
+			SourceFile: "test.yaml",
+			Reviewers: []domain.Reviewer{
+				{Name: "alice", Timestamp: time.Now(), Version: 1},
+			},
+		}
+
+		av.Validate(node, collector)
+
+		if !collector.HasErrors() {
+			t.Error("Expected validation error for insufficient approvals")
+		}
+	})
+
+	t.Run("approved node with enough approvals passes", func(t *testing.T) {
+		av := validator.NewApprovalValidator(2)
+		collector := errors.NewCollector()
+
+		node := &domain.Node{
+			ID:         "test/node",
+			Kind:       "mechanic",
+			Version:    1,
+			Status:     "approved",
+			Title:      "Test",
+			SourceFile: "test.yaml",
+			Reviewers: []domain.Reviewer{
+				{Name: "alice", Timestamp: time.Now(), Version: 1},
+				{Name: "bob", Timestamp: time.Now(), Version: 1},
+			},
+		}
+
+		av.Validate(node, collector)
+
+		if collector.HasErrors() {
+			t.Errorf("Expected no errors, got: %v", collector.Errors())
+		}
+	})
+
+	t.Run("draft node skips approval check", func(t *testing.T) {
+		av := validator.NewApprovalValidator(2)
+		collector := errors.NewCollector()
+
+		node := &domain.Node{
+			ID:         "test/node",
+			Kind:       "mechanic",
+			Version:    1,
+			Status:     "draft",
+			Title:      "Test",
+			SourceFile: "test.yaml",
+		}
+
+		av.Validate(node, collector)
+
+		if collector.HasErrors() {
+			t.Errorf("Expected no errors for draft node, got: %v", collector.Errors())
+		}
+	})
+
+	t.Run("approvals must match current version", func(t *testing.T) {
+		av := validator.NewApprovalValidator(1)
+		collector := errors.NewCollector()
+
+		node := &domain.Node{
+			ID:         "test/node",
+			Kind:       "mechanic",
+			Version:    2, // current version is 2
+			Status:     "approved",
+			Title:      "Test",
+			SourceFile: "test.yaml",
+			Reviewers: []domain.Reviewer{
+				{Name: "alice", Timestamp: time.Now(), Version: 1}, // approved version 1
+			},
+		}
+
+		av.Validate(node, collector)
+
+		if !collector.HasErrors() {
+			t.Error("Expected error for stale approval")
+		}
+	})
 }
