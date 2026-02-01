@@ -33,6 +33,47 @@ func TestComputeContentHash(t *testing.T) {
 		}
 	})
 
+	t.Run("returns deterministic hash for content with blocks", func(t *testing.T) {
+		// Blocks have map[string]interface{} Data field that could be non-deterministic
+		nodeWithBlocks := domain.Node{
+			ID:      "test-blocks",
+			Kind:    "mechanic",
+			Version: 1,
+			Status:  "draft",
+			Title:   "Block Test",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Rules",
+						Blocks: []domain.Block{
+							{
+								Type: "table",
+								Data: map[string]interface{}{
+									"zebra":   "last alphabetically",
+									"alpha":   "first alphabetically",
+									"middle":  "between",
+									"columns": []string{"a", "b", "c"},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		// Hash multiple times - must be identical
+		hashes := make([]string, 10)
+		for i := 0; i < 10; i++ {
+			hashes[i] = computeContentHash(nodeWithBlocks)
+		}
+
+		for i := 1; i < len(hashes); i++ {
+			if hashes[i] != hashes[0] {
+				t.Errorf("Non-deterministic hash detected: run 0=%s, run %d=%s", hashes[0], i, hashes[i])
+			}
+		}
+	})
+
 	t.Run("returns different hash for different content", func(t *testing.T) {
 		modified := n
 		modified.Title = "Different Title"

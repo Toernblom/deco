@@ -2,6 +2,7 @@ package domain
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -101,16 +102,37 @@ func (b *Block) UnmarshalYAML(node *yaml.Node) error {
 
 // MarshalYAML implements custom YAML marshaling for Block.
 // It writes Data fields as inline block fields (not nested under 'data:').
+// Keys are sorted for deterministic output (important for content hashing).
 func (b Block) MarshalYAML() (interface{}, error) {
-	// Build a map with 'type' first, then all Data fields
-	result := make(map[string]interface{})
-	result["type"] = b.Type
-
-	for k, v := range b.Data {
-		result[k] = v
+	// Use yaml.Node to control field order: 'type' first, then Data keys sorted
+	node := &yaml.Node{
+		Kind: yaml.MappingNode,
 	}
 
-	return result, nil
+	// Add 'type' first
+	node.Content = append(node.Content,
+		&yaml.Node{Kind: yaml.ScalarNode, Value: "type"},
+		&yaml.Node{Kind: yaml.ScalarNode, Value: b.Type},
+	)
+
+	// Sort Data keys for deterministic ordering
+	keys := make([]string, 0, len(b.Data))
+	for k := range b.Data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	// Add Data fields in sorted order
+	for _, k := range keys {
+		keyNode := &yaml.Node{Kind: yaml.ScalarNode, Value: k}
+		var valueNode yaml.Node
+		if err := valueNode.Encode(b.Data[k]); err != nil {
+			return nil, fmt.Errorf("failed to encode field %s: %w", k, err)
+		}
+		node.Content = append(node.Content, keyNode, &valueNode)
+	}
+
+	return node, nil
 }
 
 // Contract represents a Gherkin-style scenario or acceptance criteria.
@@ -148,4 +170,93 @@ func (n *Node) Validate() error {
 		return fmt.Errorf("node Title is required")
 	}
 	return nil
+}
+
+// sortedStringMap wraps map[string]string for deterministic YAML output
+type sortedStringMap map[string]string
+
+func (m sortedStringMap) MarshalYAML() (interface{}, error) {
+	if len(m) == 0 {
+		return nil, nil
+	}
+	node := &yaml.Node{Kind: yaml.MappingNode}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		node.Content = append(node.Content,
+			&yaml.Node{Kind: yaml.ScalarNode, Value: k},
+			&yaml.Node{Kind: yaml.ScalarNode, Value: m[k]},
+		)
+	}
+	return node, nil
+}
+
+// sortedInterfaceMap wraps map[string]interface{} for deterministic YAML output
+type sortedInterfaceMap map[string]interface{}
+
+func (m sortedInterfaceMap) MarshalYAML() (interface{}, error) {
+	if len(m) == 0 {
+		return nil, nil
+	}
+	node := &yaml.Node{Kind: yaml.MappingNode}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		keyNode := &yaml.Node{Kind: yaml.ScalarNode, Value: k}
+		var valueNode yaml.Node
+		if err := valueNode.Encode(m[k]); err != nil {
+			return nil, fmt.Errorf("failed to encode field %s: %w", k, err)
+		}
+		node.Content = append(node.Content, keyNode, &valueNode)
+	}
+	return node, nil
+}
+
+// nodeForMarshal is an internal type for marshaling Node with sorted map keys
+type nodeForMarshal struct {
+	ID          string              `yaml:"id"`
+	Kind        string              `yaml:"kind"`
+	Version     int                 `yaml:"version"`
+	Status      string              `yaml:"status"`
+	Title       string              `yaml:"title"`
+	Tags        []string            `yaml:"tags,omitempty"`
+	Refs        Ref                 `yaml:"refs,omitempty"`
+	Content     *Content            `yaml:"content,omitempty"`
+	Issues      []Issue             `yaml:"issues,omitempty"`
+	Summary     string              `yaml:"summary,omitempty"`
+	Glossary    sortedStringMap     `yaml:"glossary,omitempty"`
+	Contracts   []Contract          `yaml:"contracts,omitempty"`
+	LLMContext  string              `yaml:"llm_context,omitempty"`
+	Constraints []Constraint        `yaml:"constraints,omitempty"`
+	Reviewers   []Reviewer          `yaml:"reviewers,omitempty"`
+	Custom      sortedInterfaceMap  `yaml:"custom,omitempty"`
+}
+
+// MarshalYAML implements custom YAML marshaling for Node.
+// It ensures Glossary and Custom maps are serialized with sorted keys.
+func (n Node) MarshalYAML() (interface{}, error) {
+	return nodeForMarshal{
+		ID:          n.ID,
+		Kind:        n.Kind,
+		Version:     n.Version,
+		Status:      n.Status,
+		Title:       n.Title,
+		Tags:        n.Tags,
+		Refs:        n.Refs,
+		Content:     n.Content,
+		Issues:      n.Issues,
+		Summary:     n.Summary,
+		Glossary:    sortedStringMap(n.Glossary),
+		Contracts:   n.Contracts,
+		LLMContext:  n.LLMContext,
+		Constraints: n.Constraints,
+		Reviewers:   n.Reviewers,
+		Custom:      sortedInterfaceMap(n.Custom),
+	}, nil
 }

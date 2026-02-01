@@ -2,6 +2,7 @@ package domain_test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -388,6 +389,93 @@ rows:
 	}
 	if len(restoredRows) != len(originalRows) {
 		t.Errorf("rows length mismatch: got %d, want %d", len(restoredRows), len(originalRows))
+	}
+}
+
+// Test Block YAML marshaling is deterministic (same output every time)
+func TestBlock_MarshalYAML_Deterministic(t *testing.T) {
+	block := domain.Block{
+		Type: "table",
+		Data: map[string]interface{}{
+			"zebra":   "last",
+			"alpha":   "first",
+			"middle":  "between",
+			"numbers": 123,
+		},
+	}
+
+	// Marshal multiple times and verify identical output
+	var outputs []string
+	for i := 0; i < 10; i++ {
+		data, err := yaml.Marshal(&block)
+		if err != nil {
+			t.Fatalf("failed to marshal block: %v", err)
+		}
+		outputs = append(outputs, string(data))
+	}
+
+	// All outputs should be identical
+	for i := 1; i < len(outputs); i++ {
+		if outputs[i] != outputs[0] {
+			t.Errorf("non-deterministic output:\nfirst:  %q\nrun %d: %q", outputs[0], i, outputs[i])
+		}
+	}
+
+	// Verify keys are in alphabetical order (after 'type')
+	expected := "type: table\nalpha: first\nmiddle: between\nnumbers: 123\nzebra: last\n"
+	if outputs[0] != expected {
+		t.Errorf("keys not in expected order:\ngot:  %q\nwant: %q", outputs[0], expected)
+	}
+}
+
+// Test Node YAML marshaling is deterministic for Glossary and Custom maps
+func TestNode_MarshalYAML_Deterministic(t *testing.T) {
+	node := domain.Node{
+		ID:      "test/deterministic",
+		Kind:    "mechanic",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Deterministic Test",
+		Glossary: map[string]string{
+			"zebra":  "last",
+			"alpha":  "first",
+			"middle": "between",
+		},
+		Custom: map[string]interface{}{
+			"zoo":    "end",
+			"aardvark": "start",
+			"nested": map[string]interface{}{
+				"z": 1,
+				"a": 2,
+			},
+		},
+	}
+
+	// Marshal multiple times and verify identical output
+	var outputs []string
+	for i := 0; i < 10; i++ {
+		data, err := yaml.Marshal(&node)
+		if err != nil {
+			t.Fatalf("failed to marshal node: %v", err)
+		}
+		outputs = append(outputs, string(data))
+	}
+
+	// All outputs should be identical
+	for i := 1; i < len(outputs); i++ {
+		if outputs[i] != outputs[0] {
+			t.Errorf("non-deterministic output:\nfirst:  %q\nrun %d: %q", outputs[0], i, outputs[i])
+		}
+	}
+
+	// Verify glossary keys are sorted
+	if !strings.Contains(outputs[0], "glossary:\n    alpha: first\n    middle: between\n    zebra: last") {
+		t.Errorf("glossary keys not sorted alphabetically in output:\n%s", outputs[0])
+	}
+
+	// Verify custom keys are sorted
+	if !strings.Contains(outputs[0], "custom:\n    aardvark: start") {
+		t.Errorf("custom keys not sorted alphabetically in output:\n%s", outputs[0])
 	}
 }
 
