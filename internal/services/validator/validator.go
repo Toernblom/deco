@@ -202,11 +202,30 @@ func (rv *ReferenceValidator) Validate(nodes []domain.Node, collector *errors.Co
 }
 
 // ConstraintValidator validates CEL expression constraints on nodes.
-type ConstraintValidator struct{}
+type ConstraintValidator struct {
+	env      *cel.Env
+	programs map[string]cel.Program // cache compiled programs by expression
+}
 
 // NewConstraintValidator creates a new constraint validator.
 func NewConstraintValidator() *ConstraintValidator {
-	return &ConstraintValidator{}
+	// Create a shared CEL environment - this is expensive so we do it once
+	env, err := cel.NewEnv(
+		cel.Variable("id", cel.StringType),
+		cel.Variable("kind", cel.StringType),
+		cel.Variable("version", cel.IntType),
+		cel.Variable("status", cel.StringType),
+		cel.Variable("title", cel.StringType),
+		cel.Variable("tags", cel.ListType(cel.StringType)),
+	)
+	if err != nil {
+		// Should never happen with our static variable definitions
+		panic(fmt.Sprintf("failed to create CEL environment: %v", err))
+	}
+	return &ConstraintValidator{
+		env:      env,
+		programs: make(map[string]cel.Program),
+	}
 }
 
 // Validate evaluates all constraints on a node.
@@ -271,29 +290,10 @@ func (cv *ConstraintValidator) matchesScope(scope string, node *domain.Node) boo
 
 // evaluateConstraint evaluates a single constraint using CEL
 func (cv *ConstraintValidator) evaluateConstraint(node *domain.Node, constraint domain.Constraint, location *domain.Location, collector *errors.Collector) error {
-	// Create CEL environment
-	env, err := cel.NewEnv(
-		cel.Variable("id", cel.StringType),
-		cel.Variable("kind", cel.StringType),
-		cel.Variable("version", cel.IntType),
-		cel.Variable("status", cel.StringType),
-		cel.Variable("title", cel.StringType),
-		cel.Variable("tags", cel.ListType(cel.StringType)),
-	)
+	// Get or compile the program (cached)
+	prg, err := cv.getOrCompileProgram(constraint.Expr)
 	if err != nil {
-		return fmt.Errorf("failed to create CEL environment: %w", err)
-	}
-
-	// Parse the expression
-	ast, issues := env.Compile(constraint.Expr)
-	if issues != nil && issues.Err() != nil {
-		return fmt.Errorf("failed to compile CEL expression: %w", issues.Err())
-	}
-
-	// Create program
-	prg, err := env.Program(ast)
-	if err != nil {
-		return fmt.Errorf("failed to create CEL program: %w", err)
+		return err
 	}
 
 	// Prepare input data
@@ -328,6 +328,30 @@ func (cv *ConstraintValidator) evaluateConstraint(node *domain.Node, constraint 
 	}
 
 	return nil
+}
+
+// getOrCompileProgram returns a cached CEL program or compiles a new one
+func (cv *ConstraintValidator) getOrCompileProgram(expr string) (cel.Program, error) {
+	// Check cache first
+	if prg, ok := cv.programs[expr]; ok {
+		return prg, nil
+	}
+
+	// Compile the expression
+	ast, issues := cv.env.Compile(expr)
+	if issues != nil && issues.Err() != nil {
+		return nil, fmt.Errorf("failed to compile CEL expression: %w", issues.Err())
+	}
+
+	// Create program
+	prg, err := cv.env.Program(ast)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CEL program: %w", err)
+	}
+
+	// Cache for reuse
+	cv.programs[expr] = prg
+	return prg, nil
 }
 
 // knownTopLevelKeys defines the valid top-level keys in a node YAML file.
