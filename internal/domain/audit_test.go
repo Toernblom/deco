@@ -323,3 +323,18 @@ func TestAuditEntry_ReviewOperations(t *testing.T) {
 		})
 	}
 }
+
+func TestAuditEntry_BaselineOperation(t *testing.T) {
+	entry := domain.AuditEntry{
+		Timestamp:   time.Now(),
+		NodeID:      "test-001",
+		Operation:   "baseline",
+		User:        "testuser",
+		ContentHash: "a1b2c3d4e5f67890",
+	}
+
+	err := entry.Validate()
+	if err != nil {
+		t.Errorf("Expected baseline operation to be valid, got: %v", err)
+	}
+}
