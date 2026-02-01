@@ -105,6 +105,8 @@ refs:
   emits_events:                   # Events this system produces
     - events/colonist/born
     - events/colonist/died
+  vocabulary:                     # Shared term definitions
+    - glossaries/game-terms
 
 # Structured content
 content:
@@ -132,17 +134,20 @@ issues:
 # BDD-style acceptance criteria
 contracts:
   - name: "Starvation kills colonists"
+    scenario: "48 hours without food is fatal"
     given:
-      - colonist: { id: c1, needs: { food: 0 } }
+      - "colonist c1 has food need at 0"
     when:
-      - tick: { hours: 48 }
+      - "48 hours pass"
     then:
-      - expect: { colonist_state: dead, cause: starvation }
+      - "colonist c1 is dead"
+      - "cause of death is starvation"
 
 # CEL-based validation rules
 constraints:
   - expr: "version > 0"
     message: "Version must be positive"
+    scope: all                    # Applies to all nodes (can be: all, kind/*, specific-id)
 
 # Extensible custom fields
 custom:
@@ -156,6 +161,9 @@ custom:
 ```bash
 deco init [directory]        # Initialize a new project
 deco init . --force          # Reinitialize existing project
+
+deco create <id>             # Create a new node with scaffolding
+deco create systems/combat --kind mechanic --title "Combat System"
 ```
 
 ### Querying & Reading
@@ -174,6 +182,13 @@ deco query --kind item --status published   # Combined filters
 
 deco validate                # Validate all nodes (schema, refs, constraints)
 deco validate --quiet        # Exit code only (for CI)
+
+deco stats                   # Project overview: nodes by kind/status, open issues
+deco issues                  # List all open TBDs/issues across nodes
+deco issues --severity high  # Filter by severity
+
+deco graph                   # Output dependency graph (DOT format)
+deco graph --format mermaid  # Output as Mermaid for Markdown
 ```
 
 ### Modifying Nodes
@@ -190,6 +205,10 @@ deco append systems/combat tags stealth
 # Remove fields
 deco unset systems/combat summary
 deco unset systems/combat tags[2]
+
+# Delete a node
+deco rm sword-001            # Fails if other nodes reference it
+deco rm sword-001 --force    # Delete even with references
 
 # Batch operations (transactional)
 deco apply systems/combat patch.json
@@ -213,15 +232,38 @@ deco mv old-node-id new-node-id
 deco mv systems/combat systems/tactical-combat
 ```
 
+### Review Workflow
+
+```bash
+deco review submit <id>      # Submit a draft node for review
+deco review approve <id>     # Approve a node (sets status to approved)
+deco review reject <id>      # Reject back to draft
+deco review status <id>      # Show review status
+```
+
 ### Audit Trail
 
 ```bash
 deco history                 # Show all changes
 deco history --node systems/combat   # Filter by node
 deco history --limit 10      # Limit entries
+
+deco diff <id>               # Show before/after for all changes
+deco diff <id> --last 5      # Last 5 changes
+deco diff <id> --since 2h    # Changes in last 2 hours
 ```
 
-Output shows: TIME, NODE, OPERATION, USER
+### Sync (for manual edits)
+
+```bash
+deco sync                    # Detect manual edits, bump version, reset status
+deco sync --dry-run          # Show what would change
+```
+
+When nodes are edited directly (bypassing CLI), `sync` detects changes by content hash and:
+- Bumps the version number
+- Resets status to "draft" if it was approved/review
+- Logs the sync operation to history
 
 ## Validation
 
@@ -254,10 +296,13 @@ CEL expressions enforce custom rules:
 constraints:
   - expr: "version > 0"
     message: "Version must be positive"
+    scope: all
   - expr: "status in ['draft', 'approved', 'published']"
     message: "Invalid status"
+    scope: all
   - expr: "size(tags) > 0"
     message: "At least one tag required"
+    scope: mechanic  # Only applies to mechanic nodes
 ```
 
 ## Contracts
@@ -269,20 +314,22 @@ contracts:
   - name: "Hunger damages health"
     scenario: "A colonist with no food loses health over time"
     given:
-      - colonist: { id: c1, health: 100, needs: { food: 0 } }
+      - "colonist c1 has health 100 and food need 0"
     when:
-      - tick: { hours: 24 }
+      - "24 hours pass"
     then:
-      - expect: { health: 80 }
-      - expect_event: { id: events/colonist/starving }
+      - "colonist c1 has health 80"
+      - "event colonist/starving is emitted"
 
   - name: "Death from starvation"
+    scenario: "Extended hunger leads to death"
     given:
-      - colonist: { id: c1, health: 10, needs: { food: 0 } }
+      - "colonist c1 has health 10 and food need 0"
     when:
-      - tick: { hours: 24 }
+      - "24 hours pass"
     then:
-      - expect: { colonist_state: dead, cause: starvation }
+      - "colonist c1 is dead"
+      - "cause of death is starvation"
 ```
 
 Contracts serve as executable specifications — your design documents what should happen, and tests verify it actually does.
@@ -319,19 +366,12 @@ Deco is designed for AI-assisted design workflows. The engine validates all chan
 
 **Rewrite Mode** — AI generates complete YAML, Deco validates before saving.
 
-### LLM Context Control
+### LLM Context
 
-Configure what context AI sees per node:
+Add context for AI assistants directly in the node:
 
 ```yaml
-llm_context:
-  include:
-    - summary
-    - glossary
-    - refs
-    - content.sections
-  exclude:
-    - custom.internal_notes
+llm_context: "This combat system is the core loop. Balance carefully."
 ```
 
 ### Workflow Example

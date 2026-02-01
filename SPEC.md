@@ -18,30 +18,61 @@ A Go CLI that replaces traditional GDDs entirely. Your game design lives as stru
 
 ## Node Structure
 
-Core fields (required):
-- `meta`: id, kind, version, status, title, tags
-- `refs`: uses, related, emits_events, vocabulary
-- `content.sections`: blocks of type table, rule, param, mechanic, list
-- `issues`: tracked TBDs/questions with severity and location
+Core fields (required at top level, not nested under `meta`):
+- `id`: Unique identifier, maps to file path
+- `kind`: Node type (system, mechanic, feature, item, etc.)
+- `version`: Auto-incremented on updates
+- `status`: draft, review, approved, published, deprecated
+- `title`: Human-readable name
+
+References (`refs`):
+- `uses`: Hard dependencies with context
+- `related`: Informational links
+- `emits_events`: Events this node produces
+- `vocabulary`: Shared term definitions
+
+Content (`content.sections`):
+- Blocks of type: table, rule, param, mechanic, list, etc.
+
+Issues (`issues`):
+- Tracked TBDs with id, description, severity (low/medium/high/critical), location, resolved
 
 Optional/extensible:
-- `summary`, `glossary`, `contracts`, `llm_context`
-- Projects can add custom sections
+- `tags`, `summary`, `glossary`, `contracts`, `llm_context`, `constraints`, `reviewers`, `custom`
 
-## CLI Commands (MVP)
+## CLI Commands
 
 ```
-deco init                    # Initialize project
-deco validate                # Check schema + refs, report errors
-deco list                    # List all nodes
+# Project setup
+deco init [dir]              # Initialize project
+deco create <id>             # Create new node with scaffolding
+
+# Reading
+deco list                    # List all nodes (--kind, --status, --tag)
 deco show <id>               # Show node details + reverse refs
-deco query <filter>          # Search/filter nodes
-deco set <id> <path> <value> # Patch a field
-deco append <id> <path> <value>
-deco unset <id> <path>
+deco query [term]            # Search/filter nodes
+deco validate                # Check schema + refs + constraints
+deco stats                   # Project health overview
+deco issues                  # List all open TBDs
+deco graph                   # Output dependency graph (DOT/Mermaid)
+
+# Modifying
+deco set <id> <path> <value> # Set a field value
+deco append <id> <path> <val># Append to array field
+deco unset <id> <path>       # Remove a field
+deco rm <id>                 # Delete a node
 deco mv <old-id> <new-id>    # Rename with automatic ref updates
-deco history [<id>]          # Show audit log
-deco apply <patch-file>      # Apply structured patch (for AI)
+deco apply <id> <patch-file> # Apply structured patch (for AI)
+
+# Review workflow
+deco review submit <id>      # Submit for review
+deco review approve <id>     # Approve node
+deco review reject <id>      # Reject back to draft
+
+# History
+deco history [--node <id>]   # Show audit log
+deco diff <id>               # Show before/after changes
+deco sync                    # Detect manual edits, fix metadata
 ```
 
 ## Design Principles
