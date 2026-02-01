@@ -127,6 +127,28 @@ func NewErrorCodeRegistry() *ErrorCodeRegistry {
 	registry.register("E098", "graph", "Reserved for future use")
 	registry.register("E099", "graph", "Reserved for future use")
 
+	// Contract errors: E100-E119
+	registry.register("E100", "contract", "Contract missing name")
+	registry.register("E101", "contract", "Empty step")
+	registry.register("E102", "contract", "Invalid node reference")
+	registry.register("E103", "contract", "Reserved for future use")
+	registry.register("E104", "contract", "Reserved for future use")
+	registry.register("E105", "contract", "Reserved for future use")
+	registry.register("E106", "contract", "Reserved for future use")
+	registry.register("E107", "contract", "Reserved for future use")
+	registry.register("E108", "contract", "Reserved for future use")
+	registry.register("E109", "contract", "Reserved for future use")
+	registry.register("E110", "contract", "Reserved for future use")
+	registry.register("E111", "contract", "Reserved for future use")
+	registry.register("E112", "contract", "Reserved for future use")
+	registry.register("E113", "contract", "Reserved for future use")
+	registry.register("E114", "contract", "Reserved for future use")
+	registry.register("E115", "contract", "Reserved for future use")
+	registry.register("E116", "contract", "Reserved for future use")
+	registry.register("E117", "contract", "Reserved for future use")
+	registry.register("E118", "contract", "Reserved for future use")
+	registry.register("E119", "contract", "Reserved for future use")
+
 	return registry
 }
 
