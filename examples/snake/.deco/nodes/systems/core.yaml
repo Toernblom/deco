@@ -26,7 +26,7 @@ content:
           id: tick_rate
           name: "Tick Rate"
           datatype: range_int
-          min: 100
+          min: 112
           max: 500
           asdasdasd: 200
           unit: "ms"
