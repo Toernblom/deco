@@ -95,6 +95,66 @@ func TestComputeContentHash(t *testing.T) {
 			t.Error("Expected same hash when only metadata differs")
 		}
 	})
+
+	t.Run("includes Kind in hash", func(t *testing.T) {
+		modified := n
+		modified.Kind = "different_kind"
+		hash1 := ComputeContentHash(n)
+		hash2 := ComputeContentHash(modified)
+		if hash1 == hash2 {
+			t.Error("Expected different hash when Kind changes")
+		}
+	})
+
+	t.Run("includes Glossary in hash", func(t *testing.T) {
+		modified := n
+		modified.Glossary = map[string]string{"term": "definition"}
+		hash1 := ComputeContentHash(n)
+		hash2 := ComputeContentHash(modified)
+		if hash1 == hash2 {
+			t.Error("Expected different hash when Glossary changes")
+		}
+	})
+
+	t.Run("includes Contracts in hash", func(t *testing.T) {
+		modified := n
+		modified.Contracts = []domain.Contract{{Name: "contract1", Scenario: "test scenario"}}
+		hash1 := ComputeContentHash(n)
+		hash2 := ComputeContentHash(modified)
+		if hash1 == hash2 {
+			t.Error("Expected different hash when Contracts change")
+		}
+	})
+
+	t.Run("includes LLMContext in hash", func(t *testing.T) {
+		modified := n
+		modified.LLMContext = "AI context information"
+		hash1 := ComputeContentHash(n)
+		hash2 := ComputeContentHash(modified)
+		if hash1 == hash2 {
+			t.Error("Expected different hash when LLMContext changes")
+		}
+	})
+
+	t.Run("includes Constraints in hash", func(t *testing.T) {
+		modified := n
+		modified.Constraints = []domain.Constraint{{Expr: "size < 100", Message: "Too large"}}
+		hash1 := ComputeContentHash(n)
+		hash2 := ComputeContentHash(modified)
+		if hash1 == hash2 {
+			t.Error("Expected different hash when Constraints change")
+		}
+	})
+
+	t.Run("includes Custom fields in hash", func(t *testing.T) {
+		modified := n
+		modified.Custom = map[string]interface{}{"custom_field": "custom_value"}
+		hash1 := ComputeContentHash(n)
+		hash2 := ComputeContentHash(modified)
+		if hash1 == hash2 {
+			t.Error("Expected different hash when Custom fields change")
+		}
+	})
 }
 
 func TestGetLastContentHash(t *testing.T) {

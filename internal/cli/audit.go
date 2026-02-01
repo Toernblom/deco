@@ -9,27 +9,46 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// contentFields holds only the fields that affect content hash
+// contentFields holds all fields that affect content hash.
+// Excluded: ID (structural), Version (auto-incremented), Status (workflow),
+// Reviewers (workflow), SourceFile (internal).
 type contentFields struct {
-	Title   string          `yaml:"title"`
-	Summary string          `yaml:"summary"`
-	Tags    []string        `yaml:"tags,omitempty"`
-	Refs    domain.Ref      `yaml:"refs,omitempty"`
-	Issues  []domain.Issue  `yaml:"issues,omitempty"`
-	Content *domain.Content `yaml:"content,omitempty"`
+	Kind        string                 `yaml:"kind"`
+	Title       string                 `yaml:"title"`
+	Summary     string                 `yaml:"summary"`
+	Tags        []string               `yaml:"tags,omitempty"`
+	Refs        domain.Ref             `yaml:"refs,omitempty"`
+	Issues      []domain.Issue         `yaml:"issues,omitempty"`
+	Content     *domain.Content        `yaml:"content,omitempty"`
+	Glossary    map[string]string      `yaml:"glossary,omitempty"`
+	Contracts   []domain.Contract      `yaml:"contracts,omitempty"`
+	LLMContext  string                 `yaml:"llm_context,omitempty"`
+	Constraints []domain.Constraint    `yaml:"constraints,omitempty"`
+	Custom      map[string]interface{} `yaml:"custom,omitempty"`
 }
 
 // ComputeContentHash computes a SHA-256 hash of the content fields.
 // Returns 16 hex characters (first 64 bits of the hash).
 // Used by all mutation commands to record content state in history.
+//
+// Included in hash: Kind, Title, Summary, Tags, Refs, Issues, Content,
+// Glossary, Contracts, LLMContext, Constraints, Custom.
+//
+// Excluded from hash: ID, Version, Status, Reviewers (workflow metadata).
 func ComputeContentHash(n domain.Node) string {
 	fields := contentFields{
-		Title:   n.Title,
-		Summary: n.Summary,
-		Tags:    n.Tags,
-		Refs:    n.Refs,
-		Issues:  n.Issues,
-		Content: n.Content,
+		Kind:        n.Kind,
+		Title:       n.Title,
+		Summary:     n.Summary,
+		Tags:        n.Tags,
+		Refs:        n.Refs,
+		Issues:      n.Issues,
+		Content:     n.Content,
+		Glossary:    n.Glossary,
+		Contracts:   n.Contracts,
+		LLMContext:  n.LLMContext,
+		Constraints: n.Constraints,
+		Custom:      n.Custom,
 	}
 
 	data, err := yaml.Marshal(fields)
