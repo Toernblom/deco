@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os/user"
 	"reflect"
 	"strings"
 	"time"
@@ -97,8 +96,8 @@ func runAppend(flags *appendFlags) error {
 		return fmt.Errorf("failed to save node: %w", err)
 	}
 
-	// Log append operation in history
-	if err := logAppendOperation(flags.targetDir, n.ID, flags.path, oldArray, newArray); err != nil {
+	// Log append operation in history with content hash
+	if err := logAppendOperation(flags.targetDir, n, flags.path, oldArray, newArray); err != nil {
 		fmt.Printf("Warning: failed to log append operation: %v\n", err)
 	}
 
@@ -149,22 +148,18 @@ func copySlice(val interface{}) interface{} {
 	return cp.Interface()
 }
 
-// logAppendOperation adds an append entry to the history log
-func logAppendOperation(targetDir, nodeID, path string, oldArray, newArray interface{}) error {
+// logAppendOperation adds an append entry to the history log with content hash
+func logAppendOperation(targetDir string, n domain.Node, path string, oldArray, newArray interface{}) error {
 	historyRepo := history.NewYAMLRepository(targetDir)
 
-	username := "unknown"
-	if u, err := user.Current(); err == nil {
-		username = u.Username
-	}
-
 	entry := domain.AuditEntry{
-		Timestamp: time.Now(),
-		NodeID:    nodeID,
-		Operation: "append",
-		User:      username,
-		Before:    map[string]interface{}{path: oldArray},
-		After:     map[string]interface{}{path: newArray},
+		Timestamp:   time.Now(),
+		NodeID:      n.ID,
+		Operation:   "append",
+		User:        GetCurrentUser(),
+		ContentHash: ComputeContentHash(n),
+		Before:      map[string]interface{}{path: oldArray},
+		After:       map[string]interface{}{path: newArray},
 	}
 
 	return historyRepo.Append(entry)

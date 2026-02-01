@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os/user"
 	"time"
 
 	"github.com/Toernblom/deco/internal/domain"
@@ -118,21 +117,16 @@ func findReverseRefs(nodeRepo *node.YAMLRepository, targetID string) ([]string, 
 	return reverseIndex[targetID], nil
 }
 
-// logDeletion adds a deletion entry to the history log
+// logDeletion adds a deletion entry to the history log with content hash
 func logDeletion(targetDir string, deletedNode domain.Node) error {
 	historyRepo := history.NewYAMLRepository(targetDir)
 
-	// Get current user
-	username := "unknown"
-	if u, err := user.Current(); err == nil {
-		username = u.Username
-	}
-
 	entry := domain.AuditEntry{
-		Timestamp: time.Now(),
-		NodeID:    deletedNode.ID,
-		Operation: "delete",
-		User:      username,
+		Timestamp:   time.Now(),
+		NodeID:      deletedNode.ID,
+		Operation:   "delete",
+		User:        GetCurrentUser(),
+		ContentHash: ComputeContentHash(deletedNode),
 		Before: map[string]interface{}{
 			"id":      deletedNode.ID,
 			"kind":    deletedNode.Kind,

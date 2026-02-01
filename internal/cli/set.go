@@ -3,7 +3,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"os/user"
 	"reflect"
 	"strconv"
 	"strings"
@@ -106,8 +105,8 @@ func runSet(flags *setFlags) error {
 		return fmt.Errorf("failed to save node: %w", err)
 	}
 
-	// Log set operation in history
-	if err := logSetOperation(flags.targetDir, n.ID, flags.path, oldValue, value); err != nil {
+	// Log set operation in history with content hash
+	if err := logSetOperation(flags.targetDir, n, flags.path, oldValue, value); err != nil {
 		fmt.Printf("Warning: failed to log set operation: %v\n", err)
 	}
 
@@ -168,22 +167,18 @@ func capitalizeFirstSet(s string) string {
 	return strings.ToUpper(s[:1]) + s[1:]
 }
 
-// logSetOperation adds a set entry to the history log
-func logSetOperation(targetDir, nodeID, path string, oldValue, newValue interface{}) error {
+// logSetOperation adds a set entry to the history log with content hash
+func logSetOperation(targetDir string, n domain.Node, path string, oldValue, newValue interface{}) error {
 	historyRepo := history.NewYAMLRepository(targetDir)
 
-	username := "unknown"
-	if u, err := user.Current(); err == nil {
-		username = u.Username
-	}
-
 	entry := domain.AuditEntry{
-		Timestamp: time.Now(),
-		NodeID:    nodeID,
-		Operation: "set",
-		User:      username,
-		Before:    map[string]interface{}{path: oldValue},
-		After:     map[string]interface{}{path: newValue},
+		Timestamp:   time.Now(),
+		NodeID:      n.ID,
+		Operation:   "set",
+		User:        GetCurrentUser(),
+		ContentHash: ComputeContentHash(n),
+		Before:      map[string]interface{}{path: oldValue},
+		After:       map[string]interface{}{path: newValue},
 	}
 
 	return historyRepo.Append(entry)

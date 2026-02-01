@@ -23,8 +23,8 @@ func TestComputeContentHash(t *testing.T) {
 	}
 
 	t.Run("returns consistent hash for same content", func(t *testing.T) {
-		hash1 := computeContentHash(n)
-		hash2 := computeContentHash(n)
+		hash1 := ComputeContentHash(n)
+		hash2 := ComputeContentHash(n)
 		if hash1 != hash2 {
 			t.Errorf("Expected consistent hash, got %s and %s", hash1, hash2)
 		}
@@ -64,7 +64,7 @@ func TestComputeContentHash(t *testing.T) {
 		// Hash multiple times - must be identical
 		hashes := make([]string, 10)
 		for i := 0; i < 10; i++ {
-			hashes[i] = computeContentHash(nodeWithBlocks)
+			hashes[i] = ComputeContentHash(nodeWithBlocks)
 		}
 
 		for i := 1; i < len(hashes); i++ {
@@ -77,8 +77,8 @@ func TestComputeContentHash(t *testing.T) {
 	t.Run("returns different hash for different content", func(t *testing.T) {
 		modified := n
 		modified.Title = "Different Title"
-		hash1 := computeContentHash(n)
-		hash2 := computeContentHash(modified)
+		hash1 := ComputeContentHash(n)
+		hash2 := ComputeContentHash(modified)
 		if hash1 == hash2 {
 			t.Error("Expected different hash for different content")
 		}
@@ -89,8 +89,8 @@ func TestComputeContentHash(t *testing.T) {
 		modified.Version = 99
 		modified.Status = "approved"
 		modified.Reviewers = []domain.Reviewer{{Name: "alice", Version: 1}}
-		hash1 := computeContentHash(n)
-		hash2 := computeContentHash(modified)
+		hash1 := ComputeContentHash(n)
+		hash2 := ComputeContentHash(modified)
 		if hash1 != hash2 {
 			t.Error("Expected same hash when only metadata differs")
 		}
@@ -221,7 +221,7 @@ func TestRunSync_NoChanges(t *testing.T) {
 		// Create baseline history entry with current hash
 		nodeRepo := node.NewYAMLRepository(tmpDir)
 		n, _ := nodeRepo.Load("sword-001")
-		hash := computeContentHash(n)
+		hash := ComputeContentHash(n)
 
 		historyPath := filepath.Join(tmpDir, ".deco", "history.jsonl")
 		historyContent := fmt.Sprintf(`{"timestamp":"2026-01-01T00:00:00Z","node_id":"sword-001","operation":"create","user":"test","content_hash":"%s"}`, hash)
@@ -247,7 +247,7 @@ func TestRunSync_MetadataOnlyChange(t *testing.T) {
 		// Baseline with current hash
 		nodeRepo := node.NewYAMLRepository(tmpDir)
 		n, _ := nodeRepo.Load("sword-001")
-		hash := computeContentHash(n)
+		hash := ComputeContentHash(n)
 
 		historyPath := filepath.Join(tmpDir, ".deco", "history.jsonl")
 		historyContent := fmt.Sprintf(`{"timestamp":"2026-01-01T00:00:00Z","node_id":"sword-001","operation":"create","user":"test","content_hash":"%s"}`, hash)
@@ -287,7 +287,7 @@ func TestRunSync_ContentChange(t *testing.T) {
 		// Baseline with original hash
 		nodeRepo := node.NewYAMLRepository(tmpDir)
 		n, _ := nodeRepo.Load("sword-001")
-		hash := computeContentHash(n)
+		hash := ComputeContentHash(n)
 
 		historyPath := filepath.Join(tmpDir, ".deco", "history.jsonl")
 		historyContent := fmt.Sprintf(`{"timestamp":"2026-01-01T00:00:00Z","node_id":"sword-001","operation":"create","user":"test","content_hash":"%s"}`, hash)
@@ -342,7 +342,7 @@ func TestRunSync_DryRun(t *testing.T) {
 		// Baseline with original hash
 		nodeRepo := node.NewYAMLRepository(tmpDir)
 		n, _ := nodeRepo.Load("sword-001")
-		hash := computeContentHash(n)
+		hash := ComputeContentHash(n)
 
 		historyPath := filepath.Join(tmpDir, ".deco", "history.jsonl")
 		historyContent := fmt.Sprintf(`{"timestamp":"2026-01-01T00:00:00Z","node_id":"sword-001","operation":"create","user":"test","content_hash":"%s"}`, hash)
@@ -389,7 +389,7 @@ func TestRunSync_HistoryLogging(t *testing.T) {
 		// Baseline with original hash
 		nodeRepo := node.NewYAMLRepository(tmpDir)
 		n, _ := nodeRepo.Load("sword-001")
-		hash := computeContentHash(n)
+		hash := ComputeContentHash(n)
 
 		historyPath := filepath.Join(tmpDir, ".deco", "history.jsonl")
 		historyContent := fmt.Sprintf(`{"timestamp":"2026-01-01T00:00:00Z","node_id":"sword-001","operation":"create","user":"test","content_hash":"%s"}`, hash)

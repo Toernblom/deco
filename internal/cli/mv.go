@@ -97,9 +97,11 @@ func runMv(flags *mvFlags) error {
 
 	// Find which nodes changed
 	var modifiedCount int
+	var renamedNode domain.Node
 	for _, updated := range updatedNodes {
 		// The renamed node: save with new ID, delete old file
 		if updated.ID == flags.newID {
+			renamedNode = updated
 			// Save new file
 			if err := nodeRepo.Save(updated); err != nil {
 				return fmt.Errorf("failed to save renamed node: %w", err)
@@ -123,15 +125,16 @@ func runMv(flags *mvFlags) error {
 		}
 	}
 
-	// Record history entry
+	// Record history entry with content hash
 	historyRepo := history.NewYAMLRepository(flags.targetDir)
 	entry := domain.AuditEntry{
-		Timestamp: time.Now(),
-		NodeID:    flags.newID,
-		Operation: "move",
-		User:      "cli",
-		Before:    map[string]interface{}{"id": flags.oldID},
-		After:     map[string]interface{}{"id": flags.newID},
+		Timestamp:   time.Now(),
+		NodeID:      flags.newID,
+		Operation:   "move",
+		User:        GetCurrentUser(),
+		ContentHash: ComputeContentHash(renamedNode),
+		Before:      map[string]interface{}{"id": flags.oldID},
+		After:       map[string]interface{}{"id": flags.newID},
 	}
 	if err := historyRepo.Append(entry); err != nil {
 		return fmt.Errorf("failed to record history: %w", err)

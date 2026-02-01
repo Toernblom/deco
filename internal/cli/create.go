@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os/user"
 	"strings"
 	"time"
 
@@ -100,20 +99,16 @@ func runCreate(id string, flags *createFlags) error {
 	return nil
 }
 
-// logCreation adds a creation entry to the history log
+// logCreation adds a creation entry to the history log with content hash
 func logCreation(targetDir string, createdNode domain.Node) error {
 	historyRepo := history.NewYAMLRepository(targetDir)
 
-	username := "unknown"
-	if u, err := user.Current(); err == nil {
-		username = u.Username
-	}
-
 	entry := domain.AuditEntry{
-		Timestamp: time.Now(),
-		NodeID:    createdNode.ID,
-		Operation: "create",
-		User:      username,
+		Timestamp:   time.Now(),
+		NodeID:      createdNode.ID,
+		Operation:   "create",
+		User:        GetCurrentUser(),
+		ContentHash: ComputeContentHash(createdNode),
 		After: map[string]interface{}{
 			"id":      createdNode.ID,
 			"kind":    createdNode.Kind,

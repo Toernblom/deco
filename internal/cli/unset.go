@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os/user"
 	"reflect"
 	"strconv"
 	"strings"
@@ -93,8 +92,8 @@ func runUnset(flags *unsetFlags) error {
 		return fmt.Errorf("failed to save node: %w", err)
 	}
 
-	// Log unset operation in history
-	if err := logUnsetOperation(flags.targetDir, n.ID, flags.path, oldValue); err != nil {
+	// Log unset operation in history with content hash
+	if err := logUnsetOperation(flags.targetDir, n, flags.path, oldValue); err != nil {
 		fmt.Printf("Warning: failed to log unset operation: %v\n", err)
 	}
 
@@ -155,21 +154,17 @@ func capitalizeFirstUnset(s string) string {
 	return strings.ToUpper(s[:1]) + s[1:]
 }
 
-// logUnsetOperation adds an unset entry to the history log
-func logUnsetOperation(targetDir, nodeID, path string, oldValue interface{}) error {
+// logUnsetOperation adds an unset entry to the history log with content hash
+func logUnsetOperation(targetDir string, n domain.Node, path string, oldValue interface{}) error {
 	historyRepo := history.NewYAMLRepository(targetDir)
 
-	username := "unknown"
-	if u, err := user.Current(); err == nil {
-		username = u.Username
-	}
-
 	entry := domain.AuditEntry{
-		Timestamp: time.Now(),
-		NodeID:    nodeID,
-		Operation: "unset",
-		User:      username,
-		Before:    map[string]interface{}{path: oldValue},
+		Timestamp:   time.Now(),
+		NodeID:      n.ID,
+		Operation:   "unset",
+		User:        GetCurrentUser(),
+		ContentHash: ComputeContentHash(n),
+		Before:      map[string]interface{}{path: oldValue},
 	}
 
 	return historyRepo.Append(entry)
