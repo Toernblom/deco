@@ -172,3 +172,49 @@ func TestReviewCommand_Approve(t *testing.T) {
 		}
 	})
 }
+
+func TestReviewCommand_Reject(t *testing.T) {
+	t.Run("reject changes status from review to draft", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupReviewProject(t, tmpDir)
+		createNodeWithStatus(t, tmpDir, "test/node", "review")
+
+		cmd := NewReviewCommand()
+		cmd.SetArgs([]string{"reject", "test/node", "--note", "Needs more detail", tmpDir})
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		nodeYAML := readNodeFileByID(t, tmpDir, "test/node")
+		if !strings.Contains(nodeYAML, "status: draft") {
+			t.Errorf("Expected status 'draft', got: %s", nodeYAML)
+		}
+	})
+
+	t.Run("reject requires note", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupReviewProject(t, tmpDir)
+		createNodeWithStatus(t, tmpDir, "test/node", "review")
+
+		cmd := NewReviewCommand()
+		cmd.SetArgs([]string{"reject", "test/node", tmpDir})
+		err := cmd.Execute()
+		if err == nil {
+			t.Error("Expected error when rejecting without note")
+		}
+	})
+
+	t.Run("reject fails if not in review status", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupReviewProject(t, tmpDir)
+		createNodeWithStatus(t, tmpDir, "test/node", "draft")
+
+		cmd := NewReviewCommand()
+		cmd.SetArgs([]string{"reject", "test/node", "--note", "reason", tmpDir})
+		err := cmd.Execute()
+		if err == nil {
+			t.Error("Expected error when rejecting non-review node")
+		}
+	})
+}

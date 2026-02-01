@@ -34,6 +34,7 @@ Subcommands:
 
 	cmd.AddCommand(newSubmitCommand())
 	cmd.AddCommand(newApproveCommand())
+	cmd.AddCommand(newRejectCommand())
 
 	return cmd
 }
@@ -224,6 +225,84 @@ func runApprove(flags *approveFlags) error {
 		} else {
 			fmt.Printf("Added approval to %s (%d/%d approvals needed)\n", flags.nodeID, validApprovals, cfg.RequiredApprovals)
 		}
+	}
+
+	return nil
+}
+
+type rejectFlags struct {
+	targetDir string
+	nodeID    string
+	note      string
+	quiet     bool
+}
+
+func newRejectCommand() *cobra.Command {
+	flags := &rejectFlags{}
+
+	cmd := &cobra.Command{
+		Use:   "reject <node-id> [directory]",
+		Short: "Reject a node back to draft",
+		Long:  `Reject a node back to draft. Requires a note explaining the rejection reason.`,
+		Args:  cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			flags.nodeID = args[0]
+			if len(args) > 1 {
+				flags.targetDir = args[1]
+			} else {
+				flags.targetDir = "."
+			}
+			return runReject(flags)
+		},
+	}
+
+	cmd.Flags().StringVar(&flags.note, "note", "", "Rejection reason (required)")
+	cmd.Flags().BoolVarP(&flags.quiet, "quiet", "q", false, "Suppress output")
+
+	return cmd
+}
+
+func runReject(flags *rejectFlags) error {
+	// Validate note is provided
+	if flags.note == "" {
+		return fmt.Errorf("rejection note is required (use --note)")
+	}
+
+	// Load config
+	configRepo := config.NewYAMLRepository(flags.targetDir)
+	_, err := configRepo.Load()
+	if err != nil {
+		return fmt.Errorf(".deco directory not found or invalid: %w", err)
+	}
+
+	// Load the node
+	nodeRepo := node.NewYAMLRepository(flags.targetDir)
+	n, err := nodeRepo.Load(flags.nodeID)
+	if err != nil {
+		return fmt.Errorf("node %q not found: %w", flags.nodeID, err)
+	}
+
+	// Validate current status
+	if n.Status != "review" {
+		return fmt.Errorf("cannot reject node %q: status is %q, must be 'review'", flags.nodeID, n.Status)
+	}
+
+	// Update status
+	oldStatus := n.Status
+	n.Status = "draft"
+
+	// Save the node
+	if err := nodeRepo.Save(n); err != nil {
+		return fmt.Errorf("failed to save node: %w", err)
+	}
+
+	// Log reject operation
+	if err := logReviewOperation(flags.targetDir, n.ID, "reject", oldStatus, n.Status, flags.note); err != nil {
+		fmt.Printf("Warning: failed to log reject operation: %v\n", err)
+	}
+
+	if !flags.quiet {
+		fmt.Printf("Rejected %s (status: review -> draft)\nReason: %s\n", flags.nodeID, flags.note)
 	}
 
 	return nil
