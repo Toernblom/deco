@@ -612,6 +612,109 @@ func TestYAMLRepository_ConcurrentAppend(t *testing.T) {
 	}
 }
 
+func TestYAMLRepository_QueryLatestHashes(t *testing.T) {
+	t.Run("returns empty map for no history", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		repo := history.NewYAMLRepository(tmpDir)
+
+		hashes, err := repo.QueryLatestHashes()
+		if err != nil {
+			t.Fatalf("QueryLatestHashes failed: %v", err)
+		}
+		if len(hashes) != 0 {
+			t.Errorf("Expected empty map, got %d entries", len(hashes))
+		}
+	})
+
+	t.Run("returns latest hash for each node", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		repo := history.NewYAMLRepository(tmpDir)
+
+		// Append entries with content hashes
+		entries := []domain.AuditEntry{
+			{
+				Timestamp:   time.Now(),
+				NodeID:      "node-a",
+				Operation:   "create",
+				User:        "alice",
+				ContentHash: "hash-a-1",
+			},
+			{
+				Timestamp:   time.Now().Add(time.Second),
+				NodeID:      "node-b",
+				Operation:   "create",
+				User:        "alice",
+				ContentHash: "hash-b-1",
+			},
+			{
+				Timestamp:   time.Now().Add(2 * time.Second),
+				NodeID:      "node-a",
+				Operation:   "update",
+				User:        "alice",
+				ContentHash: "hash-a-2", // More recent hash for node-a
+			},
+		}
+
+		for _, entry := range entries {
+			if err := repo.Append(entry); err != nil {
+				t.Fatalf("Append failed: %v", err)
+			}
+		}
+
+		hashes, err := repo.QueryLatestHashes()
+		if err != nil {
+			t.Fatalf("QueryLatestHashes failed: %v", err)
+		}
+
+		if len(hashes) != 2 {
+			t.Errorf("Expected 2 nodes, got %d", len(hashes))
+		}
+		if hashes["node-a"] != "hash-a-2" {
+			t.Errorf("Expected hash-a-2 for node-a, got %q", hashes["node-a"])
+		}
+		if hashes["node-b"] != "hash-b-1" {
+			t.Errorf("Expected hash-b-1 for node-b, got %q", hashes["node-b"])
+		}
+	})
+
+	t.Run("skips entries without content hash", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		repo := history.NewYAMLRepository(tmpDir)
+
+		entries := []domain.AuditEntry{
+			{
+				Timestamp:   time.Now(),
+				NodeID:      "node-a",
+				Operation:   "create",
+				User:        "alice",
+				ContentHash: "hash-a-1",
+			},
+			{
+				Timestamp:   time.Now().Add(time.Second),
+				NodeID:      "node-a",
+				Operation:   "set", // No content hash
+				User:        "alice",
+			},
+		}
+
+		for _, entry := range entries {
+			if err := repo.Append(entry); err != nil {
+				t.Fatalf("Append failed: %v", err)
+			}
+		}
+
+		hashes, err := repo.QueryLatestHashes()
+		if err != nil {
+			t.Fatalf("QueryLatestHashes failed: %v", err)
+		}
+
+		// Should still return hash-a-1 since the later entry has no hash
+		if hashes["node-a"] != "hash-a-1" {
+			t.Errorf("Expected hash-a-1 for node-a, got %q", hashes["node-a"])
+		}
+	})
+}
+
 func TestYAMLRepository_PreserveComplexData(t *testing.T) {
 	tmpDir := t.TempDir()
 	repo := history.NewYAMLRepository(tmpDir)

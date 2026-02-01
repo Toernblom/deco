@@ -127,6 +127,74 @@ func (r *JSONLRepository) Query(filter Filter) ([]domain.AuditEntry, error) {
 	return entries, nil
 }
 
+// QueryLatestHashes returns a map of nodeID -> latest content hash for all nodes.
+// This reads the history file once, providing O(history) complexity instead of
+// O(nodes × history) when querying each node individually.
+func (r *JSONLRepository) QueryLatestHashes() (map[string]string, error) {
+	historyPath := r.historyFile()
+
+	// Check if file exists
+	if _, err := os.Stat(historyPath); os.IsNotExist(err) {
+		return map[string]string{}, nil
+	}
+
+	file, err := os.Open(historyPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open history file: %w", err)
+	}
+	defer file.Close()
+
+	// Track latest hash and timestamp per node
+	type nodeState struct {
+		hash      string
+		timestamp int64
+	}
+	latestByNode := make(map[string]*nodeState)
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+
+		var entry domain.AuditEntry
+		if err := json.Unmarshal(line, &entry); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal entry: %w", err)
+		}
+
+		// Skip entries without content hash
+		if entry.ContentHash == "" {
+			continue
+		}
+
+		ts := entry.Timestamp.Unix()
+		if existing, ok := latestByNode[entry.NodeID]; ok {
+			if ts > existing.timestamp {
+				existing.hash = entry.ContentHash
+				existing.timestamp = ts
+			}
+		} else {
+			latestByNode[entry.NodeID] = &nodeState{
+				hash:      entry.ContentHash,
+				timestamp: ts,
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading history file: %w", err)
+	}
+
+	// Convert to simple map
+	result := make(map[string]string, len(latestByNode))
+	for nodeID, state := range latestByNode {
+		result[nodeID] = state.hash
+	}
+
+	return result, nil
+}
+
 // matchesFilter checks if an entry matches the filter criteria
 func matchesFilter(entry domain.AuditEntry, filter Filter) bool {
 	// Filter by NodeID

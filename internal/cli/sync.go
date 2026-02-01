@@ -105,6 +105,13 @@ func runSync(flags *syncFlags) (int, error) {
 		return syncExitClean, nil
 	}
 
+	// Load all latest content hashes in a single pass (O(history) instead of O(nodes × history))
+	historyRepo := history.NewYAMLRepository(flags.targetDir)
+	latestHashes, err := historyRepo.QueryLatestHashes()
+	if err != nil {
+		return syncExitError, fmt.Errorf("failed to load history: %w", err)
+	}
+
 	nodeRepo := node.NewYAMLRepository(flags.targetDir)
 	var syncResults []syncResult
 	var baselinedNodes []string
@@ -126,7 +133,7 @@ func runSync(flags *syncFlags) (int, error) {
 		}
 
 		currentHash := ComputeContentHash(currentNode)
-		lastHash := getLastContentHash(flags.targetDir, nodeID)
+		lastHash := latestHashes[nodeID]
 
 		if lastHash == "" {
 			// No history - baseline this node
