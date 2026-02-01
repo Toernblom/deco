@@ -35,6 +35,7 @@ Subcommands:
 	cmd.AddCommand(newSubmitCommand())
 	cmd.AddCommand(newApproveCommand())
 	cmd.AddCommand(newRejectCommand())
+	cmd.AddCommand(newStatusCommand())
 
 	return cmd
 }
@@ -303,6 +304,80 @@ func runReject(flags *rejectFlags) error {
 
 	if !flags.quiet {
 		fmt.Printf("Rejected %s (status: review -> draft)\nReason: %s\n", flags.nodeID, flags.note)
+	}
+
+	return nil
+}
+
+type statusFlags struct {
+	targetDir string
+	nodeID    string
+}
+
+func newStatusCommand() *cobra.Command {
+	flags := &statusFlags{}
+
+	cmd := &cobra.Command{
+		Use:   "status <node-id> [directory]",
+		Short: "Show review status of a node",
+		Long:  `Show review status of a node including current status, approvals, and requirements.`,
+		Args:  cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			flags.nodeID = args[0]
+			if len(args) > 1 {
+				flags.targetDir = args[1]
+			} else {
+				flags.targetDir = "."
+			}
+			return runStatus(cmd, flags)
+		},
+	}
+
+	return cmd
+}
+
+func runStatus(cmd *cobra.Command, flags *statusFlags) error {
+	// Load config
+	configRepo := config.NewYAMLRepository(flags.targetDir)
+	cfg, err := configRepo.Load()
+	if err != nil {
+		return fmt.Errorf(".deco directory not found or invalid: %w", err)
+	}
+
+	// Load the node
+	nodeRepo := node.NewYAMLRepository(flags.targetDir)
+	n, err := nodeRepo.Load(flags.nodeID)
+	if err != nil {
+		return fmt.Errorf("node %q not found: %w", flags.nodeID, err)
+	}
+
+	// Count approvals for current version
+	validApprovals := 0
+	for _, r := range n.Reviewers {
+		if r.Version == n.Version {
+			validApprovals++
+		}
+	}
+
+	// Print status
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "Node: %s\n", n.ID)
+	fmt.Fprintf(out, "Version: %d\n", n.Version)
+	fmt.Fprintf(out, "Status: %s\n", n.Status)
+	fmt.Fprintf(out, "Approvals: %d/%d\n", validApprovals, cfg.RequiredApprovals)
+
+	if len(n.Reviewers) > 0 {
+		fmt.Fprintf(out, "\nReviewers:\n")
+		for _, r := range n.Reviewers {
+			versionNote := ""
+			if r.Version != n.Version {
+				versionNote = " (stale - v" + fmt.Sprint(r.Version) + ")"
+			}
+			fmt.Fprintf(out, "  - %s at %s%s\n", r.Name, r.Timestamp.Format("2006-01-02 15:04"), versionNote)
+			if r.Note != "" {
+				fmt.Fprintf(out, "    Note: %s\n", r.Note)
+			}
+		}
 	}
 
 	return nil

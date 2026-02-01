@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -217,4 +219,50 @@ func TestReviewCommand_Reject(t *testing.T) {
 			t.Error("Expected error when rejecting non-review node")
 		}
 	})
+}
+
+func TestReviewCommand_Status(t *testing.T) {
+	t.Run("status shows review state", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupReviewProject(t, tmpDir)
+		createNodeWithReviewers(t, tmpDir, "test/node", "review", 1)
+
+		cmd := NewReviewCommand()
+		var buf bytes.Buffer
+		cmd.SetOut(&buf)
+		cmd.SetArgs([]string{"status", "test/node", tmpDir})
+
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		output := buf.String()
+		if !strings.Contains(output, "review") {
+			t.Errorf("Expected output to contain status, got: %s", output)
+		}
+	})
+}
+
+func createNodeWithReviewers(t *testing.T, tmpDir, nodeID, status string, numReviewers int) {
+	t.Helper()
+	nodeContent := `id: ` + nodeID + `
+kind: mechanic
+version: 1
+status: ` + status + `
+title: Test Node
+`
+	if numReviewers > 0 {
+		nodeContent += "reviewers:\n"
+		for i := 0; i < numReviewers; i++ {
+			nodeContent += fmt.Sprintf(`  - name: reviewer%d@example.com
+    timestamp: 2026-01-01T00:00:00Z
+    version: 1
+`, i+1)
+		}
+	}
+	nodesDir := filepath.Join(tmpDir, ".deco", "nodes")
+	nodePath := filepath.Join(nodesDir, nodeID+".yaml")
+	os.MkdirAll(filepath.Dir(nodePath), 0755)
+	os.WriteFile(nodePath, []byte(nodeContent), 0644)
 }
