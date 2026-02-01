@@ -305,6 +305,67 @@ func readNodeFile(t *testing.T, dir, nodeID string) string {
 	return string(content)
 }
 
+func TestSetCommand_ReviewReset(t *testing.T) {
+	t.Run("editing approved node resets status to draft", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupApprovedNode(t, tmpDir)
+
+		cmd := NewSetCommand()
+		cmd.SetArgs([]string{"test-node", "title", "New Title", tmpDir})
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		nodeYAML := readNodeFile(t, tmpDir, "test-node")
+		if !strings.Contains(nodeYAML, "status: draft") {
+			t.Errorf("Expected status to reset to 'draft', got: %s", nodeYAML)
+		}
+	})
+
+	t.Run("editing approved node clears reviewers", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupApprovedNode(t, tmpDir)
+
+		cmd := NewSetCommand()
+		cmd.SetArgs([]string{"test-node", "title", "New Title", tmpDir})
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		nodeYAML := readNodeFile(t, tmpDir, "test-node")
+		if strings.Contains(nodeYAML, "reviewers:") {
+			t.Errorf("Expected reviewers to be cleared, got: %s", nodeYAML)
+		}
+	})
+}
+
+func setupApprovedNode(t *testing.T, tmpDir string) {
+	t.Helper()
+	decoDir := filepath.Join(tmpDir, ".deco")
+	nodesDir := filepath.Join(decoDir, "nodes")
+	os.MkdirAll(nodesDir, 0755)
+
+	configContent := `project_name: TestProject
+nodes_path: .deco/nodes
+version: 1
+`
+	os.WriteFile(filepath.Join(decoDir, "config.yaml"), []byte(configContent), 0644)
+
+	nodeContent := `id: test-node
+kind: mechanic
+version: 1
+status: approved
+title: Test Node
+reviewers:
+  - name: alice@example.com
+    timestamp: 2026-01-01T00:00:00Z
+    version: 1
+`
+	os.WriteFile(filepath.Join(nodesDir, "test-node.yaml"), []byte(nodeContent), 0644)
+}
+
 // Test parseValue function for type inference
 func TestParseValue(t *testing.T) {
 	tests := []struct {
