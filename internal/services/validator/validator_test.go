@@ -579,3 +579,112 @@ func TestOrchestrator_ValidatesAllNodes(t *testing.T) {
 		t.Error("expected to find missing field error for node2")
 	}
 }
+
+// ===== DUPLICATE ID VALIDATOR TESTS =====
+
+// Test no duplicates (should pass)
+func TestDuplicateIDValidator_NoDuplicates(t *testing.T) {
+	dv := validator.NewDuplicateIDValidator()
+
+	nodes := []domain.Node{
+		{ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Node 1"},
+		{ID: "node2", Kind: "system", Version: 1, Status: "draft", Title: "Node 2"},
+		{ID: "node3", Kind: "system", Version: 1, Status: "draft", Title: "Node 3"},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	dv.Validate(nodes, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for unique IDs, got %d", collector.Count())
+	}
+}
+
+// Test duplicate IDs detected
+func TestDuplicateIDValidator_DuplicatesDetected(t *testing.T) {
+	dv := validator.NewDuplicateIDValidator()
+
+	nodes := []domain.Node{
+		{ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Node 1"},
+		{ID: "node2", Kind: "system", Version: 1, Status: "draft", Title: "Node 2"},
+		{ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Node 1 Duplicate"}, // Duplicate ID
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	dv.Validate(nodes, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for duplicate ID")
+	}
+
+	errs := collector.Errors()
+	if errs[0].Code != "E009" {
+		t.Errorf("expected error code E009, got %s", errs[0].Code)
+	}
+}
+
+// Test multiple duplicates
+func TestDuplicateIDValidator_MultipleDuplicates(t *testing.T) {
+	dv := validator.NewDuplicateIDValidator()
+
+	nodes := []domain.Node{
+		{ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Node 1"},
+		{ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Node 1 Dup 1"},
+		{ID: "node2", Kind: "system", Version: 1, Status: "draft", Title: "Node 2"},
+		{ID: "node2", Kind: "system", Version: 1, Status: "draft", Title: "Node 2 Dup 1"},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	dv.Validate(nodes, collector)
+
+	// Should have 2 errors (1 for node1 duplicate, 1 for node2 duplicate)
+	if collector.Count() != 2 {
+		t.Errorf("expected 2 duplicate errors, got %d", collector.Count())
+	}
+}
+
+// Test empty ID is skipped (handled by schema validator)
+func TestDuplicateIDValidator_EmptyIDSkipped(t *testing.T) {
+	dv := validator.NewDuplicateIDValidator()
+
+	nodes := []domain.Node{
+		{ID: "", Kind: "system", Version: 1, Status: "draft", Title: "Node 1"}, // Empty ID
+		{ID: "", Kind: "system", Version: 1, Status: "draft", Title: "Node 2"}, // Another empty ID
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	dv.Validate(nodes, collector)
+
+	// Empty IDs should not trigger duplicate error (they're handled by schema validator)
+	if collector.HasErrors() {
+		t.Errorf("expected no duplicate error for empty IDs, got %d", collector.Count())
+	}
+}
+
+// Test orchestrator includes duplicate ID validation
+func TestOrchestrator_DetectsDuplicateIDs(t *testing.T) {
+	orch := validator.NewOrchestrator()
+
+	nodes := []domain.Node{
+		{ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Node 1"},
+		{ID: "node1", Kind: "feature", Version: 1, Status: "draft", Title: "Node 1 Duplicate"},
+	}
+
+	collector := orch.ValidateAll(nodes)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for duplicate IDs")
+	}
+
+	errs := collector.Errors()
+	found := false
+	for _, err := range errs {
+		if err.Code == "E009" { // Duplicate ID
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected to find duplicate ID error (E009)")
+	}
+}

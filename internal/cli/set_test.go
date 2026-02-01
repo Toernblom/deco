@@ -304,3 +304,84 @@ func readNodeFile(t *testing.T, dir, nodeID string) string {
 	}
 	return string(content)
 }
+
+// Test parseValue function for type inference
+func TestParseValue(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+		typeDesc string
+	}{
+		// Integers
+		{"42", 42, "int"},
+		{"0", 0, "int"},
+		{"-10", -10, "int"},
+
+		// Floats (only if contains decimal point)
+		{"3.14", 3.14, "float"},
+		{"-2.5", -2.5, "float"},
+
+		// Booleans
+		{"true", true, "bool"},
+		{"false", false, "bool"},
+		{"True", true, "bool (uppercase)"},
+		{"FALSE", false, "bool (uppercase)"},
+
+		// JSON arrays
+		{`["a","b","c"]`, []interface{}{"a", "b", "c"}, "JSON array"},
+
+		// JSON objects
+		{`{"key":"value"}`, map[string]interface{}{"key": "value"}, "JSON object"},
+
+		// Strings (default)
+		{"hello", "hello", "string"},
+		{"hello world", "hello world", "string with space"},
+		{"123abc", "123abc", "string starting with number"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.typeDesc, func(t *testing.T) {
+			result := parseValue(tt.input)
+
+			// Compare types and values
+			switch expected := tt.expected.(type) {
+			case int:
+				if v, ok := result.(int); !ok || v != expected {
+					t.Errorf("parseValue(%q) = %v (%T), want %v (int)", tt.input, result, result, expected)
+				}
+			case float64:
+				if v, ok := result.(float64); !ok || v != expected {
+					t.Errorf("parseValue(%q) = %v (%T), want %v (float64)", tt.input, result, result, expected)
+				}
+			case bool:
+				if v, ok := result.(bool); !ok || v != expected {
+					t.Errorf("parseValue(%q) = %v (%T), want %v (bool)", tt.input, result, result, expected)
+				}
+			case string:
+				if v, ok := result.(string); !ok || v != expected {
+					t.Errorf("parseValue(%q) = %v (%T), want %v (string)", tt.input, result, result, expected)
+				}
+			case []interface{}:
+				arr, ok := result.([]interface{})
+				if !ok {
+					t.Errorf("parseValue(%q) = %T, want []interface{}", tt.input, result)
+					return
+				}
+				if len(arr) != len(expected) {
+					t.Errorf("parseValue(%q) array length = %d, want %d", tt.input, len(arr), len(expected))
+				}
+			case map[string]interface{}:
+				m, ok := result.(map[string]interface{})
+				if !ok {
+					t.Errorf("parseValue(%q) = %T, want map[string]interface{}", tt.input, result)
+					return
+				}
+				for k, v := range expected {
+					if m[k] != v {
+						t.Errorf("parseValue(%q)[%q] = %v, want %v", tt.input, k, m[k], v)
+					}
+				}
+			}
+		})
+	}
+}

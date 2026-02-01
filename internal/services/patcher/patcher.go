@@ -187,6 +187,15 @@ func (p *Patcher) setValue(v reflect.Value, parts []string, value interface{}) e
 		return fmt.Errorf("empty path")
 	}
 
+	// Handle pointer types by dereferencing
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			// Initialize nil pointer with zero value
+			v.Set(reflect.New(v.Type().Elem()))
+		}
+		v = v.Elem()
+	}
+
 	// Handle the current part
 	part := parts[0]
 
@@ -196,6 +205,14 @@ func (p *Patcher) setValue(v reflect.Value, parts []string, value interface{}) e
 		field := v.FieldByName(capitalizeFirst(fieldName))
 		if !field.IsValid() {
 			return fmt.Errorf("field %q not found", fieldName)
+		}
+
+		// Handle pointer to slice
+		if field.Kind() == reflect.Ptr {
+			if field.IsNil() {
+				return fmt.Errorf("field %q is nil pointer", fieldName)
+			}
+			field = field.Elem()
 		}
 
 		if field.Kind() != reflect.Slice {
@@ -250,6 +267,15 @@ func (p *Patcher) setValue(v reflect.Value, parts []string, value interface{}) e
 	}
 
 	// More parts to traverse
+	// Handle pointers - dereference before continuing
+	if field.Kind() == reflect.Ptr {
+		if field.IsNil() {
+			// Initialize nil pointer with zero value
+			field.Set(reflect.New(field.Type().Elem()))
+		}
+		field = field.Elem()
+	}
+
 	// Handle maps
 	if field.Kind() == reflect.Map {
 		if field.IsNil() {
@@ -277,6 +303,14 @@ func (p *Patcher) getField(v reflect.Value, parts []string) (reflect.Value, erro
 		return v, nil
 	}
 
+	// Handle pointer types by dereferencing
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return reflect.Value{}, fmt.Errorf("cannot traverse nil pointer")
+		}
+		v = v.Elem()
+	}
+
 	part := parts[0]
 
 	// Check for array index notation
@@ -285,6 +319,15 @@ func (p *Patcher) getField(v reflect.Value, parts []string) (reflect.Value, erro
 		if !field.IsValid() {
 			return reflect.Value{}, fmt.Errorf("field %q not found", fieldName)
 		}
+
+		// Handle pointer to slice
+		if field.Kind() == reflect.Ptr {
+			if field.IsNil() {
+				return reflect.Value{}, fmt.Errorf("field %q is nil pointer", fieldName)
+			}
+			field = field.Elem()
+		}
+
 		if field.Kind() != reflect.Slice {
 			return reflect.Value{}, fmt.Errorf("expected slice for field %q, got %v", fieldName, field.Kind())
 		}
@@ -304,6 +347,14 @@ func (p *Patcher) getField(v reflect.Value, parts []string) (reflect.Value, erro
 		return field, nil
 	}
 
+	// Handle pointers - dereference before continuing
+	if field.Kind() == reflect.Ptr {
+		if field.IsNil() {
+			return reflect.Value{}, fmt.Errorf("field %q is nil pointer", part)
+		}
+		field = field.Elem()
+	}
+
 	// Handle maps
 	if field.Kind() == reflect.Map {
 		key := reflect.ValueOf(parts[1])
@@ -319,6 +370,14 @@ func (p *Patcher) unsetValue(v reflect.Value, parts []string) error {
 		return fmt.Errorf("empty path")
 	}
 
+	// Handle pointer types by dereferencing
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return nil // Nothing to unset in nil pointer
+		}
+		v = v.Elem()
+	}
+
 	part := parts[0]
 
 	// Check for array index notation
@@ -326,6 +385,14 @@ func (p *Patcher) unsetValue(v reflect.Value, parts []string) error {
 		field := v.FieldByName(capitalizeFirst(fieldName))
 		if !field.IsValid() {
 			return fmt.Errorf("field %q not found", fieldName)
+		}
+
+		// Handle pointer to slice
+		if field.Kind() == reflect.Ptr {
+			if field.IsNil() {
+				return nil // Nothing to unset in nil pointer
+			}
+			field = field.Elem()
 		}
 
 		if field.Kind() != reflect.Slice {
@@ -367,6 +434,14 @@ func (p *Patcher) unsetValue(v reflect.Value, parts []string) error {
 	}
 
 	// More parts to traverse
+	// Handle pointers - dereference before continuing
+	if field.Kind() == reflect.Ptr {
+		if field.IsNil() {
+			return nil // Nothing to unset in nil pointer
+		}
+		field = field.Elem()
+	}
+
 	if field.Kind() == reflect.Map {
 		if field.IsNil() {
 			return nil // Map doesn't exist, nothing to unset

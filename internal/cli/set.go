@@ -1,7 +1,10 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/Toernblom/deco/internal/services/patcher"
 	"github.com/Toernblom/deco/internal/storage/config"
@@ -70,9 +73,12 @@ func runSet(flags *setFlags) error {
 		return fmt.Errorf("node %q not found: %w", flags.nodeID, err)
 	}
 
+	// Parse the value to appropriate type
+	value := parseValue(flags.value)
+
 	// Apply the patch
 	p := patcher.New()
-	err = p.Set(&n, flags.path, flags.value)
+	err = p.Set(&n, flags.path, value)
 	if err != nil {
 		return fmt.Errorf("failed to set field: %w", err)
 	}
@@ -87,8 +93,44 @@ func runSet(flags *setFlags) error {
 	}
 
 	if !flags.quiet {
-		fmt.Printf("Updated %s.%s = %q (version %d)\n", flags.nodeID, flags.path, flags.value, n.Version)
+		fmt.Printf("Updated %s.%s = %v (version %d)\n", flags.nodeID, flags.path, value, n.Version)
 	}
 
 	return nil
+}
+
+// parseValue attempts to parse a string value into the appropriate Go type.
+// Order of attempts: int, float, bool, JSON array/object, string.
+func parseValue(s string) interface{} {
+	// Try int
+	if i, err := strconv.Atoi(s); err == nil {
+		return i
+	}
+
+	// Try float (only if contains decimal point to avoid converting "123" to 123.0)
+	if strings.Contains(s, ".") {
+		if f, err := strconv.ParseFloat(s, 64); err == nil {
+			return f
+		}
+	}
+
+	// Try bool
+	if strings.EqualFold(s, "true") {
+		return true
+	}
+	if strings.EqualFold(s, "false") {
+		return false
+	}
+
+	// Try JSON array or object
+	if (strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]")) ||
+		(strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}")) {
+		var jsonVal interface{}
+		if err := json.Unmarshal([]byte(s), &jsonVal); err == nil {
+			return jsonVal
+		}
+	}
+
+	// Default to string
+	return s
 }

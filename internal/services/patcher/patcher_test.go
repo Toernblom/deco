@@ -850,3 +850,166 @@ func TestPatcher_ApplyAppendMultipleValues(t *testing.T) {
 		}
 	}
 }
+
+// ===== POINTER FIELD TESTS =====
+
+// Test setting a field through a pointer (Content *Content)
+func TestPatcher_SetThroughPointerField(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Original Section",
+					Blocks: []domain.Block{
+						{Type: "text", Data: map[string]interface{}{"text": "original"}},
+					},
+				},
+			},
+		},
+	}
+
+	// This path traverses through Content (which is *Content pointer)
+	err := p.Set(&node, "content.sections[0].name", "Updated Section")
+
+	if err != nil {
+		t.Fatalf("expected no error setting through pointer, got %v", err)
+	}
+
+	if node.Content.Sections[0].Name != "Updated Section" {
+		t.Errorf("expected section name 'Updated Section', got %q", node.Content.Sections[0].Name)
+	}
+}
+
+// Test setting a deeply nested field through pointer
+func TestPatcher_SetDeeplyNestedThroughPointer(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Section",
+					Blocks: []domain.Block{
+						{Type: "text", Data: map[string]interface{}{"text": "original"}},
+					},
+				},
+			},
+		},
+	}
+
+	// Set block type through pointer path
+	err := p.Set(&node, "content.sections[0].blocks[0].type", "updated-type")
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.Content.Sections[0].Blocks[0].Type != "updated-type" {
+		t.Errorf("expected block type 'updated-type', got %q", node.Content.Sections[0].Blocks[0].Type)
+	}
+}
+
+// Test setting through nil pointer should initialize it
+func TestPatcher_SetThroughNilPointer(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Content: nil, // nil pointer
+	}
+
+	// Attempting to set through nil pointer should initialize it
+	err := p.Set(&node, "content.sections", []domain.Section{})
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.Content == nil {
+		t.Fatal("expected Content to be initialized")
+	}
+}
+
+// Test getField through pointer
+func TestPatcher_GetFieldThroughPointer(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{Name: "Section1", Blocks: []domain.Block{}},
+				{Name: "Section2", Blocks: []domain.Block{}},
+			},
+		},
+	}
+
+	// Append should work through pointer path
+	err := p.Append(&node, "content.sections", domain.Section{Name: "Section3", Blocks: []domain.Block{}})
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Content.Sections) != 3 {
+		t.Fatalf("expected 3 sections, got %d", len(node.Content.Sections))
+	}
+
+	if node.Content.Sections[2].Name != "Section3" {
+		t.Errorf("expected third section name 'Section3', got %q", node.Content.Sections[2].Name)
+	}
+}
+
+// Test unset through pointer
+func TestPatcher_UnsetThroughPointer(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{Name: "Section1", Blocks: []domain.Block{}},
+				{Name: "Section2", Blocks: []domain.Block{}},
+			},
+		},
+	}
+
+	// Unset a section through pointer path
+	err := p.Unset(&node, "content.sections[0]")
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Content.Sections) != 1 {
+		t.Fatalf("expected 1 section after unset, got %d", len(node.Content.Sections))
+	}
+
+	if node.Content.Sections[0].Name != "Section2" {
+		t.Errorf("expected remaining section to be 'Section2', got %q", node.Content.Sections[0].Name)
+	}
+}

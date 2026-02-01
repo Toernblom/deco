@@ -1,6 +1,10 @@
 package domain
 
-import "fmt"
+import (
+	"fmt"
+
+	"gopkg.in/yaml.v3"
+)
 
 // Node represents a design node in the game design document.
 // Nodes are the core building blocks of a GDD, containing metadata,
@@ -44,9 +48,64 @@ type Section struct {
 }
 
 // Block represents a content block within a section.
+// Block fields (except 'type') are stored in Data map and written as inline YAML fields.
 type Block struct {
-	Type string                 `json:"type" yaml:"type"` // table, rule, param, mechanic, list, etc.
-	Data map[string]interface{} `json:"data" yaml:"data"`
+	Type string                 `json:"type"` // table, rule, param, mechanic, list, etc.
+	Data map[string]interface{} `json:"data,omitempty"`
+}
+
+// UnmarshalYAML implements custom YAML unmarshaling for Block.
+// It captures all fields except 'type' into the Data map, preserving inline block fields.
+func (b *Block) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind != yaml.MappingNode {
+		return fmt.Errorf("expected mapping node for block, got %v", node.Kind)
+	}
+
+	b.Data = make(map[string]interface{})
+
+	// Iterate through key-value pairs
+	for i := 0; i < len(node.Content); i += 2 {
+		keyNode := node.Content[i]
+		valueNode := node.Content[i+1]
+
+		key := keyNode.Value
+
+		if key == "type" {
+			b.Type = valueNode.Value
+		} else if key == "data" {
+			// If there's an explicit 'data' field, merge its contents
+			var dataMap map[string]interface{}
+			if err := valueNode.Decode(&dataMap); err != nil {
+				return fmt.Errorf("failed to decode data field: %w", err)
+			}
+			for k, v := range dataMap {
+				b.Data[k] = v
+			}
+		} else {
+			// All other fields go into Data
+			var value interface{}
+			if err := valueNode.Decode(&value); err != nil {
+				return fmt.Errorf("failed to decode field %s: %w", key, err)
+			}
+			b.Data[key] = value
+		}
+	}
+
+	return nil
+}
+
+// MarshalYAML implements custom YAML marshaling for Block.
+// It writes Data fields as inline block fields (not nested under 'data:').
+func (b Block) MarshalYAML() (interface{}, error) {
+	// Build a map with 'type' first, then all Data fields
+	result := make(map[string]interface{})
+	result["type"] = b.Type
+
+	for k, v := range b.Data {
+		result[k] = v
+	}
+
+	return result, nil
 }
 
 // Contract represents a Gherkin-style scenario or acceptance criteria.

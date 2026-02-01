@@ -227,25 +227,60 @@ func (cv *ConstraintValidator) evaluateConstraint(node *domain.Node, constraint 
 	return nil
 }
 
+// DuplicateIDValidator detects nodes with duplicate IDs.
+type DuplicateIDValidator struct{}
+
+// NewDuplicateIDValidator creates a new duplicate ID validator.
+func NewDuplicateIDValidator() *DuplicateIDValidator {
+	return &DuplicateIDValidator{}
+}
+
+// Validate checks for duplicate node IDs across all nodes.
+func (dv *DuplicateIDValidator) Validate(nodes []domain.Node, collector *errors.Collector) {
+	// Track which IDs we've seen and where
+	seen := make(map[string]int) // ID -> index of first occurrence
+
+	for i, node := range nodes {
+		if node.ID == "" {
+			continue // Empty IDs are handled by schema validator
+		}
+
+		if firstIdx, exists := seen[node.ID]; exists {
+			collector.Add(domain.DecoError{
+				Code:    "E009",
+				Summary: fmt.Sprintf("Duplicate node ID: %s", node.ID),
+				Detail:  fmt.Sprintf("Node ID %q appears multiple times (first at index %d, duplicate at index %d). Node IDs must be unique.", node.ID, firstIdx, i),
+			})
+		} else {
+			seen[node.ID] = i
+		}
+	}
+}
+
 // Orchestrator coordinates all validators and aggregates errors.
 type Orchestrator struct {
-	schemaValidator     *SchemaValidator
-	referenceValidator  *ReferenceValidator
-	constraintValidator *ConstraintValidator
+	schemaValidator      *SchemaValidator
+	referenceValidator   *ReferenceValidator
+	constraintValidator  *ConstraintValidator
+	duplicateIDValidator *DuplicateIDValidator
 }
 
 // NewOrchestrator creates a new validator orchestrator.
 func NewOrchestrator() *Orchestrator {
 	return &Orchestrator{
-		schemaValidator:     NewSchemaValidator(),
-		referenceValidator:  NewReferenceValidator(),
-		constraintValidator: NewConstraintValidator(),
+		schemaValidator:      NewSchemaValidator(),
+		referenceValidator:   NewReferenceValidator(),
+		constraintValidator:  NewConstraintValidator(),
+		duplicateIDValidator: NewDuplicateIDValidator(),
 	}
 }
 
 // ValidateAll runs all validators on the provided nodes and returns aggregated errors.
 func (o *Orchestrator) ValidateAll(nodes []domain.Node) *errors.Collector {
 	collector := errors.NewCollectorWithLimit(1000)
+
+	// Check for duplicate IDs first (critical error)
+	o.duplicateIDValidator.Validate(nodes, collector)
 
 	// Run schema validation on each node
 	for _, node := range nodes {
