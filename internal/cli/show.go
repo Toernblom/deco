@@ -96,8 +96,7 @@ func runShow(nodeID string, flags *showFlags) error {
 
 	// Output
 	if flags.jsonOutput {
-		contentHash := ComputeContentHash(*targetNode)
-		return outputJSON(targetNode, reverseIndex[nodeID], contentHash)
+		return outputJSON(targetNode, reverseIndex[nodeID])
 	}
 
 	outputHuman(targetNode, reverseIndex[nodeID])
@@ -198,16 +197,14 @@ func outputHuman(node *domain.Node, referencedBy []string) {
 	}
 }
 
-func outputJSON(node *domain.Node, referencedBy []string, contentHash string) error {
+func outputJSON(node *domain.Node, referencedBy []string) error {
 	// Create output structure
 	output := struct {
 		*domain.Node
 		ReferencedBy []string `json:"referenced_by"`
-		ContentHash  string   `json:"content_hash"`
 	}{
 		Node:         node,
 		ReferencedBy: referencedBy,
-		ContentHash:  contentHash,
 	}
 
 	encoder := json.NewEncoder(os.Stdout)

@@ -21,13 +21,11 @@ import (
 )
 
 type applyFlags struct {
-	quiet      bool
-	dryRun     bool
-	targetDir  string
-	nodeID     string
-	patchFile  string
-	expectHash string
-	force      bool
+	quiet     bool
+	dryRun    bool
+	targetDir string
+	nodeID    string
+	patchFile string
 }
 
 // NewApplyCommand creates the apply subcommand
@@ -74,8 +72,6 @@ The version number is automatically incremented after a successful apply.`,
 
 	cmd.Flags().BoolVarP(&flags.quiet, "quiet", "q", false, "Suppress output")
 	cmd.Flags().BoolVar(&flags.dryRun, "dry-run", false, "Validate patch without applying")
-	cmd.Flags().StringVar(&flags.expectHash, "expect-hash", "", "Expected content hash for optimistic locking")
-	cmd.Flags().BoolVar(&flags.force, "force", false, "Overwrite even if conflict detected")
 
 	return cmd
 }
@@ -104,13 +100,6 @@ func runApply(flags *applyFlags) error {
 	n, err := nodeRepo.Load(flags.nodeID)
 	if err != nil {
 		return fmt.Errorf("node %q not found: %w", flags.nodeID, err)
-	}
-
-	// Check for concurrent edit conflict (unless --force)
-	if !flags.force {
-		if err := CheckContentHash(n, flags.expectHash); err != nil {
-			return err
-		}
 	}
 
 	// Capture before values for diff and history

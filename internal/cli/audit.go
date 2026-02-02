@@ -68,30 +68,3 @@ func GetCurrentUser() string {
 	}
 	return "unknown"
 }
-
-// CheckContentHash verifies that the current content hash matches the expected hash.
-// Returns nil if expectHash is empty (no check), or if hashes match.
-// Returns an ExitError with code 3 (conflict) if hashes don't match.
-func CheckContentHash(n domain.Node, expectHash string) error {
-	if expectHash == "" {
-		return nil
-	}
-
-	currentHash := ComputeContentHash(n)
-	if currentHash != expectHash {
-		return NewExitErrorf(ExitCodeConflict,
-			`Conflict detected on %s
-
-  Expected hash:  %s
-  Current hash:   %s
-
-The node was modified since you last read it.
-
-Options:
-  1. Reload the node and reapply your changes
-  2. Use --force to overwrite (loses concurrent changes)
-  3. Use 'deco show %s' to see current state`,
-			n.ID, expectHash, currentHash, n.ID)
-	}
-	return nil
-}
