@@ -8,6 +8,7 @@ import (
 
 	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/errors"
+	yamlloc "github.com/Toernblom/deco/internal/errors/yaml"
 	"github.com/Toernblom/deco/internal/storage/config"
 	"github.com/google/cel-go/cel"
 	"gopkg.in/yaml.v3"
@@ -41,12 +42,25 @@ func (sv *SchemaValidator) Validate(node *domain.Node, collector *errors.Collect
 		return
 	}
 
-	// Helper to create location from node source file
-	nodeLocation := func() *domain.Location {
-		if node.SourceFile == "" {
-			return nil
+	// Create location tracker for line-aware error reporting
+	var tracker *yamlloc.LocationTracker
+	if len(node.RawContent) > 0 {
+		tracker, _ = yamlloc.NewLocationTrackerWithFile(node.RawContent, node.SourceFile)
+	}
+
+	// Helper to get location for a specific field path
+	fieldLocation := func(fieldPath string) *domain.Location {
+		if tracker != nil {
+			loc := tracker.GetLocation(fieldPath)
+			if loc.Line > 0 {
+				return &loc
+			}
 		}
-		return &domain.Location{File: node.SourceFile}
+		// Fallback to file-only location
+		if node.SourceFile != "" {
+			return &domain.Location{File: node.SourceFile}
+		}
+		return nil
 	}
 
 	// Check required fields
@@ -55,7 +69,7 @@ func (sv *SchemaValidator) Validate(node *domain.Node, collector *errors.Collect
 			Code:     "E008",
 			Summary:  "Missing required field: ID",
 			Detail:   "Node ID is required",
-			Location: nodeLocation(),
+			Location: fieldLocation("id"),
 		})
 	}
 
@@ -64,7 +78,7 @@ func (sv *SchemaValidator) Validate(node *domain.Node, collector *errors.Collect
 			Code:     "E008",
 			Summary:  "Missing required field: Kind",
 			Detail:   "Node Kind is required",
-			Location: nodeLocation(),
+			Location: fieldLocation("kind"),
 		})
 	}
 
@@ -73,7 +87,7 @@ func (sv *SchemaValidator) Validate(node *domain.Node, collector *errors.Collect
 			Code:     "E008",
 			Summary:  "Missing required field: Version",
 			Detail:   "Node Version is required and must be > 0",
-			Location: nodeLocation(),
+			Location: fieldLocation("version"),
 		})
 	}
 
@@ -82,7 +96,7 @@ func (sv *SchemaValidator) Validate(node *domain.Node, collector *errors.Collect
 			Code:     "E008",
 			Summary:  "Missing required field: Status",
 			Detail:   "Node Status is required",
-			Location: nodeLocation(),
+			Location: fieldLocation("status"),
 		})
 	} else if !validStatuses[node.Status] {
 		collector.Add(domain.DecoError{
@@ -90,7 +104,7 @@ func (sv *SchemaValidator) Validate(node *domain.Node, collector *errors.Collect
 			Summary:    fmt.Sprintf("Invalid status: %q", node.Status),
 			Detail:     fmt.Sprintf("Status must be one of: draft, review, approved, deprecated, archived. Got: %q", node.Status),
 			Suggestion: "Change status to a valid value: draft, review, approved, deprecated, or archived",
-			Location:   nodeLocation(),
+			Location:   fieldLocation("status"),
 		})
 	}
 
@@ -99,7 +113,7 @@ func (sv *SchemaValidator) Validate(node *domain.Node, collector *errors.Collect
 			Code:     "E008",
 			Summary:  "Missing required field: Title",
 			Detail:   "Node Title is required",
-			Location: nodeLocation(),
+			Location: fieldLocation("title"),
 		})
 	}
 }

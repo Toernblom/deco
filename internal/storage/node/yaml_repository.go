@@ -100,8 +100,9 @@ func (r *YAMLRepository) loadFromFile(path string) (domain.Node, error) {
 		return domain.Node{}, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
-	// Store the source file path for error reporting
+	// Store the source file path and raw content for error reporting
 	node.SourceFile = path
+	node.RawContent = data
 
 	return node, nil
 }

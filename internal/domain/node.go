@@ -22,6 +22,8 @@ type Node struct {
 
 	// Source location (set during load, not serialized)
 	SourceFile string `json:"-" yaml:"-"`
+	// Raw YAML content (set during load, not serialized) - used for line number tracking
+	RawContent []byte `json:"-" yaml:"-"`
 
 	// References to other nodes
 	Refs Ref `json:"refs,omitempty" yaml:"refs,omitempty"`
