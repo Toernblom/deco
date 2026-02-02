@@ -17,11 +17,13 @@ import (
 )
 
 type setFlags struct {
-	quiet     bool
-	targetDir string
-	nodeID    string
-	path      string
-	value     string
+	quiet      bool
+	targetDir  string
+	nodeID     string
+	path       string
+	value      string
+	expectHash string
+	force      bool
 }
 
 // NewSetCommand creates the set subcommand
@@ -58,6 +60,8 @@ The version number is automatically incremented after a successful set.`,
 	}
 
 	cmd.Flags().BoolVarP(&flags.quiet, "quiet", "q", false, "Suppress output")
+	cmd.Flags().StringVar(&flags.expectHash, "expect-hash", "", "Expected content hash for optimistic locking")
+	cmd.Flags().BoolVar(&flags.force, "force", false, "Overwrite even if conflict detected")
 
 	return cmd
 }
@@ -75,6 +79,13 @@ func runSet(flags *setFlags) error {
 	n, err := nodeRepo.Load(flags.nodeID)
 	if err != nil {
 		return fmt.Errorf("node %q not found: %w", flags.nodeID, err)
+	}
+
+	// Check for concurrent edit conflict (unless --force)
+	if !flags.force {
+		if err := CheckContentHash(n, flags.expectHash); err != nil {
+			return err
+		}
 	}
 
 	// Auto-reset review status on edit
