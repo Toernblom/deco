@@ -13,6 +13,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// validStatuses defines the allowed node status values.
+var validStatuses = map[string]bool{
+	"draft":      true,
+	"review":     true,
+	"approved":   true,
+	"deprecated": true,
+	"archived":   true,
+}
+
 // SchemaValidator validates that nodes have all required fields and correct types.
 type SchemaValidator struct{}
 
@@ -74,6 +83,14 @@ func (sv *SchemaValidator) Validate(node *domain.Node, collector *errors.Collect
 			Summary:  "Missing required field: Status",
 			Detail:   "Node Status is required",
 			Location: nodeLocation(),
+		})
+	} else if !validStatuses[node.Status] {
+		collector.Add(domain.DecoError{
+			Code:       "E011",
+			Summary:    fmt.Sprintf("Invalid status: %q", node.Status),
+			Detail:     fmt.Sprintf("Status must be one of: draft, review, approved, deprecated, archived. Got: %q", node.Status),
+			Suggestion: "Change status to a valid value: draft, review, approved, deprecated, or archived",
+			Location:   nodeLocation(),
 		})
 	}
 

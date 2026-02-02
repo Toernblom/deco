@@ -136,6 +136,54 @@ func TestSchemaValidator_MissingStatus(t *testing.T) {
 	}
 }
 
+// Test invalid Status value
+func TestSchemaValidator_InvalidStatus(t *testing.T) {
+	sv := validator.NewSchemaValidator()
+
+	node := domain.Node{
+		ID:      "test-node",
+		Kind:    "system",
+		Version: 1,
+		Status:  "invalid-status",
+		Title:   "Test Node",
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	sv.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for invalid Status")
+	}
+
+	errs := collector.Errors()
+	if errs[0].Code != "E011" {
+		t.Errorf("expected error code E011, got %s", errs[0].Code)
+	}
+}
+
+// Test all valid status values
+func TestSchemaValidator_AllValidStatuses(t *testing.T) {
+	sv := validator.NewSchemaValidator()
+
+	validStatuses := []string{"draft", "review", "approved", "deprecated", "archived"}
+	for _, status := range validStatuses {
+		node := domain.Node{
+			ID:      "test-node",
+			Kind:    "system",
+			Version: 1,
+			Status:  status,
+			Title:   "Test Node",
+		}
+
+		collector := errors.NewCollectorWithLimit(100)
+		sv.Validate(&node, collector)
+
+		if collector.HasErrors() {
+			t.Errorf("expected no errors for valid status %q, got %d errors", status, collector.Count())
+		}
+	}
+}
+
 // Test missing Title field
 func TestSchemaValidator_MissingTitle(t *testing.T) {
 	sv := validator.NewSchemaValidator()
