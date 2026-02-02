@@ -2,3 +2,12 @@ project_name: snake
 nodes_path: .deco/nodes
 history_path: .deco/history.jsonl
 version: 1
+
+# Custom block types for game design documents
+custom_block_types:
+  # Power-up block type for game collectibles
+  powerup:
+    required_fields:
+      - name
+      - effect
+      - duration

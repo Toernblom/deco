@@ -1,5 +1,11 @@
 package config
 
+// BlockTypeConfig defines validation rules for a custom block type.
+type BlockTypeConfig struct {
+	// RequiredFields lists field names that must be present in block.Data.
+	RequiredFields []string `yaml:"required_fields" json:"required_fields"`
+}
+
 // Config represents the project configuration.
 // It defines where nodes are stored, project metadata, and other settings.
 type Config struct {
@@ -20,6 +26,10 @@ type Config struct {
 	// RequiredApprovals is the number of approvals needed for a node to be approved.
 	// Defaults to 1.
 	RequiredApprovals int `yaml:"required_approvals" json:"required_approvals"`
+
+	// CustomBlockTypes defines additional block types beyond the built-in ones.
+	// Keys are type names, values define validation rules.
+	CustomBlockTypes map[string]BlockTypeConfig `yaml:"custom_block_types,omitempty" json:"custom_block_types,omitempty"`
 
 	// Custom allows projects to add arbitrary configuration fields.
 	Custom map[string]interface{} `yaml:"custom,omitempty" json:"custom,omitempty"`

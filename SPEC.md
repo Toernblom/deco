@@ -32,7 +32,8 @@ References (`refs`):
 - `vocabulary`: Shared term definitions
 
 Content (`content.sections`):
-- Blocks of type: table, rule, param, mechanic, list, etc.
+- Blocks of type: table, rule, param, mechanic, list
+- Custom block types can be defined in project config
 
 Issues (`issues`):
 - Tracked TBDs with id, description, severity (low/medium/high/critical), location, resolved
@@ -113,6 +114,32 @@ Deco doesn't magically detect semantic contradictions - you declare what must be
         colonists.yaml
         housing.yaml
 ```
+
+## Project Configuration
+
+The `.deco/config.yaml` file supports:
+
+```yaml
+project_name: my-game
+nodes_path: .deco/nodes
+history_path: .deco/history.jsonl
+version: 1
+required_approvals: 2  # For review workflow
+
+# Define custom block types with validation
+custom_block_types:
+  powerup:
+    required_fields:
+      - name
+      - effect
+      - duration
+  quest:
+    required_fields:
+      - name
+      - reward
+```
+
+Custom block types extend the built-in types (rule, table, param, mechanic, list). When a custom type shares a name with a built-in type, both validations apply.
 
 ## AI Integration
 

@@ -1,0 +1,41 @@
+id: items/powerups
+kind: item
+version: 1
+status: draft
+title: "Power-ups"
+tags: [collectible, buff]
+summary: |
+  Special items that grant temporary abilities when collected.
+
+content:
+  sections:
+    - name: Power-up Effects
+      blocks:
+        # Using custom block type defined in config.yaml
+        - type: powerup
+          id: speed_boost
+          name: "Speed Boost"
+          effect: "Increases snake movement speed by 50%"
+          duration: "10 seconds"
+
+        - type: powerup
+          id: invincibility
+          name: "Invincibility"
+          effect: "Snake can pass through walls and itself without dying"
+          duration: "5 seconds"
+
+        - type: powerup
+          id: score_multiplier
+          name: "Score Multiplier"
+          effect: "All food collected gives 2x points"
+          duration: "15 seconds"
+
+    - name: Spawning Rules
+      blocks:
+        - type: rule
+          id: powerup_rarity
+          text: "Power-ups have a 5% chance to spawn instead of normal food"
+
+        - type: rule
+          id: one_active
+          text: "Only one power-up effect can be active at a time; collecting a new one replaces the current effect"

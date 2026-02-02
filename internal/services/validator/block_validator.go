@@ -5,6 +5,7 @@ import (
 
 	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/errors"
+	"github.com/Toernblom/deco/internal/storage/config"
 )
 
 // knownBlockTypes defines the valid block types that can appear in content sections.
@@ -19,13 +20,23 @@ var knownBlockTypes = map[string]bool{
 // BlockValidator validates that blocks within content sections have the required
 // fields for their type.
 type BlockValidator struct {
-	suggester *errors.Suggester
+	suggester        *errors.Suggester
+	customBlockTypes map[string]config.BlockTypeConfig
 }
 
 // NewBlockValidator creates a new block validator.
 func NewBlockValidator() *BlockValidator {
 	return &BlockValidator{
-		suggester: errors.NewSuggester(),
+		suggester:        errors.NewSuggester(),
+		customBlockTypes: nil,
+	}
+}
+
+// NewBlockValidatorWithConfig creates a block validator with custom type support.
+func NewBlockValidatorWithConfig(customBlockTypes map[string]config.BlockTypeConfig) *BlockValidator {
+	return &BlockValidator{
+		suggester:        errors.NewSuggester(),
+		customBlockTypes: customBlockTypes,
 	}
 }
 
@@ -61,11 +72,25 @@ func (bv *BlockValidator) validateBlock(block *domain.Block, nodeID, sectionName
 		return
 	}
 
-	if !knownBlockTypes[block.Type] {
-		// Generate suggestion for similar type names
-		var knownTypes []string
+	// Check if it's a known built-in type
+	isBuiltIn := knownBlockTypes[block.Type]
+
+	// Check if it's a custom type
+	var customTypeConfig *config.BlockTypeConfig
+	if bv.customBlockTypes != nil {
+		if cfg, ok := bv.customBlockTypes[block.Type]; ok {
+			customTypeConfig = &cfg
+		}
+	}
+
+	if !isBuiltIn && customTypeConfig == nil {
+		// Unknown type - generate helpful error with suggestions
+		var allTypes []string
 		for t := range knownBlockTypes {
-			knownTypes = append(knownTypes, t)
+			allTypes = append(allTypes, t)
+		}
+		for t := range bv.customBlockTypes {
+			allTypes = append(allTypes, t)
 		}
 
 		err := domain.DecoError{
@@ -75,7 +100,7 @@ func (bv *BlockValidator) validateBlock(block *domain.Block, nodeID, sectionName
 			Location: location,
 		}
 
-		suggs := bv.suggester.Suggest(block.Type, knownTypes)
+		suggs := bv.suggester.Suggest(block.Type, allTypes)
 		if len(suggs) > 0 {
 			err.Suggestion = fmt.Sprintf("Did you mean %q?", suggs[0])
 		}
@@ -84,18 +109,25 @@ func (bv *BlockValidator) validateBlock(block *domain.Block, nodeID, sectionName
 		return
 	}
 
-	// Dispatch to type-specific validators
-	switch block.Type {
-	case "rule":
-		bv.validateRule(block, nodeID, sectionName, blockIdx, location, collector)
-	case "table":
-		bv.validateTable(block, nodeID, sectionName, blockIdx, location, collector)
-	case "param":
-		bv.validateParam(block, nodeID, sectionName, blockIdx, location, collector)
-	case "mechanic":
-		bv.validateMechanic(block, nodeID, sectionName, blockIdx, location, collector)
-	case "list":
-		bv.validateList(block, nodeID, sectionName, blockIdx, location, collector)
+	// Run built-in validation if applicable
+	if isBuiltIn {
+		switch block.Type {
+		case "rule":
+			bv.validateRule(block, nodeID, sectionName, blockIdx, location, collector)
+		case "table":
+			bv.validateTable(block, nodeID, sectionName, blockIdx, location, collector)
+		case "param":
+			bv.validateParam(block, nodeID, sectionName, blockIdx, location, collector)
+		case "mechanic":
+			bv.validateMechanic(block, nodeID, sectionName, blockIdx, location, collector)
+		case "list":
+			bv.validateList(block, nodeID, sectionName, blockIdx, location, collector)
+		}
+	}
+
+	// Run custom type validation if configured (extends built-in validation)
+	if customTypeConfig != nil {
+		bv.validateCustomType(block, customTypeConfig, nodeID, sectionName, blockIdx, location, collector)
 	}
 }
 
@@ -177,4 +209,11 @@ func (bv *BlockValidator) requireField(block *domain.Block, field, nodeID, secti
 // formatLocation creates a consistent location string for error details.
 func (bv *BlockValidator) formatLocation(nodeID, sectionName string, blockIdx int) string {
 	return fmt.Sprintf("in node %q, section %q, block %d", nodeID, sectionName, blockIdx)
+}
+
+// validateCustomType validates a block against a custom type's required fields.
+func (bv *BlockValidator) validateCustomType(block *domain.Block, cfg *config.BlockTypeConfig, nodeID, sectionName string, blockIdx int, location *domain.Location, collector *errors.Collector) {
+	for _, field := range cfg.RequiredFields {
+		bv.requireField(block, field, nodeID, sectionName, blockIdx, location, collector)
+	}
 }

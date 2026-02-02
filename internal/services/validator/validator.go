@@ -8,6 +8,7 @@ import (
 
 	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/errors"
+	"github.com/Toernblom/deco/internal/storage/config"
 	"github.com/google/cel-go/cel"
 	"gopkg.in/yaml.v3"
 )
@@ -599,6 +600,22 @@ func NewOrchestratorWithConfig(requiredApprovals int) *Orchestrator {
 		unknownFieldValidator: NewUnknownFieldValidator(),
 		contractValidator:     NewContractValidator(),
 		blockValidator:        NewBlockValidator(),
+		approvalValidator:     NewApprovalValidator(requiredApprovals),
+	}
+}
+
+// NewOrchestratorWithFullConfig creates a validator orchestrator with full config support.
+// This includes custom block types and other config-driven validation rules.
+func NewOrchestratorWithFullConfig(requiredApprovals int, customBlockTypes map[string]config.BlockTypeConfig) *Orchestrator {
+	return &Orchestrator{
+		schemaValidator:       NewSchemaValidator(),
+		contentValidator:      NewContentValidator(),
+		referenceValidator:    NewReferenceValidator(),
+		constraintValidator:   NewConstraintValidator(),
+		duplicateIDValidator:  NewDuplicateIDValidator(),
+		unknownFieldValidator: NewUnknownFieldValidator(),
+		contractValidator:     NewContractValidator(),
+		blockValidator:        NewBlockValidatorWithConfig(customBlockTypes),
 		approvalValidator:     NewApprovalValidator(requiredApprovals),
 	}
 }

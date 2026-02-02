@@ -63,8 +63,8 @@ func runValidate(flags *validateFlags) error {
 		return fmt.Errorf("failed to load nodes: %w", err)
 	}
 
-	// Run validation with config-based settings (including unknown field detection)
-	orchestrator := validator.NewOrchestratorWithConfig(cfg.RequiredApprovals)
+	// Run validation with full config support (custom block types, unknown field detection)
+	orchestrator := validator.NewOrchestratorWithFullConfig(cfg.RequiredApprovals, cfg.CustomBlockTypes)
 	collector := orchestrator.ValidateAllWithDir(nodes, flags.targetDir)
 
 	// Check if there are errors

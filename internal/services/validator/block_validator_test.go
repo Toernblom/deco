@@ -5,6 +5,7 @@ import (
 
 	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/errors"
+	"github.com/Toernblom/deco/internal/storage/config"
 )
 
 func TestBlockValidator_ValidRuleBlock(t *testing.T) {
@@ -711,5 +712,367 @@ func TestBlockValidator_EmptyBlockType(t *testing.T) {
 	errs := collector.Errors()
 	if errs[0].Code != "E048" {
 		t.Errorf("expected E048, got %s", errs[0].Code)
+	}
+}
+
+// Custom block type tests
+
+func TestBlockValidator_CustomType_Valid(t *testing.T) {
+	customTypes := map[string]config.BlockTypeConfig{
+		"quest": {
+			RequiredFields: []string{"name", "reward"},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Quests",
+					Blocks: []domain.Block{
+						{
+							Type: "quest",
+							Data: map[string]interface{}{
+								"name":   "Defeat the Dragon",
+								"reward": "100 gold",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for valid custom block, got: %v", collector.Errors())
+	}
+}
+
+func TestBlockValidator_CustomType_MissingRequiredField(t *testing.T) {
+	customTypes := map[string]config.BlockTypeConfig{
+		"quest": {
+			RequiredFields: []string{"name", "reward"},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Quests",
+					Blocks: []domain.Block{
+						{
+							Type: "quest",
+							Data: map[string]interface{}{
+								"name": "Defeat the Dragon",
+								// missing "reward"
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for custom block missing required field")
+	}
+
+	errs := collector.Errors()
+	if errs[0].Code != "E047" {
+		t.Errorf("expected E047, got %s", errs[0].Code)
+	}
+}
+
+func TestBlockValidator_CustomType_AllFieldsMissing(t *testing.T) {
+	customTypes := map[string]config.BlockTypeConfig{
+		"quest": {
+			RequiredFields: []string{"name", "reward", "description"},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Quests",
+					Blocks: []domain.Block{
+						{
+							Type: "quest",
+							Data: map[string]interface{}{
+								// all required fields missing
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected errors for missing required fields")
+	}
+
+	errs := collector.Errors()
+	if len(errs) != 3 {
+		t.Errorf("expected 3 errors (one per missing field), got %d", len(errs))
+	}
+}
+
+func TestBlockValidator_CustomType_NoRequiredFields(t *testing.T) {
+	customTypes := map[string]config.BlockTypeConfig{
+		"note": {
+			RequiredFields: []string{}, // no required fields
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Notes",
+					Blocks: []domain.Block{
+						{
+							Type: "note",
+							Data: map[string]interface{}{
+								"text": "Just a note",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for custom type with no required fields, got: %v", collector.Errors())
+	}
+}
+
+func TestBlockValidator_CustomType_MultipleCustomTypes(t *testing.T) {
+	customTypes := map[string]config.BlockTypeConfig{
+		"quest": {
+			RequiredFields: []string{"name"},
+		},
+		"achievement": {
+			RequiredFields: []string{"title", "points"},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Content",
+					Blocks: []domain.Block{
+						{
+							Type: "quest",
+							Data: map[string]interface{}{
+								"name": "Main Quest",
+							},
+						},
+						{
+							Type: "achievement",
+							Data: map[string]interface{}{
+								"title":  "First Blood",
+								"points": 10,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for valid multiple custom types, got: %v", collector.Errors())
+	}
+}
+
+func TestBlockValidator_CustomType_SuggestsBuiltInAndCustom(t *testing.T) {
+	customTypes := map[string]config.BlockTypeConfig{
+		"quest": {
+			RequiredFields: []string{"name"},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Content",
+					Blocks: []domain.Block{
+						{
+							Type: "quets", // typo - should suggest "quest"
+							Data: map[string]interface{}{
+								"name": "Main Quest",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for unknown block type")
+	}
+
+	errs := collector.Errors()
+	if errs[0].Code != "E048" {
+		t.Errorf("expected E048, got %s", errs[0].Code)
+	}
+	// Should suggest "quest" since it's close to "quets"
+	if errs[0].Suggestion == "" {
+		t.Error("expected suggestion for typo")
+	}
+}
+
+func TestBlockValidator_CustomType_BuiltInStillWorks(t *testing.T) {
+	customTypes := map[string]config.BlockTypeConfig{
+		"quest": {
+			RequiredFields: []string{"name"},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Content",
+					Blocks: []domain.Block{
+						{
+							Type: "rule", // built-in type
+							Data: map[string]interface{}{
+								"text": "This is a rule",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for valid built-in type with custom types defined, got: %v", collector.Errors())
+	}
+}
+
+func TestBlockValidator_CustomType_ExtendsBuiltIn(t *testing.T) {
+	// Custom config can extend built-in types by adding more required fields
+	customTypes := map[string]config.BlockTypeConfig{
+		"rule": {
+			RequiredFields: []string{"priority"}, // adds "priority" requirement on top of built-in "text"
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Rules",
+					Blocks: []domain.Block{
+						{
+							Type: "rule",
+							Data: map[string]interface{}{
+								"text": "This is a rule",
+								// missing "priority" which custom config requires
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	// Custom extends built-in, so missing "priority" should cause error
+	if !collector.HasErrors() {
+		t.Fatal("expected error when custom extends built-in and field is missing")
+	}
+
+	errs := collector.Errors()
+	if len(errs) != 1 {
+		t.Errorf("expected 1 error for missing priority, got %d", len(errs))
+	}
+}
+
+func TestBlockValidator_CustomType_ExtendsBuiltIn_BothRequired(t *testing.T) {
+	// Verify that both built-in and custom requirements are enforced
+	customTypes := map[string]config.BlockTypeConfig{
+		"rule": {
+			RequiredFields: []string{"priority"},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Rules",
+					Blocks: []domain.Block{
+						{
+							Type: "rule",
+							Data: map[string]interface{}{
+								// missing both "text" (built-in) and "priority" (custom)
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected errors for missing fields")
+	}
+
+	errs := collector.Errors()
+	if len(errs) != 2 {
+		t.Errorf("expected 2 errors (text from built-in, priority from custom), got %d", len(errs))
 	}
 }
