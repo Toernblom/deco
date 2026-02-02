@@ -31,7 +31,7 @@ func NewMvCommand() *cobra.Command {
 This command:
   - Changes the node's ID
   - Renames the node file
-  - Updates all Uses and Related references pointing to it
+  - Updates all references pointing to it (uses, related, emits_events, vocabulary)
   - Increments version on nodes whose references were updated
   - Records the operation in history
 

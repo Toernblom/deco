@@ -676,6 +676,126 @@ func TestRenamer_PreservesEmitsEventsAndVocabulary(t *testing.T) {
 	}
 }
 
+// Test that EmitsEvents references pointing to renamed node are updated
+func TestRenamer_UpdatesEmitsEventsReferences(t *testing.T) {
+	r := refactor.NewRenamer()
+
+	nodes := []domain.Node{
+		{ID: "events/player-died", Kind: "event", Version: 1, Status: "draft", Title: "Player Died Event"},
+		{ID: "systems/combat", Kind: "system", Version: 1, Status: "draft", Title: "Combat System",
+			Refs: domain.Ref{
+				EmitsEvents: []string{"events/player-died", "events/damage-dealt"},
+			}},
+	}
+
+	result, err := r.Rename(nodes, "events/player-died", "events/player-death")
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	for _, node := range result {
+		if node.ID == "systems/combat" {
+			if len(node.Refs.EmitsEvents) != 2 {
+				t.Fatalf("expected 2 EmitsEvents, got %d", len(node.Refs.EmitsEvents))
+			}
+			// First event should be updated, second should remain unchanged
+			if node.Refs.EmitsEvents[0] != "events/player-death" {
+				t.Errorf("expected EmitsEvents[0] to be 'events/player-death', got %q", node.Refs.EmitsEvents[0])
+			}
+			if node.Refs.EmitsEvents[1] != "events/damage-dealt" {
+				t.Errorf("expected EmitsEvents[1] to remain 'events/damage-dealt', got %q", node.Refs.EmitsEvents[1])
+			}
+			// Version should be incremented
+			if node.Version != 2 {
+				t.Errorf("expected version to be incremented to 2, got %d", node.Version)
+			}
+		}
+	}
+}
+
+// Test that Vocabulary references pointing to renamed node are updated
+func TestRenamer_UpdatesVocabularyReferences(t *testing.T) {
+	r := refactor.NewRenamer()
+
+	nodes := []domain.Node{
+		{ID: "glossary/game-terms", Kind: "glossary", Version: 1, Status: "draft", Title: "Game Terms"},
+		{ID: "systems/combat", Kind: "system", Version: 1, Status: "draft", Title: "Combat System",
+			Refs: domain.Ref{
+				Vocabulary: []string{"glossary/game-terms", "glossary/combat-terms"},
+			}},
+	}
+
+	result, err := r.Rename(nodes, "glossary/game-terms", "glossary/common-terms")
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	for _, node := range result {
+		if node.ID == "systems/combat" {
+			if len(node.Refs.Vocabulary) != 2 {
+				t.Fatalf("expected 2 Vocabulary refs, got %d", len(node.Refs.Vocabulary))
+			}
+			// First term should be updated, second should remain unchanged
+			if node.Refs.Vocabulary[0] != "glossary/common-terms" {
+				t.Errorf("expected Vocabulary[0] to be 'glossary/common-terms', got %q", node.Refs.Vocabulary[0])
+			}
+			if node.Refs.Vocabulary[1] != "glossary/combat-terms" {
+				t.Errorf("expected Vocabulary[1] to remain 'glossary/combat-terms', got %q", node.Refs.Vocabulary[1])
+			}
+			// Version should be incremented
+			if node.Version != 2 {
+				t.Errorf("expected version to be incremented to 2, got %d", node.Version)
+			}
+		}
+	}
+}
+
+// Test that all reference types are updated together
+func TestRenamer_UpdatesAllReferenceTypes(t *testing.T) {
+	r := refactor.NewRenamer()
+
+	nodes := []domain.Node{
+		{ID: "target", Kind: "system", Version: 1, Status: "draft", Title: "Target"},
+		{ID: "referrer", Kind: "system", Version: 1, Status: "draft", Title: "Referrer",
+			Refs: domain.Ref{
+				Uses:        []domain.RefLink{{Target: "target"}},
+				Related:     []domain.RefLink{{Target: "target"}},
+				EmitsEvents: []string{"target"},
+				Vocabulary:  []string{"target"},
+			}},
+	}
+
+	result, err := r.Rename(nodes, "target", "new-target")
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	for _, node := range result {
+		if node.ID == "referrer" {
+			// All reference types should point to new-target
+			if node.Refs.Uses[0].Target != "new-target" {
+				t.Errorf("expected Uses[0] to be 'new-target', got %q", node.Refs.Uses[0].Target)
+			}
+			if node.Refs.Related[0].Target != "new-target" {
+				t.Errorf("expected Related[0] to be 'new-target', got %q", node.Refs.Related[0].Target)
+			}
+			if node.Refs.EmitsEvents[0] != "new-target" {
+				t.Errorf("expected EmitsEvents[0] to be 'new-target', got %q", node.Refs.EmitsEvents[0])
+			}
+			if node.Refs.Vocabulary[0] != "new-target" {
+				t.Errorf("expected Vocabulary[0] to be 'new-target', got %q", node.Refs.Vocabulary[0])
+			}
+			// Version should be incremented only once
+			if node.Version != 2 {
+				t.Errorf("expected version to be 2, got %d", node.Version)
+			}
+		}
+	}
+}
+
 // ===== RESULT COUNT TESTS =====
 
 // Test that rename returns same number of nodes

@@ -94,6 +94,22 @@ func (r *Renamer) Rename(nodes []domain.Node, oldID, newID string) ([]domain.Nod
 			}
 		}
 
+		// Update EmitsEvents references
+		for j := range result[i].Refs.EmitsEvents {
+			if result[i].Refs.EmitsEvents[j] == oldID {
+				result[i].Refs.EmitsEvents[j] = newID
+				updated = true
+			}
+		}
+
+		// Update Vocabulary references
+		for j := range result[i].Refs.Vocabulary {
+			if result[i].Refs.Vocabulary[j] == oldID {
+				result[i].Refs.Vocabulary[j] = newID
+				updated = true
+			}
+		}
+
 		// Increment version if this node's references were updated
 		if updated {
 			result[i].Version++
