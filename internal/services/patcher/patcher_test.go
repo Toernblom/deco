@@ -1,6 +1,7 @@
 package patcher_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/Toernblom/deco/internal/domain"
@@ -1011,5 +1012,1580 @@ func TestPatcher_UnsetThroughPointer(t *testing.T) {
 
 	if node.Content.Sections[0].Name != "Section2" {
 		t.Errorf("expected remaining section to be 'Section2', got %q", node.Content.Sections[0].Name)
+	}
+}
+
+// ===== NIL NODE ERROR TESTS =====
+
+// Test Set with nil node returns error
+func TestPatcher_SetNilNode(t *testing.T) {
+	p := patcher.New()
+
+	err := p.Set(nil, "title", "value")
+	if err == nil {
+		t.Fatal("expected error when setting on nil node, got nil")
+	}
+}
+
+// Test Append with nil node returns error
+func TestPatcher_AppendNilNode(t *testing.T) {
+	p := patcher.New()
+
+	err := p.Append(nil, "tags", "value")
+	if err == nil {
+		t.Fatal("expected error when appending to nil node, got nil")
+	}
+}
+
+// Test Unset with nil node returns error
+func TestPatcher_UnsetNilNode(t *testing.T) {
+	p := patcher.New()
+
+	err := p.Unset(nil, "tags")
+	if err == nil {
+		t.Fatal("expected error when unsetting on nil node, got nil")
+	}
+}
+
+// ===== EMPTY PATH ERROR TESTS =====
+
+// Test Set with empty path returns error
+func TestPatcher_SetEmptyPath(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+	}
+
+	err := p.Set(&node, "", "value")
+	if err == nil {
+		t.Fatal("expected error for empty path, got nil")
+	}
+}
+
+// Test Append with empty path returns error
+func TestPatcher_AppendEmptyPath(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+	}
+
+	err := p.Append(&node, "", "value")
+	if err == nil {
+		t.Fatal("expected error for empty path, got nil")
+	}
+}
+
+// Test Unset with empty path returns error
+func TestPatcher_UnsetEmptyPath(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+	}
+
+	err := p.Unset(&node, "")
+	if err == nil {
+		t.Fatal("expected error for empty path, got nil")
+	}
+}
+
+// ===== TYPE CONVERSION TESTS =====
+
+// Test Set fails when type conversion is not possible
+func TestPatcher_SetTypeConversionFailure(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+	}
+
+	// Try to set a string field to a slice (incompatible)
+	err := p.Set(&node, "title", []int{1, 2, 3})
+	if err == nil {
+		t.Fatal("expected error for incompatible type conversion, got nil")
+	}
+}
+
+// ===== ARRAY INDEX EDGE CASES =====
+
+// Test Set with array index out of bounds
+func TestPatcher_SetArrayIndexOutOfBounds(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Tags:    []string{"tag1"},
+	}
+
+	err := p.Set(&node, "tags[5]", "value")
+	if err == nil {
+		t.Fatal("expected error for out of bounds index, got nil")
+	}
+}
+
+// Test Set with negative array index
+func TestPatcher_SetNegativeArrayIndex(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Tags:    []string{"tag1"},
+	}
+
+	// Negative index should be handled as invalid (parseArrayIndex returns false)
+	err := p.Set(&node, "tags[-1]", "value")
+	if err == nil {
+		t.Fatal("expected error for negative index, got nil")
+	}
+}
+
+// Test Set with malformed array notation
+func TestPatcher_SetMalformedArrayNotation(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Tags:    []string{"tag1"},
+	}
+
+	// Malformed bracket notation - no closing bracket
+	err := p.Set(&node, "tags[0", "value")
+	if err == nil {
+		t.Fatal("expected error for malformed array notation, got nil")
+	}
+}
+
+// Test Set with non-numeric array index
+func TestPatcher_SetNonNumericArrayIndex(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Tags:    []string{"tag1"},
+	}
+
+	// Non-numeric index
+	err := p.Set(&node, "tags[abc]", "value")
+	if err == nil {
+		t.Fatal("expected error for non-numeric index, got nil")
+	}
+}
+
+// Test Set with array notation on non-slice field
+func TestPatcher_SetArrayNotationOnNonSlice(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+	}
+
+	// Try to use array notation on a string field
+	err := p.Set(&node, "title[0]", "value")
+	if err == nil {
+		t.Fatal("expected error for array notation on non-slice, got nil")
+	}
+}
+
+// ===== MAP OPERATION TESTS =====
+
+// Test Set value in a map (glossary)
+func TestPatcher_SetMapValue(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:       "test",
+		Kind:     "system",
+		Version:  1,
+		Status:   "draft",
+		Title:    "Test",
+		Glossary: map[string]string{"existing": "value"},
+	}
+
+	err := p.Set(&node, "glossary.newkey", "newvalue")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.Glossary["newkey"] != "newvalue" {
+		t.Errorf("expected glossary[newkey]='newvalue', got %q", node.Glossary["newkey"])
+	}
+}
+
+// Test Set value in nil map initializes the map
+func TestPatcher_SetMapValueNilMap(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:       "test",
+		Kind:     "system",
+		Version:  1,
+		Status:   "draft",
+		Title:    "Test",
+		Glossary: nil,
+	}
+
+	err := p.Set(&node, "glossary.key", "value")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.Glossary == nil {
+		t.Fatal("expected glossary to be initialized")
+	}
+
+	if node.Glossary["key"] != "value" {
+		t.Errorf("expected glossary[key]='value', got %q", node.Glossary["key"])
+	}
+}
+
+// Test Unset map entry
+func TestPatcher_UnsetMapEntry(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:       "test",
+		Kind:     "system",
+		Version:  1,
+		Status:   "draft",
+		Title:    "Test",
+		Glossary: map[string]string{"key1": "val1", "key2": "val2"},
+	}
+
+	err := p.Unset(&node, "glossary.key1")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Glossary) != 1 {
+		t.Fatalf("expected 1 entry in glossary, got %d", len(node.Glossary))
+	}
+
+	if _, exists := node.Glossary["key1"]; exists {
+		t.Error("expected key1 to be removed from glossary")
+	}
+}
+
+// Test Unset from nil map (should not error)
+func TestPatcher_UnsetFromNilMap(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:       "test",
+		Kind:     "system",
+		Version:  1,
+		Status:   "draft",
+		Title:    "Test",
+		Glossary: nil,
+	}
+
+	err := p.Unset(&node, "glossary.key")
+	if err != nil {
+		t.Errorf("expected no error when unsetting from nil map, got %v", err)
+	}
+}
+
+// ===== POINTER EDGE CASES =====
+
+// Test Append to field through nil pointer fails gracefully
+func TestPatcher_AppendThroughNilPointer(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Content: nil,
+	}
+
+	// Appending through nil pointer should fail
+	err := p.Append(&node, "content.sections", domain.Section{})
+	if err == nil {
+		t.Fatal("expected error when appending through nil pointer, got nil")
+	}
+}
+
+// Test getField through nil pointer returns error
+func TestPatcher_GetFieldThroughNilPointerError(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Content: nil,
+	}
+
+	// Trying to access field through nil pointer for append should fail
+	err := p.Append(&node, "content.sections", domain.Section{Name: "test"})
+	if err == nil {
+		t.Fatal("expected error for accessing through nil pointer, got nil")
+	}
+}
+
+// ===== DEEPLY NESTED PATH TESTS =====
+
+// Test Set deeply nested path in content blocks
+func TestPatcher_SetDeeplyNestedBlockData(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Section1",
+					Blocks: []domain.Block{
+						{
+							Type: "table",
+							Data: map[string]interface{}{
+								"headers": []string{"col1", "col2"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Set data field in nested block
+	err := p.Set(&node, "content.sections[0].blocks[0].data.newfield", "newvalue")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.Content.Sections[0].Blocks[0].Data["newfield"] != "newvalue" {
+		t.Errorf("expected data[newfield]='newvalue', got %v",
+			node.Content.Sections[0].Blocks[0].Data["newfield"])
+	}
+}
+
+// ===== UNSET ARRAY ELEMENT EDGE CASES =====
+
+// Test Unset array element at index 0 (first element)
+func TestPatcher_UnsetFirstArrayElement(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Tags:    []string{"first", "second", "third"},
+	}
+
+	err := p.Unset(&node, "tags[0]")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Tags) != 2 {
+		t.Fatalf("expected 2 tags, got %d", len(node.Tags))
+	}
+
+	if node.Tags[0] != "second" || node.Tags[1] != "third" {
+		t.Errorf("expected [second, third], got %v", node.Tags)
+	}
+}
+
+// Test Unset last array element
+func TestPatcher_UnsetLastArrayElement(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Tags:    []string{"first", "second", "third"},
+	}
+
+	err := p.Unset(&node, "tags[2]")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Tags) != 2 {
+		t.Fatalf("expected 2 tags, got %d", len(node.Tags))
+	}
+
+	if node.Tags[0] != "first" || node.Tags[1] != "second" {
+		t.Errorf("expected [first, second], got %v", node.Tags)
+	}
+}
+
+// Test Unset array element out of bounds (should not error)
+func TestPatcher_UnsetArrayOutOfBounds(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Tags:    []string{"tag1"},
+	}
+
+	// Out of bounds should not error (nothing to unset)
+	err := p.Unset(&node, "tags[10]")
+	if err != nil {
+		t.Errorf("expected no error for out of bounds unset, got %v", err)
+	}
+
+	// Original should be unchanged
+	if len(node.Tags) != 1 || node.Tags[0] != "tag1" {
+		t.Errorf("expected tags unchanged, got %v", node.Tags)
+	}
+}
+
+// ===== REQUIRED FIELDS TESTS =====
+
+// Test Unset all required fields
+func TestPatcher_UnsetAllRequiredFields(t *testing.T) {
+	p := patcher.New()
+
+	requiredFields := []string{"id", "kind", "version", "status", "title"}
+
+	for _, field := range requiredFields {
+		node := domain.Node{
+			ID:      "test",
+			Kind:    "system",
+			Version: 1,
+			Status:  "draft",
+			Title:   "Test",
+		}
+
+		err := p.Unset(&node, field)
+		if err == nil {
+			t.Errorf("expected error when unsetting required field %q, got nil", field)
+		}
+	}
+}
+
+// ===== APPLY EDGE CASES =====
+
+// Test Apply detects snapshot failure (unusual but possible)
+func TestPatcher_ApplyWithComplexRollback(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Original",
+		Tags:    []string{"tag1", "tag2"},
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{Name: "Section1", Blocks: []domain.Block{}},
+			},
+		},
+	}
+
+	// First few operations succeed, then one fails
+	ops := []patcher.PatchOperation{
+		{Op: "set", Path: "title", Value: "Changed"},
+		{Op: "append", Path: "tags", Value: "tag3"},
+		{Op: "set", Path: "content.sections[0].name", Value: "Updated"},
+		{Op: "set", Path: "nonexistent.deep.path", Value: "fail"}, // This will fail
+	}
+
+	err := p.Apply(&node, ops)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	// All should be rolled back
+	if node.Title != "Original" {
+		t.Errorf("expected title rolled back to 'Original', got %q", node.Title)
+	}
+	if len(node.Tags) != 2 {
+		t.Errorf("expected 2 tags after rollback, got %d", len(node.Tags))
+	}
+	if node.Content.Sections[0].Name != "Section1" {
+		t.Errorf("expected section name rolled back to 'Section1', got %q",
+			node.Content.Sections[0].Name)
+	}
+}
+
+// ===== SPECIAL CHARACTER TESTS =====
+
+// Test Set with various string values
+func TestPatcher_SetSpecialStringValues(t *testing.T) {
+	p := patcher.New()
+
+	testCases := []struct {
+		name  string
+		value string
+	}{
+		{"empty string", ""},
+		{"unicode", "日本語テスト"},
+		{"emoji", "🎮🎯🎲"},
+		{"special chars", "!@#$%^&*()"},
+		{"newlines", "line1\nline2\nline3"},
+		{"tabs", "col1\tcol2\tcol3"},
+		{"quotes", `"quoted" and 'single'`},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			node := domain.Node{
+				ID:      "test",
+				Kind:    "system",
+				Version: 1,
+				Status:  "draft",
+				Title:   "Test",
+			}
+
+			err := p.Set(&node, "summary", tc.value)
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+
+			if node.Summary != tc.value {
+				t.Errorf("expected summary %q, got %q", tc.value, node.Summary)
+			}
+		})
+	}
+}
+
+// ===== ISSUES FIELD TESTS (SLICE OF STRUCT) =====
+
+// Test Append to Issues slice
+func TestPatcher_AppendToIssuesSlice(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Issues:  []domain.Issue{},
+	}
+
+	newIssue := domain.Issue{
+		ID:          "issue-1",
+		Description: "Something to decide",
+		Severity:    "medium",
+		Location:    "content",
+	}
+
+	err := p.Append(&node, "issues", newIssue)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Issues) != 1 {
+		t.Fatalf("expected 1 issue, got %d", len(node.Issues))
+	}
+
+	if node.Issues[0].ID != "issue-1" {
+		t.Errorf("expected issue ID 'issue-1', got %q", node.Issues[0].ID)
+	}
+}
+
+// Test Set issue field through array index
+func TestPatcher_SetIssueFieldByIndex(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Issues: []domain.Issue{
+			{ID: "issue-1", Description: "Original description", Severity: "low"},
+		},
+	}
+
+	err := p.Set(&node, "issues[0].description", "Updated description")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.Issues[0].Description != "Updated description" {
+		t.Errorf("expected issue description 'Updated description', got %q", node.Issues[0].Description)
+	}
+}
+
+// ===== CONTRACTS FIELD TESTS =====
+
+// Test Set contract scenario field
+func TestPatcher_SetContractScenarioField(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Contracts: []domain.Contract{
+			{Name: "Contract1", Scenario: "Original scenario"},
+		},
+	}
+
+	err := p.Set(&node, "contracts[0].scenario", "Updated scenario")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.Contracts[0].Scenario != "Updated scenario" {
+		t.Errorf("expected 'Updated scenario', got %q", node.Contracts[0].Scenario)
+	}
+}
+
+// Test Append to contract's Then slice
+func TestPatcher_AppendToContractThenSlice(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Contracts: []domain.Contract{
+			{Name: "Contract1", Scenario: "Test scenario", Then: []string{"result1"}},
+		},
+	}
+
+	err := p.Append(&node, "contracts[0].then", "result2")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Contracts[0].Then) != 2 {
+		t.Fatalf("expected 2 then items, got %d", len(node.Contracts[0].Then))
+	}
+
+	if node.Contracts[0].Then[1] != "result2" {
+		t.Errorf("expected 'result2', got %q", node.Contracts[0].Then[1])
+	}
+}
+
+// ===== REFS FIELD TESTS =====
+
+// Test Append to refs.emitsEvents slice
+func TestPatcher_AppendToRefsEmitsEvents(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Refs:    domain.Ref{EmitsEvents: []string{"event1"}},
+	}
+
+	err := p.Append(&node, "refs.emitsEvents", "event2")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Refs.EmitsEvents) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(node.Refs.EmitsEvents))
+	}
+
+	if node.Refs.EmitsEvents[1] != "event2" {
+		t.Errorf("expected second event 'event2', got %q", node.Refs.EmitsEvents[1])
+	}
+}
+
+// Test Append to refs.vocabulary slice
+func TestPatcher_AppendToRefsVocabulary(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Refs:    domain.Ref{Vocabulary: []string{"term1"}},
+	}
+
+	err := p.Append(&node, "refs.vocabulary", "term2")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Refs.Vocabulary) != 2 {
+		t.Fatalf("expected 2 terms, got %d", len(node.Refs.Vocabulary))
+	}
+
+	if node.Refs.Vocabulary[1] != "term2" {
+		t.Errorf("expected second term 'term2', got %q", node.Refs.Vocabulary[1])
+	}
+}
+
+// ===== FIELD NOT FOUND TESTS =====
+
+// Test Set field not found at top level
+func TestPatcher_SetFieldNotFoundTopLevel(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+	}
+
+	err := p.Set(&node, "nonexistentfield", "value")
+	if err == nil {
+		t.Fatal("expected error for nonexistent field, got nil")
+	}
+}
+
+// Test Set field not found in nested struct
+func TestPatcher_SetFieldNotFoundNested(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Refs:    domain.Ref{},
+	}
+
+	err := p.Set(&node, "refs.nonexistent", "value")
+	if err == nil {
+		t.Fatal("expected error for nonexistent nested field, got nil")
+	}
+}
+
+// ===== APPEND TYPE CONVERSION TESTS =====
+
+// Test Append with type that needs conversion
+func TestPatcher_AppendWithTypeConversion(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Tags:    []string{"tag1"},
+	}
+
+	// String should convert fine
+	err := p.Append(&node, "tags", "tag2")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Tags) != 2 || node.Tags[1] != "tag2" {
+		t.Errorf("expected [tag1, tag2], got %v", node.Tags)
+	}
+}
+
+// ===== FIELD CAN'T BE SET TESTS =====
+
+// Test getting field that exists for append operation
+func TestPatcher_AppendToNestedSlice(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name:   "Section1",
+					Blocks: []domain.Block{},
+				},
+			},
+		},
+	}
+
+	newBlock := domain.Block{Type: "text", Data: map[string]interface{}{"text": "hello"}}
+	err := p.Append(&node, "content.sections[0].blocks", newBlock)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Content.Sections[0].Blocks) != 1 {
+		t.Fatalf("expected 1 block, got %d", len(node.Content.Sections[0].Blocks))
+	}
+}
+
+// ===== GETFIELD EDGE CASES =====
+
+// Test Append to non-existent field returns error
+func TestPatcher_AppendToNonExistentField(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+	}
+
+	err := p.Append(&node, "nonexistent", "value")
+	if err == nil {
+		t.Fatal("expected error for nonexistent field, got nil")
+	}
+}
+
+// Test Append with array notation to non-existent array field
+func TestPatcher_AppendToNonExistentArrayField(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Content: &domain.Content{
+			Sections: []domain.Section{},
+		},
+	}
+
+	// Try to access non-existent index
+	err := p.Append(&node, "content.sections[0].blocks", domain.Block{})
+	if err == nil {
+		t.Fatal("expected error for non-existent array element, got nil")
+	}
+}
+
+// Test getField with map access
+func TestPatcher_AppendToMapFieldError(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:       "test",
+		Kind:     "system",
+		Version:  1,
+		Status:   "draft",
+		Title:    "Test",
+		Glossary: map[string]string{"key": "value"},
+	}
+
+	// Can't append to a map (map values aren't slices)
+	err := p.Append(&node, "glossary.key", "value")
+	if err == nil {
+		t.Fatal("expected error when appending to map value, got nil")
+	}
+}
+
+// ===== UNSETVALUE NESTED EDGE CASES =====
+
+// Test Unset nested field inside array element
+func TestPatcher_UnsetNestedInArrayElement(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Section1",
+					Blocks: []domain.Block{
+						{Type: "text", Data: map[string]interface{}{"text": "hello"}},
+					},
+				},
+			},
+		},
+	}
+
+	// Unset nested field within array element
+	err := p.Unset(&node, "content.sections[0].blocks[0].data.text")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// The 'text' key should be removed from the data map
+	if _, exists := node.Content.Sections[0].Blocks[0].Data["text"]; exists {
+		t.Error("expected text key to be removed from data map")
+	}
+}
+
+// Test Unset through nil pointer field (should not error)
+func TestPatcher_UnsetThroughNilContentPointer(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Content: nil,
+	}
+
+	// Trying to unset through nil pointer should not error (nothing to unset)
+	err := p.Unset(&node, "content.sections")
+	if err != nil {
+		t.Errorf("expected no error when unsetting through nil pointer, got %v", err)
+	}
+}
+
+// ===== SETVALUE EDGE CASES =====
+
+// Test Set with type conversion at array element
+func TestPatcher_SetArrayElementWithTypeConversion(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Tags:    []string{"tag1", "tag2"},
+	}
+
+	// Setting string should work
+	err := p.Set(&node, "tags[0]", "newtag")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.Tags[0] != "newtag" {
+		t.Errorf("expected 'newtag', got %q", node.Tags[0])
+	}
+}
+
+// Test Set with nested path through array to map value
+func TestPatcher_SetNestedMapThroughArray(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Section1",
+					Blocks: []domain.Block{
+						{Type: "text", Data: map[string]interface{}{}},
+					},
+				},
+			},
+		},
+	}
+
+	// Set a value inside the data map through array access
+	err := p.Set(&node, "content.sections[0].blocks[0].data.newkey", "newvalue")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.Content.Sections[0].Blocks[0].Data["newkey"] != "newvalue" {
+		t.Errorf("expected data[newkey]='newvalue', got %v",
+			node.Content.Sections[0].Blocks[0].Data["newkey"])
+	}
+}
+
+// ===== ADDITIONAL ARRAY OPERATIONS =====
+
+// Test Set all elements in an array using loop
+func TestPatcher_SetMultipleArrayElements(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Tags:    []string{"a", "b", "c"},
+	}
+
+	// Set each element
+	for i := 0; i < 3; i++ {
+		err := p.Set(&node, fmt.Sprintf("tags[%d]", i), fmt.Sprintf("new%d", i))
+		if err != nil {
+			t.Fatalf("failed to set tags[%d]: %v", i, err)
+		}
+	}
+
+	expected := []string{"new0", "new1", "new2"}
+	for i, e := range expected {
+		if node.Tags[i] != e {
+			t.Errorf("expected tags[%d]=%q, got %q", i, e, node.Tags[i])
+		}
+	}
+}
+
+// Test nested Unset in array then parent array access
+func TestPatcher_UnsetArrayElementThenParent(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Section1",
+					Blocks: []domain.Block{
+						{Type: "text"},
+						{Type: "image"},
+					},
+				},
+			},
+		},
+	}
+
+	// Unset block from within section
+	err := p.Unset(&node, "content.sections[0].blocks[1]")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Content.Sections[0].Blocks) != 1 {
+		t.Fatalf("expected 1 block, got %d", len(node.Content.Sections[0].Blocks))
+	}
+
+	if node.Content.Sections[0].Blocks[0].Type != "text" {
+		t.Errorf("expected remaining block type 'text', got %q",
+			node.Content.Sections[0].Blocks[0].Type)
+	}
+}
+
+// ===== CONSTRAINT TESTS =====
+
+// Test operations on Constraints slice
+func TestPatcher_AppendToConstraints(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:          "test",
+		Kind:        "system",
+		Version:     1,
+		Status:      "draft",
+		Title:       "Test",
+		Constraints: []domain.Constraint{},
+	}
+
+	newConstraint := domain.Constraint{
+		Expr:    "health > 0",
+		Message: "Health must be positive",
+		Scope:   "all",
+	}
+
+	err := p.Append(&node, "constraints", newConstraint)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Constraints) != 1 {
+		t.Fatalf("expected 1 constraint, got %d", len(node.Constraints))
+	}
+
+	if node.Constraints[0].Expr != "health > 0" {
+		t.Errorf("expected constraint expr 'health > 0', got %q", node.Constraints[0].Expr)
+	}
+}
+
+// ===== REVIEWERS TESTS =====
+
+// Test operations on Reviewers slice
+func TestPatcher_AppendToReviewers(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:        "test",
+		Kind:      "system",
+		Version:   1,
+		Status:    "draft",
+		Title:     "Test",
+		Reviewers: []domain.Reviewer{},
+	}
+
+	newReviewer := domain.Reviewer{
+		Name:    "john@example.com",
+		Version: 1,
+	}
+
+	err := p.Append(&node, "reviewers", newReviewer)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Reviewers) != 1 {
+		t.Fatalf("expected 1 reviewer, got %d", len(node.Reviewers))
+	}
+
+	if node.Reviewers[0].Name != "john@example.com" {
+		t.Errorf("expected reviewer name 'john@example.com', got %q", node.Reviewers[0].Name)
+	}
+}
+
+// ===== CUSTOM MAP TESTS =====
+
+// Test Set and Unset on Custom map
+func TestPatcher_SetCustomMapValue(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Custom:  map[string]interface{}{},
+	}
+
+	err := p.Set(&node, "custom.mykey", "myvalue")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.Custom["mykey"] != "myvalue" {
+		t.Errorf("expected custom[mykey]='myvalue', got %v", node.Custom["mykey"])
+	}
+}
+
+func TestPatcher_UnsetCustomMapKey(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Custom:  map[string]interface{}{"key1": "val1", "key2": "val2"},
+	}
+
+	err := p.Unset(&node, "custom.key1")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if _, exists := node.Custom["key1"]; exists {
+		t.Error("expected key1 to be removed from custom map")
+	}
+}
+
+// ===== DEEP ARRAY TRAVERSAL TESTS =====
+
+// Test Set through multiple nested arrays
+func TestPatcher_SetThroughNestedArrays(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Section1",
+					Blocks: []domain.Block{
+						{Type: "text"},
+						{Type: "image"},
+					},
+				},
+				{
+					Name: "Section2",
+					Blocks: []domain.Block{
+						{Type: "table"},
+					},
+				},
+			},
+		},
+	}
+
+	// Set through second section, first block
+	err := p.Set(&node, "content.sections[1].blocks[0].type", "updated-table")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.Content.Sections[1].Blocks[0].Type != "updated-table" {
+		t.Errorf("expected 'updated-table', got %q", node.Content.Sections[1].Blocks[0].Type)
+	}
+}
+
+// Test Unset from deeply nested structure
+func TestPatcher_UnsetFromNestedStructure(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Section1",
+					Blocks: []domain.Block{
+						{Type: "text", Data: map[string]interface{}{"key": "value"}},
+					},
+				},
+			},
+		},
+	}
+
+	// Unset the entire blocks array of section
+	err := p.Unset(&node, "content.sections[0].blocks")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Content.Sections[0].Blocks) != 0 {
+		t.Errorf("expected empty blocks, got %d blocks", len(node.Content.Sections[0].Blocks))
+	}
+}
+
+// ===== REFLINKS TESTS =====
+
+// Test operations on RefLinks (Uses field in Refs)
+func TestPatcher_AppendToRefLinks(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Refs:    domain.Ref{Uses: []domain.RefLink{}},
+	}
+
+	newLink := domain.RefLink{Target: "other-node", Context: "dependency"}
+	err := p.Append(&node, "refs.uses", newLink)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Refs.Uses) != 1 {
+		t.Fatalf("expected 1 ref link, got %d", len(node.Refs.Uses))
+	}
+
+	if node.Refs.Uses[0].Target != "other-node" {
+		t.Errorf("expected target 'other-node', got %q", node.Refs.Uses[0].Target)
+	}
+}
+
+// Test Set on RefLink field through array
+func TestPatcher_SetRefLinkField(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Refs:    domain.Ref{Uses: []domain.RefLink{{Target: "old-target", Context: "old-context"}}},
+	}
+
+	err := p.Set(&node, "refs.uses[0].context", "new-context")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.Refs.Uses[0].Context != "new-context" {
+		t.Errorf("expected 'new-context', got %q", node.Refs.Uses[0].Context)
+	}
+}
+
+// ===== LLMCONTEXT TESTS =====
+
+// Test Set on LLMContext field (uses exact Go field name casing)
+func TestPatcher_SetLLMContext(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:         "test",
+		Kind:       "system",
+		Version:    1,
+		Status:     "draft",
+		Title:      "Test",
+		LLMContext: "",
+	}
+
+	// The field is named LLMContext in Go, so we use lLMContext (first letter lowercased)
+	// since capitalizeFirst will capitalize only the first letter
+	err := p.Set(&node, "lLMContext", "This is context for AI")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.LLMContext != "This is context for AI" {
+		t.Errorf("expected 'This is context for AI', got %q", node.LLMContext)
+	}
+}
+
+// ===== SOURCEFILE TESTS =====
+
+// Test Set on SourceFile (unexported in JSON but accessible)
+func TestPatcher_SetSourceFile(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:         "test",
+		Kind:       "system",
+		Version:    1,
+		Status:     "draft",
+		Title:      "Test",
+		SourceFile: "",
+	}
+
+	err := p.Set(&node, "sourceFile", "/path/to/file.yaml")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.SourceFile != "/path/to/file.yaml" {
+		t.Errorf("expected '/path/to/file.yaml', got %q", node.SourceFile)
+	}
+}
+
+// ===== BOUNDARY CONDITIONS =====
+
+// Test very long path traversal
+func TestPatcher_VeryLongPath(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Section",
+					Blocks: []domain.Block{
+						{Type: "text", Data: map[string]interface{}{"nested": "value"}},
+					},
+				},
+			},
+		},
+	}
+
+	// This is a moderately deep path
+	err := p.Set(&node, "content.sections[0].blocks[0].data.nested", "updated")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.Content.Sections[0].Blocks[0].Data["nested"] != "updated" {
+		t.Errorf("expected 'updated', got %v", node.Content.Sections[0].Blocks[0].Data["nested"])
+	}
+}
+
+// Test single element array operations
+func TestPatcher_SingleElementArrayOperations(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Tags:    []string{"only-tag"},
+	}
+
+	// Unset the only element
+	err := p.Unset(&node, "tags[0]")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Tags) != 0 {
+		t.Errorf("expected empty tags, got %v", node.Tags)
+	}
+}
+
+// ===== EMPTY ARRAY OPERATIONS =====
+
+// Test Set on empty array returns error
+func TestPatcher_SetOnEmptyArray(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Tags:    []string{},
+	}
+
+	err := p.Set(&node, "tags[0]", "value")
+	if err == nil {
+		t.Fatal("expected error for index on empty array, got nil")
+	}
+}
+
+// Test Unset on empty array does nothing
+func TestPatcher_UnsetOnEmptyArray(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Tags:    []string{},
+	}
+
+	// Should not error
+	err := p.Unset(&node, "tags[0]")
+	if err != nil {
+		t.Errorf("expected no error for unset on empty array, got %v", err)
+	}
+}
+
+// ===== APPEND TO NIL SLICE TESTS =====
+
+// Test Append to nil refs.uses slice
+func TestPatcher_AppendToNilSlice(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:      "test",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Refs:    domain.Ref{}, // Uses is nil
+	}
+
+	newLink := domain.RefLink{Target: "target"}
+	err := p.Append(&node, "refs.uses", newLink)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(node.Refs.Uses) != 1 {
+		t.Fatalf("expected 1 ref link, got %d", len(node.Refs.Uses))
+	}
+}
+
+// ===== APPLY WITH MIXED COMPLEX OPERATIONS =====
+
+// Test Apply with operations that touch many different field types
+func TestPatcher_ApplyComplexMixedOperations(t *testing.T) {
+	p := patcher.New()
+
+	node := domain.Node{
+		ID:         "test",
+		Kind:       "system",
+		Version:    1,
+		Status:     "draft",
+		Title:      "Test",
+		Tags:       []string{"tag1"},
+		Glossary:   map[string]string{"term": "def"},
+		LLMContext: "original context",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{Name: "Section1", Blocks: []domain.Block{}},
+			},
+		},
+	}
+
+	ops := []patcher.PatchOperation{
+		{Op: "set", Path: "title", Value: "Updated Title"},
+		{Op: "append", Path: "tags", Value: "tag2"},
+		{Op: "set", Path: "glossary.newterm", Value: "newdef"},
+		{Op: "set", Path: "lLMContext", Value: "updated context"},
+		{Op: "set", Path: "content.sections[0].name", Value: "Updated Section"},
+	}
+
+	err := p.Apply(&node, ops)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if node.Title != "Updated Title" {
+		t.Errorf("expected title 'Updated Title', got %q", node.Title)
+	}
+	if len(node.Tags) != 2 || node.Tags[1] != "tag2" {
+		t.Errorf("expected tags [tag1, tag2], got %v", node.Tags)
+	}
+	if node.Glossary["newterm"] != "newdef" {
+		t.Errorf("expected glossary[newterm]='newdef', got %v", node.Glossary["newterm"])
+	}
+	if node.LLMContext != "updated context" {
+		t.Errorf("expected LLMContext 'updated context', got %q", node.LLMContext)
+	}
+	if node.Content.Sections[0].Name != "Updated Section" {
+		t.Errorf("expected section name 'Updated Section', got %q", node.Content.Sections[0].Name)
 	}
 }
