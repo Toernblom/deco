@@ -87,6 +87,58 @@ func (sv *SchemaValidator) Validate(node *domain.Node, collector *errors.Collect
 	}
 }
 
+// SchemaRulesValidator validates nodes against per-kind schema rules defined in config.
+type SchemaRulesValidator struct {
+	rules map[string]config.SchemaRuleConfig
+}
+
+// NewSchemaRulesValidator creates a validator with the given per-kind rules.
+func NewSchemaRulesValidator(rules map[string]config.SchemaRuleConfig) *SchemaRulesValidator {
+	return &SchemaRulesValidator{rules: rules}
+}
+
+// Validate checks that a node has all required fields for its kind.
+func (srv *SchemaRulesValidator) Validate(node *domain.Node, collector *errors.Collector) {
+	if node == nil || srv.rules == nil {
+		return
+	}
+
+	rule, exists := srv.rules[node.Kind]
+	if !exists {
+		return
+	}
+
+	// Helper to create location from node source file
+	var location *domain.Location
+	if node.SourceFile != "" {
+		location = &domain.Location{File: node.SourceFile}
+	}
+
+	// Check required fields in node.Custom
+	for _, field := range rule.RequiredFields {
+		if node.Custom == nil {
+			collector.Add(domain.DecoError{
+				Code:       "E051",
+				Summary:    fmt.Sprintf("Node %q (kind=%s) missing required field: %s", node.ID, node.Kind, field),
+				Detail:     fmt.Sprintf("Schema rules require %q nodes to have field %q in custom data", node.Kind, field),
+				Suggestion: fmt.Sprintf("Add 'custom: { %s: ... }' to the node", field),
+				Location:   location,
+			})
+			continue
+		}
+
+		if _, ok := node.Custom[field]; !ok {
+			collector.Add(domain.DecoError{
+				Code:       "E051",
+				Summary:    fmt.Sprintf("Node %q (kind=%s) missing required field: %s", node.ID, node.Kind, field),
+				Detail:     fmt.Sprintf("Schema rules require %q nodes to have field %q in custom data", node.Kind, field),
+				Suggestion: fmt.Sprintf("Add '%s: ...' to the node's custom section", field),
+				Location:   location,
+			})
+		}
+	}
+}
+
 // ContentValidator validates that approved/published nodes have content.
 // Draft nodes are allowed to be content-free.
 type ContentValidator struct{}
@@ -579,6 +631,7 @@ func (av *ApprovalValidator) Validate(node *domain.Node, collector *errors.Colle
 // Orchestrator coordinates all validators and aggregates errors.
 type Orchestrator struct {
 	schemaValidator       *SchemaValidator
+	schemaRulesValidator  *SchemaRulesValidator
 	contentValidator      *ContentValidator
 	referenceValidator    *ReferenceValidator
 	constraintValidator   *ConstraintValidator
@@ -605,10 +658,11 @@ func NewOrchestratorWithConfig(requiredApprovals int) *Orchestrator {
 }
 
 // NewOrchestratorWithFullConfig creates a validator orchestrator with full config support.
-// This includes custom block types and other config-driven validation rules.
-func NewOrchestratorWithFullConfig(requiredApprovals int, customBlockTypes map[string]config.BlockTypeConfig) *Orchestrator {
+// This includes custom block types, schema rules, and other config-driven validation rules.
+func NewOrchestratorWithFullConfig(requiredApprovals int, customBlockTypes map[string]config.BlockTypeConfig, schemaRules map[string]config.SchemaRuleConfig) *Orchestrator {
 	return &Orchestrator{
 		schemaValidator:       NewSchemaValidator(),
+		schemaRulesValidator:  NewSchemaRulesValidator(schemaRules),
 		contentValidator:      NewContentValidator(),
 		referenceValidator:    NewReferenceValidator(),
 		constraintValidator:   NewConstraintValidator(),
@@ -635,6 +689,13 @@ func (o *Orchestrator) ValidateAll(nodes []domain.Node) *errors.Collector {
 	// Run schema validation on each node
 	for _, node := range nodes {
 		o.schemaValidator.Validate(&node, collector)
+	}
+
+	// Run schema rules validation on each node (per-kind required fields)
+	if o.schemaRulesValidator != nil {
+		for _, node := range nodes {
+			o.schemaRulesValidator.Validate(&node, collector)
+		}
 	}
 
 	// Run content validation on each node (approved/published require content)

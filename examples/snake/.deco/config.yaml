@@ -11,3 +11,10 @@ custom_block_types:
       - name
       - effect
       - duration
+
+# Per-kind schema rules for nodes
+schema_rules:
+  # All item nodes must have an item_type in their custom section
+  item:
+    required_fields:
+      - item_type

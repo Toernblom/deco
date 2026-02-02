@@ -6,6 +6,12 @@ type BlockTypeConfig struct {
 	RequiredFields []string `yaml:"required_fields" json:"required_fields"`
 }
 
+// SchemaRuleConfig defines validation rules for nodes of a specific kind.
+type SchemaRuleConfig struct {
+	// RequiredFields lists field names that must be present in the node's custom data.
+	RequiredFields []string `yaml:"required_fields" json:"required_fields"`
+}
+
 // Config represents the project configuration.
 // It defines where nodes are stored, project metadata, and other settings.
 type Config struct {
@@ -30,6 +36,10 @@ type Config struct {
 	// CustomBlockTypes defines additional block types beyond the built-in ones.
 	// Keys are type names, values define validation rules.
 	CustomBlockTypes map[string]BlockTypeConfig `yaml:"custom_block_types,omitempty" json:"custom_block_types,omitempty"`
+
+	// SchemaRules defines per-kind validation rules for nodes.
+	// Keys are kind names (e.g., "character", "quest"), values define required fields.
+	SchemaRules map[string]SchemaRuleConfig `yaml:"schema_rules,omitempty" json:"schema_rules,omitempty"`
 
 	// Custom allows projects to add arbitrary configuration fields.
 	Custom map[string]interface{} `yaml:"custom,omitempty" json:"custom,omitempty"`

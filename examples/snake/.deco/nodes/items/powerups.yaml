@@ -4,6 +4,8 @@ version: 1
 status: draft
 title: "Power-ups"
 tags: [collectible, buff]
+custom:
+  item_type: power_up
 summary: |
   Special items that grant temporary abilities when collected.
 

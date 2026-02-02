@@ -133,13 +133,22 @@ custom_block_types:
       - name
       - effect
       - duration
+
+# Define per-kind schema rules for nodes
+schema_rules:
+  character:
+    required_fields:
+      - backstory
+      - role
   quest:
     required_fields:
-      - name
-      - reward
+      - difficulty
+      - rewards
 ```
 
 Custom block types extend the built-in types (rule, table, param, mechanic, list). When a custom type shares a name with a built-in type, both validations apply.
+
+Schema rules enforce required custom fields per node kind. The `required_fields` must be present in the node's `custom:` section. Nodes with kinds not listed in schema_rules are not constrained.
 
 ## AI Integration
 

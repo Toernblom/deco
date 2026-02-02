@@ -4,6 +4,8 @@ version: 1
 status: approved
 title: "Food"
 tags: [collectible, spawning]
+custom:
+  item_type: consumable
 summary: |
   Food items that spawn randomly on empty grid cells.
   Collected by snake head collision.

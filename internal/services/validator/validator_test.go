@@ -7,6 +7,7 @@ import (
 	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/errors"
 	"github.com/Toernblom/deco/internal/services/validator"
+	"github.com/Toernblom/deco/internal/storage/config"
 )
 
 // ===== SCHEMA VALIDATOR TESTS =====
@@ -192,6 +193,157 @@ func TestSchemaValidator_NilNode(t *testing.T) {
 
 	if !collector.HasErrors() {
 		t.Fatal("expected error for nil node")
+	}
+}
+
+// ===== SCHEMA RULES VALIDATOR TESTS =====
+
+// Test node with required custom fields present
+func TestSchemaRulesValidator_ValidNode(t *testing.T) {
+	rules := map[string]config.SchemaRuleConfig{
+		"character": {RequiredFields: []string{"backstory", "role"}},
+	}
+	srv := validator.NewSchemaRulesValidator(rules)
+
+	node := domain.Node{
+		ID:      "hero",
+		Kind:    "character",
+		Version: 1,
+		Status:  "draft",
+		Title:   "The Hero",
+		Custom: map[string]interface{}{
+			"backstory": "A humble farmer...",
+			"role":      "protagonist",
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	srv.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors, got %d: %v", collector.Count(), collector.Errors())
+	}
+}
+
+// Test node missing required custom fields
+func TestSchemaRulesValidator_MissingFields(t *testing.T) {
+	rules := map[string]config.SchemaRuleConfig{
+		"character": {RequiredFields: []string{"backstory", "role"}},
+	}
+	srv := validator.NewSchemaRulesValidator(rules)
+
+	node := domain.Node{
+		ID:      "hero",
+		Kind:    "character",
+		Version: 1,
+		Status:  "draft",
+		Title:   "The Hero",
+		Custom: map[string]interface{}{
+			"backstory": "A humble farmer...",
+			// "role" is missing
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	srv.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for missing required field")
+	}
+
+	errs := collector.Errors()
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 error, got %d", len(errs))
+	}
+
+	if errs[0].Code != "E051" {
+		t.Errorf("expected error code E051, got %s", errs[0].Code)
+	}
+}
+
+// Test node with no custom section when fields are required
+func TestSchemaRulesValidator_NoCustomSection(t *testing.T) {
+	rules := map[string]config.SchemaRuleConfig{
+		"quest": {RequiredFields: []string{"difficulty"}},
+	}
+	srv := validator.NewSchemaRulesValidator(rules)
+
+	node := domain.Node{
+		ID:      "main-quest",
+		Kind:    "quest",
+		Version: 1,
+		Status:  "draft",
+		Title:   "The Main Quest",
+		// Custom is nil
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	srv.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error when custom section is missing")
+	}
+
+	if collector.Count() != 1 {
+		t.Errorf("expected 1 error, got %d", collector.Count())
+	}
+}
+
+// Test node with kind not in schema rules (should pass)
+func TestSchemaRulesValidator_UnknownKind(t *testing.T) {
+	rules := map[string]config.SchemaRuleConfig{
+		"character": {RequiredFields: []string{"backstory"}},
+	}
+	srv := validator.NewSchemaRulesValidator(rules)
+
+	node := domain.Node{
+		ID:      "some-item",
+		Kind:    "item", // not in schema rules
+		Version: 1,
+		Status:  "draft",
+		Title:   "Some Item",
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	srv.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for kind not in schema rules, got %d", collector.Count())
+	}
+}
+
+// Test with nil rules (should be a no-op)
+func TestSchemaRulesValidator_NilRules(t *testing.T) {
+	srv := validator.NewSchemaRulesValidator(nil)
+
+	node := domain.Node{
+		ID:      "any-node",
+		Kind:    "character",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Any Node",
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	srv.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors with nil rules, got %d", collector.Count())
+	}
+}
+
+// Test with nil node (should be a no-op)
+func TestSchemaRulesValidator_NilNode(t *testing.T) {
+	rules := map[string]config.SchemaRuleConfig{
+		"character": {RequiredFields: []string{"backstory"}},
+	}
+	srv := validator.NewSchemaRulesValidator(rules)
+
+	collector := errors.NewCollectorWithLimit(100)
+	srv.Validate(nil, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for nil node, got %d", collector.Count())
 	}
 }
 
