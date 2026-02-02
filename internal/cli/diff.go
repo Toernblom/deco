@@ -56,7 +56,7 @@ Examples:
 func runDiff(nodeID string, flags *diffFlags) error {
 	// Load config to verify project exists
 	configRepo := config.NewYAMLRepository(flags.targetDir)
-	_, err := configRepo.Load()
+	cfg, err := configRepo.Load()
 	if err != nil {
 		return fmt.Errorf(".deco directory not found or invalid: %w", err)
 	}
@@ -76,7 +76,7 @@ func runDiff(nodeID string, flags *diffFlags) error {
 	}
 
 	// Query history
-	historyRepo := history.NewYAMLRepository(flags.targetDir)
+	historyRepo := history.NewYAMLRepository(config.ResolveHistoryPath(cfg, flags.targetDir))
 	entries, err := historyRepo.Query(filter)
 	if err != nil {
 		return fmt.Errorf("failed to query history: %w", err)

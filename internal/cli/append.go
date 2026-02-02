@@ -62,13 +62,13 @@ The version number is automatically incremented after a successful append.`,
 func runAppend(flags *appendFlags) error {
 	// Load config to verify project exists
 	configRepo := config.NewYAMLRepository(flags.targetDir)
-	_, err := configRepo.Load()
+	cfg, err := configRepo.Load()
 	if err != nil {
 		return fmt.Errorf(".deco directory not found or invalid: %w", err)
 	}
 
 	// Load the node
-	nodeRepo := node.NewYAMLRepository(flags.targetDir)
+	nodeRepo := node.NewYAMLRepository(config.ResolveNodesPath(cfg, flags.targetDir))
 	n, err := nodeRepo.Load(flags.nodeID)
 	if err != nil {
 		return fmt.Errorf("node %q not found: %w", flags.nodeID, err)
@@ -97,7 +97,8 @@ func runAppend(flags *appendFlags) error {
 	}
 
 	// Log append operation in history with content hash
-	if err := logAppendOperation(flags.targetDir, n, flags.path, oldArray, newArray); err != nil {
+	historyPath := config.ResolveHistoryPath(cfg, flags.targetDir)
+	if err := logAppendOperation(historyPath, n, flags.path, oldArray, newArray); err != nil {
 		fmt.Printf("Warning: failed to log append operation: %v\n", err)
 	}
 
@@ -149,8 +150,8 @@ func copySlice(val interface{}) interface{} {
 }
 
 // logAppendOperation adds an append entry to the history log with content hash
-func logAppendOperation(targetDir string, n domain.Node, path string, oldArray, newArray interface{}) error {
-	historyRepo := history.NewYAMLRepository(targetDir)
+func logAppendOperation(historyPath string, n domain.Node, path string, oldArray, newArray interface{}) error {
+	historyRepo := history.NewYAMLRepository(historyPath)
 
 	entry := domain.AuditEntry{
 		Timestamp:   time.Now(),

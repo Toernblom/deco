@@ -13,24 +13,26 @@ import (
 )
 
 // JSONLRepository implements Repository using JSONL (JSON Lines) format.
-// This is an append-only log stored at .deco/history.jsonl
+// This is an append-only log stored at the configured history path.
 type JSONLRepository struct {
-	rootDir string
-	mu      sync.Mutex // Protects concurrent writes
+	historyPath string
+	mu          sync.Mutex // Protects concurrent writes
 }
 
 // NewYAMLRepository creates a new JSONL-based history repository.
+// historyPath is the file path for the audit log (e.g., .deco/history.jsonl).
+// Use config.ResolveHistoryPath() to get this from the project config.
 // The name is kept as NewYAMLRepository for consistency with test expectations,
 // even though it uses JSONL format internally.
-func NewYAMLRepository(rootDir string) *JSONLRepository {
+func NewYAMLRepository(historyPath string) *JSONLRepository {
 	return &JSONLRepository{
-		rootDir: rootDir,
+		historyPath: historyPath,
 	}
 }
 
 // historyFile returns the path to the history log file
 func (r *JSONLRepository) historyFile() string {
-	return filepath.Join(r.rootDir, ".deco", "history.jsonl")
+	return r.historyPath
 }
 
 // Append adds a new entry to the audit log.
@@ -39,11 +41,11 @@ func (r *JSONLRepository) Append(entry domain.AuditEntry) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Ensure .deco directory exists
-	decoDir := filepath.Join(r.rootDir, ".deco")
-	err := os.MkdirAll(decoDir, 0755)
+	// Ensure parent directory exists
+	parentDir := filepath.Dir(r.historyFile())
+	err := os.MkdirAll(parentDir, 0755)
 	if err != nil {
-		return fmt.Errorf("failed to create .deco directory: %w", err)
+		return fmt.Errorf("failed to create history directory: %w", err)
 	}
 
 	// Open file in append mode (create if doesn't exist)

@@ -65,13 +65,13 @@ The version number is automatically incremented after a successful set.`,
 func runSet(flags *setFlags) error {
 	// Load config to verify project exists
 	configRepo := config.NewYAMLRepository(flags.targetDir)
-	_, err := configRepo.Load()
+	cfg, err := configRepo.Load()
 	if err != nil {
 		return fmt.Errorf(".deco directory not found or invalid: %w", err)
 	}
 
 	// Load the node
-	nodeRepo := node.NewYAMLRepository(flags.targetDir)
+	nodeRepo := node.NewYAMLRepository(config.ResolveNodesPath(cfg, flags.targetDir))
 	n, err := nodeRepo.Load(flags.nodeID)
 	if err != nil {
 		return fmt.Errorf("node %q not found: %w", flags.nodeID, err)
@@ -106,7 +106,8 @@ func runSet(flags *setFlags) error {
 	}
 
 	// Log set operation in history with content hash
-	if err := logSetOperation(flags.targetDir, n, flags.path, oldValue, value); err != nil {
+	historyPath := config.ResolveHistoryPath(cfg, flags.targetDir)
+	if err := logSetOperation(historyPath, n, flags.path, oldValue, value); err != nil {
 		fmt.Printf("Warning: failed to log set operation: %v\n", err)
 	}
 
@@ -168,8 +169,8 @@ func capitalizeFirstSet(s string) string {
 }
 
 // logSetOperation adds a set entry to the history log with content hash
-func logSetOperation(targetDir string, n domain.Node, path string, oldValue, newValue interface{}) error {
-	historyRepo := history.NewYAMLRepository(targetDir)
+func logSetOperation(historyPath string, n domain.Node, path string, oldValue, newValue interface{}) error {
+	historyRepo := history.NewYAMLRepository(historyPath)
 
 	entry := domain.AuditEntry{
 		Timestamp:   time.Now(),

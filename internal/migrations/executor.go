@@ -103,7 +103,7 @@ func (e *Executor) Execute() (*ExecutorResult, error) {
 	}
 
 	// Load all nodes
-	nodeRepo := node.NewYAMLRepository(e.opts.TargetDir)
+	nodeRepo := node.NewYAMLRepository(config.ResolveNodesPath(cfg, e.opts.TargetDir))
 	nodes, err := nodeRepo.LoadAll()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load nodes: %w", err)
@@ -160,7 +160,7 @@ func (e *Executor) Execute() (*ExecutorResult, error) {
 	}
 
 	// Log migration to audit history
-	historyRepo := history.NewYAMLRepository(e.opts.TargetDir)
+	historyRepo := history.NewYAMLRepository(config.ResolveHistoryPath(cfg, e.opts.TargetDir))
 	user := getUser()
 
 	for _, n := range modifiedNodes {

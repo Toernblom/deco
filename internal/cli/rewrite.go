@@ -93,7 +93,7 @@ func runRewrite(flags *rewriteFlags) error {
 	}
 
 	// Load the existing node
-	nodeRepo := node.NewYAMLRepository(flags.targetDir)
+	nodeRepo := node.NewYAMLRepository(config.ResolveNodesPath(cfg, flags.targetDir))
 	oldNode, err := nodeRepo.Load(flags.nodeID)
 	if err != nil {
 		return fmt.Errorf("node %q not found: %w", flags.nodeID, err)
@@ -134,7 +134,8 @@ func runRewrite(flags *rewriteFlags) error {
 	}
 
 	// Log rewrite operation in history
-	if err := logRewriteOperation(flags.targetDir, &oldNode, &newNode); err != nil {
+	historyPath := config.ResolveHistoryPath(cfg, flags.targetDir)
+	if err := logRewriteOperation(historyPath, &oldNode, &newNode); err != nil {
 		fmt.Printf("Warning: failed to log rewrite operation: %v\n", err)
 	}
 
@@ -268,8 +269,8 @@ func isEmptyValue(v interface{}) bool {
 }
 
 // logRewriteOperation adds a rewrite entry to the history log
-func logRewriteOperation(targetDir string, oldNode, newNode *domain.Node) error {
-	historyRepo := history.NewYAMLRepository(targetDir)
+func logRewriteOperation(historyPath string, oldNode, newNode *domain.Node) error {
+	historyRepo := history.NewYAMLRepository(historyPath)
 
 	username := "unknown"
 	if u, err := user.Current(); err == nil {

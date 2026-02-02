@@ -12,30 +12,31 @@ import (
 
 // YAMLRepository implements Repository using YAML files on the filesystem
 type YAMLRepository struct {
-	rootDir string
+	nodesDir string
 }
 
-// NewYAMLRepository creates a new YAML-based node repository
-// rootDir should be the project root (containing .deco/)
-func NewYAMLRepository(rootDir string) *YAMLRepository {
+// NewYAMLRepository creates a new YAML-based node repository.
+// nodesDir is the directory where node YAML files are stored.
+// Use config.ResolveNodesPath() to get this from the project config.
+func NewYAMLRepository(nodesDir string) *YAMLRepository {
 	return &YAMLRepository{
-		rootDir: rootDir,
+		nodesDir: nodesDir,
 	}
 }
 
-// nodesDir returns the path to the nodes directory
-func (r *YAMLRepository) nodesDir() string {
-	return filepath.Join(r.rootDir, ".deco", "nodes")
+// nodesPath returns the path to the nodes directory
+func (r *YAMLRepository) nodesPath() string {
+	return r.nodesDir
 }
 
 // pathForNode returns the file path for a given node ID
 func (r *YAMLRepository) pathForNode(id string) string {
-	return filepath.Join(r.nodesDir(), id+".yaml")
+	return filepath.Join(r.nodesPath(), id+".yaml")
 }
 
 // LoadAll loads all nodes from storage
 func (r *YAMLRepository) LoadAll() ([]domain.Node, error) {
-	nodesDir := r.nodesDir()
+	nodesDir := r.nodesPath()
 
 	// Check if nodes directory exists
 	if _, err := os.Stat(nodesDir); os.IsNotExist(err) {

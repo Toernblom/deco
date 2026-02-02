@@ -74,7 +74,7 @@ func runValidate(flags *validateFlags) error {
 	}
 
 	// Load all nodes
-	nodeRepo := node.NewYAMLRepository(flags.targetDir)
+	nodeRepo := node.NewYAMLRepository(config.ResolveNodesPath(cfg, flags.targetDir))
 	nodes, err := nodeRepo.LoadAll()
 	if err != nil {
 		return fmt.Errorf("failed to load nodes: %w", err)

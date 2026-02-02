@@ -36,7 +36,7 @@ func TestYAMLRepository_LoadAll(t *testing.T) {
 	})
 
 	// Create repository
-	repo := node.NewYAMLRepository(tmpDir)
+	repo := node.NewYAMLRepository(nodesDir)
 
 	// Load all nodes
 	nodes, err := repo.LoadAll()
@@ -79,7 +79,7 @@ func TestYAMLRepository_LoadAll_EmptyDirectory(t *testing.T) {
 		t.Fatalf("Failed to create test directory: %v", err)
 	}
 
-	repo := node.NewYAMLRepository(tmpDir)
+	repo := node.NewYAMLRepository(nodesDir)
 
 	nodes, err := repo.LoadAll()
 	if err != nil {
@@ -109,7 +109,7 @@ func TestYAMLRepository_Load(t *testing.T) {
 		Tags:    []string{"survival", "resource"},
 	})
 
-	repo := node.NewYAMLRepository(tmpDir)
+	repo := node.NewYAMLRepository(nodesDir)
 
 	// Load the node
 	n, err := repo.Load("systems/food")
@@ -136,7 +136,7 @@ func TestYAMLRepository_Load_NotFound(t *testing.T) {
 		t.Fatalf("Failed to create test directory: %v", err)
 	}
 
-	repo := node.NewYAMLRepository(tmpDir)
+	repo := node.NewYAMLRepository(nodesDir)
 
 	// Try to load non-existent node
 	_, err = repo.Load("nonexistent/node")
@@ -160,7 +160,7 @@ func TestYAMLRepository_Load_InvalidYAML(t *testing.T) {
 		t.Fatalf("Failed to create invalid YAML file: %v", err)
 	}
 
-	repo := node.NewYAMLRepository(tmpDir)
+	repo := node.NewYAMLRepository(nodesDir)
 
 	// Try to load invalid YAML
 	_, err = repo.Load("invalid")
@@ -177,7 +177,7 @@ func TestYAMLRepository_Save(t *testing.T) {
 		t.Fatalf("Failed to create test directory: %v", err)
 	}
 
-	repo := node.NewYAMLRepository(tmpDir)
+	repo := node.NewYAMLRepository(nodesDir)
 
 	// Create and save a node
 	n := domain.Node{
@@ -222,7 +222,7 @@ func TestYAMLRepository_Save_UpdateExisting(t *testing.T) {
 		t.Fatalf("Failed to create test directory: %v", err)
 	}
 
-	repo := node.NewYAMLRepository(tmpDir)
+	repo := node.NewYAMLRepository(nodesDir)
 
 	// Create initial node
 	n := domain.Node{
@@ -282,7 +282,7 @@ func TestYAMLRepository_Delete(t *testing.T) {
 		Title:   "Food System",
 	})
 
-	repo := node.NewYAMLRepository(tmpDir)
+	repo := node.NewYAMLRepository(nodesDir)
 
 	// Verify node exists
 	exists, err := repo.Exists("systems/food")
@@ -317,7 +317,7 @@ func TestYAMLRepository_Delete_NotFound(t *testing.T) {
 		t.Fatalf("Failed to create test directory: %v", err)
 	}
 
-	repo := node.NewYAMLRepository(tmpDir)
+	repo := node.NewYAMLRepository(nodesDir)
 
 	// Try to delete non-existent node
 	err = repo.Delete("nonexistent/node")
@@ -343,7 +343,7 @@ func TestYAMLRepository_Exists(t *testing.T) {
 		Title:   "Food System",
 	})
 
-	repo := node.NewYAMLRepository(tmpDir)
+	repo := node.NewYAMLRepository(nodesDir)
 
 	// Check existing node
 	exists, err := repo.Exists("systems/food")
@@ -372,7 +372,7 @@ func TestYAMLRepository_NestedDirectories(t *testing.T) {
 		t.Fatalf("Failed to create test directory: %v", err)
 	}
 
-	repo := node.NewYAMLRepository(tmpDir)
+	repo := node.NewYAMLRepository(nodesDir)
 
 	// Create node with deeply nested ID
 	n := domain.Node{

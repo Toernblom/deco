@@ -203,7 +203,7 @@ func TestGetLastContentHash(t *testing.T) {
 		tmpDir := t.TempDir()
 		setupProjectForSync(t, tmpDir)
 
-		hash := getLastContentHash(tmpDir, "sword-001")
+		hash := getLastContentHash(filepath.Join(tmpDir, ".deco", "history.jsonl"), "sword-001")
 		if hash != "" {
 			t.Errorf("Expected empty hash for no history, got %q", hash)
 		}
@@ -222,7 +222,7 @@ func TestGetLastContentHash(t *testing.T) {
 			t.Fatalf("Failed to write history: %v", err)
 		}
 
-		hash := getLastContentHash(tmpDir, "sword-001")
+		hash := getLastContentHash(filepath.Join(tmpDir, ".deco", "history.jsonl"), "sword-001")
 		if hash != "xyz789uvw012" {
 			t.Errorf("Expected 'xyz789uvw012', got %q", hash)
 		}
@@ -320,7 +320,8 @@ func TestRunSync_NoChanges(t *testing.T) {
 		setupProjectForSync(t, tmpDir)
 
 		// Create baseline history entry with current hash
-		nodeRepo := node.NewYAMLRepository(tmpDir)
+		nodesDir := filepath.Join(tmpDir, ".deco", "nodes")
+		nodeRepo := node.NewYAMLRepository(nodesDir)
 		n, _ := nodeRepo.Load("sword-001")
 		hash := ComputeContentHash(n)
 
@@ -346,7 +347,8 @@ func TestRunSync_MetadataOnlyChange(t *testing.T) {
 		setupProjectForSync(t, tmpDir)
 
 		// Baseline with current hash
-		nodeRepo := node.NewYAMLRepository(tmpDir)
+		nodesDir := filepath.Join(tmpDir, ".deco", "nodes")
+		nodeRepo := node.NewYAMLRepository(nodesDir)
 		n, _ := nodeRepo.Load("sword-001")
 		hash := ComputeContentHash(n)
 
@@ -386,7 +388,8 @@ func TestRunSync_ContentChange(t *testing.T) {
 		setupProjectForSync(t, tmpDir)
 
 		// Baseline with original hash
-		nodeRepo := node.NewYAMLRepository(tmpDir)
+		nodesDir := filepath.Join(tmpDir, ".deco", "nodes")
+		nodeRepo := node.NewYAMLRepository(nodesDir)
 		n, _ := nodeRepo.Load("sword-001")
 		hash := ComputeContentHash(n)
 
@@ -441,7 +444,8 @@ func TestRunSync_DryRun(t *testing.T) {
 		setupProjectForSync(t, tmpDir)
 
 		// Baseline with original hash
-		nodeRepo := node.NewYAMLRepository(tmpDir)
+		nodesDir := filepath.Join(tmpDir, ".deco", "nodes")
+		nodeRepo := node.NewYAMLRepository(nodesDir)
 		n, _ := nodeRepo.Load("sword-001")
 		hash := ComputeContentHash(n)
 
@@ -486,7 +490,8 @@ tags:
 		setupProjectForSync(t, tmpDir)
 
 		// Baseline with current hash (no changes)
-		nodeRepo := node.NewYAMLRepository(tmpDir)
+		nodesDir := filepath.Join(tmpDir, ".deco", "nodes")
+		nodeRepo := node.NewYAMLRepository(nodesDir)
 		n, _ := nodeRepo.Load("sword-001")
 		hash := ComputeContentHash(n)
 
@@ -513,7 +518,8 @@ func TestRunSync_HistoryLogging(t *testing.T) {
 		setupProjectForSync(t, tmpDir)
 
 		// Baseline with original hash
-		nodeRepo := node.NewYAMLRepository(tmpDir)
+		nodesDir := filepath.Join(tmpDir, ".deco", "nodes")
+		nodeRepo := node.NewYAMLRepository(nodesDir)
 		n, _ := nodeRepo.Load("sword-001")
 		hash := ComputeContentHash(n)
 

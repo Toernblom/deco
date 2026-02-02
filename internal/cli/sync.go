@@ -89,13 +89,14 @@ type syncResult struct {
 func runSync(flags *syncFlags) (int, error) {
 	// Verify we're in a deco project
 	configRepo := config.NewYAMLRepository(flags.targetDir)
-	_, err := configRepo.Load()
+	cfg, err := configRepo.Load()
 	if err != nil {
 		return syncExitError, fmt.Errorf(".deco directory not found or invalid: %w", err)
 	}
 
 	// Discover all nodes
-	discovery := node.NewFileDiscovery(flags.targetDir)
+	nodesPath := config.ResolveNodesPath(cfg, flags.targetDir)
+	discovery := node.NewFileDiscovery(nodesPath)
 	nodePaths, err := discovery.DiscoverAll()
 	if err != nil {
 		return syncExitError, fmt.Errorf("failed to discover nodes: %w", err)
@@ -106,13 +107,14 @@ func runSync(flags *syncFlags) (int, error) {
 	}
 
 	// Load all latest content hashes in a single pass (O(history) instead of O(nodes × history))
-	historyRepo := history.NewYAMLRepository(flags.targetDir)
+	historyPath := config.ResolveHistoryPath(cfg, flags.targetDir)
+	historyRepo := history.NewYAMLRepository(historyPath)
 	latestHashes, err := historyRepo.QueryLatestHashes()
 	if err != nil {
 		return syncExitError, fmt.Errorf("failed to load history: %w", err)
 	}
 
-	nodeRepo := node.NewYAMLRepository(flags.targetDir)
+	nodeRepo := node.NewYAMLRepository(nodesPath)
 	var syncResults []syncResult
 	var baselinedNodes []string
 	var errors []string
@@ -138,7 +140,7 @@ func runSync(flags *syncFlags) (int, error) {
 		if lastHash == "" {
 			// No history - baseline this node
 			if !flags.dryRun {
-				if err := logBaselineOperation(flags.targetDir, nodeID, currentHash); err != nil {
+				if err := logBaselineOperation(historyPath, nodeID, currentHash); err != nil {
 					errors = append(errors, fmt.Sprintf("failed to baseline %s: %v", nodeID, err))
 					if !flags.quiet {
 						fmt.Fprintf(os.Stderr, "Error: failed to baseline %s: %v\n", nodeID, err)
@@ -164,7 +166,7 @@ func runSync(flags *syncFlags) (int, error) {
 		}
 
 		if !flags.dryRun {
-			if err := applySyncWithHash(flags.targetDir, &currentNode, nodeRepo, currentHash); err != nil {
+			if err := applySyncWithHash(historyPath, &currentNode, nodeRepo, currentHash); err != nil {
 				errors = append(errors, fmt.Sprintf("failed to sync %s: %v", nodeID, err))
 				if !flags.quiet {
 					fmt.Fprintf(os.Stderr, "Error: failed to sync %s: %v\n", nodeID, err)
@@ -217,8 +219,8 @@ func runSync(flags *syncFlags) (int, error) {
 }
 
 // logBaselineOperation records initial state for a node without modification
-func logBaselineOperation(targetDir, nodeID, contentHash string) error {
-	historyRepo := history.NewYAMLRepository(targetDir)
+func logBaselineOperation(historyPath, nodeID, contentHash string) error {
+	historyRepo := history.NewYAMLRepository(historyPath)
 
 	entry := domain.AuditEntry{
 		Timestamp:   time.Now(),
@@ -232,7 +234,7 @@ func logBaselineOperation(targetDir, nodeID, contentHash string) error {
 }
 
 // applySyncWithHash applies sync changes and logs with content hash
-func applySyncWithHash(targetDir string, n *domain.Node, nodeRepo *node.YAMLRepository, contentHash string) error {
+func applySyncWithHash(historyPath string, n *domain.Node, nodeRepo *node.YAMLRepository, contentHash string) error {
 	oldVersion := n.Version
 	oldStatus := n.Status
 
@@ -253,12 +255,12 @@ func applySyncWithHash(targetDir string, n *domain.Node, nodeRepo *node.YAMLRepo
 	}
 
 	// Log to history with content hash
-	return logSyncOperationWithHash(targetDir, n.ID, oldVersion, n.Version, oldStatus, n.Status, contentHash)
+	return logSyncOperationWithHash(historyPath, n.ID, oldVersion, n.Version, oldStatus, n.Status, contentHash)
 }
 
 // logSyncOperationWithHash adds a sync entry with content hash
-func logSyncOperationWithHash(targetDir, nodeID string, oldVersion, newVersion int, oldStatus, newStatus, contentHash string) error {
-	historyRepo := history.NewYAMLRepository(targetDir)
+func logSyncOperationWithHash(historyPath, nodeID string, oldVersion, newVersion int, oldStatus, newStatus, contentHash string) error {
+	historyRepo := history.NewYAMLRepository(historyPath)
 
 	entry := domain.AuditEntry{
 		Timestamp:   time.Now(),
@@ -281,8 +283,9 @@ func logSyncOperationWithHash(targetDir, nodeID string, oldVersion, newVersion i
 
 // getLastContentHash retrieves the most recent content hash for a node from history
 // Returns empty string if no hash found
-func getLastContentHash(targetDir, nodeID string) string {
-	historyRepo := history.NewYAMLRepository(targetDir)
+// historyPath should be the full path to the history file (use config.ResolveHistoryPath)
+func getLastContentHash(historyPath, nodeID string) string {
+	historyRepo := history.NewYAMLRepository(historyPath)
 
 	entries, err := historyRepo.Query(history.Filter{NodeID: nodeID})
 	if err != nil || len(entries) == 0 {

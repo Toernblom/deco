@@ -13,7 +13,8 @@ import (
 
 func TestYAMLRepository_Append(t *testing.T) {
 	tmpDir := t.TempDir()
-	repo := history.NewYAMLRepository(tmpDir)
+	historyFile := filepath.Join(tmpDir, ".deco", "history.jsonl")
+	repo := history.NewYAMLRepository(historyFile)
 
 	entry := domain.AuditEntry{
 		Timestamp: time.Now(),
@@ -31,7 +32,6 @@ func TestYAMLRepository_Append(t *testing.T) {
 	}
 
 	// Verify file was created
-	historyFile := filepath.Join(tmpDir, ".deco", "history.jsonl")
 	if _, err := os.Stat(historyFile); os.IsNotExist(err) {
 		t.Error("Expected history file to be created")
 	}
@@ -39,8 +39,9 @@ func TestYAMLRepository_Append(t *testing.T) {
 
 func TestYAMLRepository_Append_CreatesDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
+	historyFile := filepath.Join(tmpDir, ".deco", "history.jsonl")
 	// Don't create .deco directory - test should create it
-	repo := history.NewYAMLRepository(tmpDir)
+	repo := history.NewYAMLRepository(historyFile)
 
 	entry := domain.AuditEntry{
 		Timestamp: time.Now(),
@@ -63,7 +64,8 @@ func TestYAMLRepository_Append_CreatesDirectory(t *testing.T) {
 
 func TestYAMLRepository_Append_MultipleEntries(t *testing.T) {
 	tmpDir := t.TempDir()
-	repo := history.NewYAMLRepository(tmpDir)
+	historyFile := filepath.Join(tmpDir, ".deco", "history.jsonl")
+	repo := history.NewYAMLRepository(historyFile)
 
 	// Append multiple entries
 	entries := []domain.AuditEntry{
@@ -107,7 +109,8 @@ func TestYAMLRepository_Append_MultipleEntries(t *testing.T) {
 
 func TestYAMLRepository_Query_All(t *testing.T) {
 	tmpDir := t.TempDir()
-	repo := history.NewYAMLRepository(tmpDir)
+	historyFile := filepath.Join(tmpDir, ".deco", "history.jsonl")
+	repo := history.NewYAMLRepository(historyFile)
 
 	// Append test entries
 	entries := []domain.AuditEntry{
@@ -151,7 +154,8 @@ func TestYAMLRepository_Query_All(t *testing.T) {
 
 func TestYAMLRepository_Query_EmptyLog(t *testing.T) {
 	tmpDir := t.TempDir()
-	repo := history.NewYAMLRepository(tmpDir)
+	historyFile := filepath.Join(tmpDir, ".deco", "history.jsonl")
+	repo := history.NewYAMLRepository(historyFile)
 
 	// Query empty log
 	results, err := repo.Query(history.Filter{})
@@ -166,7 +170,8 @@ func TestYAMLRepository_Query_EmptyLog(t *testing.T) {
 
 func TestYAMLRepository_Query_FilterByNodeID(t *testing.T) {
 	tmpDir := t.TempDir()
-	repo := history.NewYAMLRepository(tmpDir)
+	historyFile := filepath.Join(tmpDir, ".deco", "history.jsonl")
+	repo := history.NewYAMLRepository(historyFile)
 
 	// Append entries for different nodes
 	entries := []domain.AuditEntry{
@@ -217,7 +222,8 @@ func TestYAMLRepository_Query_FilterByNodeID(t *testing.T) {
 
 func TestYAMLRepository_Query_FilterByOperation(t *testing.T) {
 	tmpDir := t.TempDir()
-	repo := history.NewYAMLRepository(tmpDir)
+	historyFile := filepath.Join(tmpDir, ".deco", "history.jsonl")
+	repo := history.NewYAMLRepository(historyFile)
 
 	// Append entries with different operations
 	entries := []domain.AuditEntry{
@@ -268,7 +274,8 @@ func TestYAMLRepository_Query_FilterByOperation(t *testing.T) {
 
 func TestYAMLRepository_Query_FilterByUser(t *testing.T) {
 	tmpDir := t.TempDir()
-	repo := history.NewYAMLRepository(tmpDir)
+	historyFile := filepath.Join(tmpDir, ".deco", "history.jsonl")
+	repo := history.NewYAMLRepository(historyFile)
 
 	// Append entries from different users
 	entries := []domain.AuditEntry{
@@ -319,7 +326,8 @@ func TestYAMLRepository_Query_FilterByUser(t *testing.T) {
 
 func TestYAMLRepository_Query_FilterByTimeRange(t *testing.T) {
 	tmpDir := t.TempDir()
-	repo := history.NewYAMLRepository(tmpDir)
+	historyFile := filepath.Join(tmpDir, ".deco", "history.jsonl")
+	repo := history.NewYAMLRepository(historyFile)
 
 	// Create entries with specific timestamps
 	baseTime := time.Now()
@@ -397,7 +405,8 @@ func TestYAMLRepository_Query_FilterByTimeRange(t *testing.T) {
 
 func TestYAMLRepository_Query_Limit(t *testing.T) {
 	tmpDir := t.TempDir()
-	repo := history.NewYAMLRepository(tmpDir)
+	historyFile := filepath.Join(tmpDir, ".deco", "history.jsonl")
+	repo := history.NewYAMLRepository(historyFile)
 
 	// Append multiple entries
 	for i := 0; i < 5; i++ {
@@ -426,7 +435,8 @@ func TestYAMLRepository_Query_Limit(t *testing.T) {
 
 func TestYAMLRepository_Query_CombinedFilters(t *testing.T) {
 	tmpDir := t.TempDir()
-	repo := history.NewYAMLRepository(tmpDir)
+	historyFile := filepath.Join(tmpDir, ".deco", "history.jsonl")
+	repo := history.NewYAMLRepository(historyFile)
 
 	// Append diverse entries
 	baseTime := time.Now()
@@ -494,7 +504,8 @@ func TestYAMLRepository_Query_CombinedFilters(t *testing.T) {
 
 func TestYAMLRepository_Query_NoMatches(t *testing.T) {
 	tmpDir := t.TempDir()
-	repo := history.NewYAMLRepository(tmpDir)
+	historyFile := filepath.Join(tmpDir, ".deco", "history.jsonl")
+	repo := history.NewYAMLRepository(historyFile)
 
 	// Append some entries
 	entry := domain.AuditEntry{
@@ -521,7 +532,8 @@ func TestYAMLRepository_Query_NoMatches(t *testing.T) {
 
 func TestYAMLRepository_AppendOnly_ChronologicalOrder(t *testing.T) {
 	tmpDir := t.TempDir()
-	repo := history.NewYAMLRepository(tmpDir)
+	historyFile := filepath.Join(tmpDir, ".deco", "history.jsonl")
+	repo := history.NewYAMLRepository(historyFile)
 
 	// Append entries out of chronological order (by timestamp value)
 	// But they should appear in the order they were appended
@@ -576,7 +588,8 @@ func TestYAMLRepository_AppendOnly_ChronologicalOrder(t *testing.T) {
 
 func TestYAMLRepository_ConcurrentAppend(t *testing.T) {
 	tmpDir := t.TempDir()
-	repo := history.NewYAMLRepository(tmpDir)
+	historyFile := filepath.Join(tmpDir, ".deco", "history.jsonl")
+	repo := history.NewYAMLRepository(historyFile)
 
 	// Concurrent appends
 	const numGoroutines = 10
@@ -615,7 +628,8 @@ func TestYAMLRepository_ConcurrentAppend(t *testing.T) {
 func TestYAMLRepository_QueryLatestHashes(t *testing.T) {
 	t.Run("returns empty map for no history", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		repo := history.NewYAMLRepository(tmpDir)
+		historyFile := filepath.Join(tmpDir, ".deco", "history.jsonl")
+		repo := history.NewYAMLRepository(historyFile)
 
 		hashes, err := repo.QueryLatestHashes()
 		if err != nil {
@@ -628,7 +642,8 @@ func TestYAMLRepository_QueryLatestHashes(t *testing.T) {
 
 	t.Run("returns latest hash for each node", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		repo := history.NewYAMLRepository(tmpDir)
+		historyFile := filepath.Join(tmpDir, ".deco", "history.jsonl")
+		repo := history.NewYAMLRepository(historyFile)
 
 		// Append entries with content hashes
 		entries := []domain.AuditEntry{
@@ -679,7 +694,8 @@ func TestYAMLRepository_QueryLatestHashes(t *testing.T) {
 
 	t.Run("skips entries without content hash", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		repo := history.NewYAMLRepository(tmpDir)
+		historyFile := filepath.Join(tmpDir, ".deco", "history.jsonl")
+		repo := history.NewYAMLRepository(historyFile)
 
 		entries := []domain.AuditEntry{
 			{
@@ -717,7 +733,8 @@ func TestYAMLRepository_QueryLatestHashes(t *testing.T) {
 
 func TestYAMLRepository_PreserveComplexData(t *testing.T) {
 	tmpDir := t.TempDir()
-	repo := history.NewYAMLRepository(tmpDir)
+	historyFile := filepath.Join(tmpDir, ".deco", "history.jsonl")
+	repo := history.NewYAMLRepository(historyFile)
 
 	// Create entry with complex Before/After data
 	entry := domain.AuditEntry{

@@ -96,7 +96,7 @@ func runApply(flags *applyFlags) error {
 	}
 
 	// Load the node
-	nodeRepo := node.NewYAMLRepository(flags.targetDir)
+	nodeRepo := node.NewYAMLRepository(config.ResolveNodesPath(cfg, flags.targetDir))
 	n, err := nodeRepo.Load(flags.nodeID)
 	if err != nil {
 		return fmt.Errorf("node %q not found: %w", flags.nodeID, err)
@@ -156,7 +156,8 @@ func runApply(flags *applyFlags) error {
 	}
 
 	// Log apply operation in history
-	if err := logApplyOperation(flags.targetDir, n, beforeValues, afterValues); err != nil {
+	historyPath := config.ResolveHistoryPath(cfg, flags.targetDir)
+	if err := logApplyOperation(historyPath, n, beforeValues, afterValues); err != nil {
 		fmt.Printf("Warning: failed to log apply operation: %v\n", err)
 	}
 
@@ -218,8 +219,8 @@ func capitalizeFirstApply(s string) string {
 }
 
 // logApplyOperation adds an apply entry to the history log
-func logApplyOperation(targetDir string, n domain.Node, beforeValues, afterValues map[string]interface{}) error {
-	historyRepo := history.NewYAMLRepository(targetDir)
+func logApplyOperation(historyPath string, n domain.Node, beforeValues, afterValues map[string]interface{}) error {
+	historyRepo := history.NewYAMLRepository(historyPath)
 
 	username := "unknown"
 	if u, err := user.Current(); err == nil {

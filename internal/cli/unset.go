@@ -61,13 +61,13 @@ The version number is automatically incremented after a successful unset.`,
 func runUnset(flags *unsetFlags) error {
 	// Load config to verify project exists
 	configRepo := config.NewYAMLRepository(flags.targetDir)
-	_, err := configRepo.Load()
+	cfg, err := configRepo.Load()
 	if err != nil {
 		return fmt.Errorf(".deco directory not found or invalid: %w", err)
 	}
 
 	// Load the node
-	nodeRepo := node.NewYAMLRepository(flags.targetDir)
+	nodeRepo := node.NewYAMLRepository(config.ResolveNodesPath(cfg, flags.targetDir))
 	n, err := nodeRepo.Load(flags.nodeID)
 	if err != nil {
 		return fmt.Errorf("node %q not found: %w", flags.nodeID, err)
@@ -93,7 +93,8 @@ func runUnset(flags *unsetFlags) error {
 	}
 
 	// Log unset operation in history with content hash
-	if err := logUnsetOperation(flags.targetDir, n, flags.path, oldValue); err != nil {
+	historyPath := config.ResolveHistoryPath(cfg, flags.targetDir)
+	if err := logUnsetOperation(historyPath, n, flags.path, oldValue); err != nil {
 		fmt.Printf("Warning: failed to log unset operation: %v\n", err)
 	}
 
@@ -155,8 +156,8 @@ func capitalizeFirstUnset(s string) string {
 }
 
 // logUnsetOperation adds an unset entry to the history log with content hash
-func logUnsetOperation(targetDir string, n domain.Node, path string, oldValue interface{}) error {
-	historyRepo := history.NewYAMLRepository(targetDir)
+func logUnsetOperation(historyPath string, n domain.Node, path string, oldValue interface{}) error {
+	historyRepo := history.NewYAMLRepository(historyPath)
 
 	entry := domain.AuditEntry{
 		Timestamp:   time.Now(),

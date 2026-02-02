@@ -19,7 +19,7 @@ func TestFileDiscovery_DiscoverAll(t *testing.T) {
 	createFile(t, nodesDir, "mechanics/combat.yaml")
 	createFile(t, nodesDir, "features/quest.yaml")
 
-	discovery := node.NewFileDiscovery(tmpDir)
+	discovery := node.NewFileDiscovery(nodesDir)
 
 	// Discover all files
 	files, err := discovery.DiscoverAll()
@@ -56,7 +56,7 @@ func TestFileDiscovery_DiscoverAll_EmptyDirectory(t *testing.T) {
 		t.Fatalf("Failed to create directory: %v", err)
 	}
 
-	discovery := node.NewFileDiscovery(tmpDir)
+	discovery := node.NewFileDiscovery(nodesDir)
 
 	files, err := discovery.DiscoverAll()
 	if err != nil {
@@ -70,8 +70,9 @@ func TestFileDiscovery_DiscoverAll_EmptyDirectory(t *testing.T) {
 
 func TestFileDiscovery_DiscoverAll_NoNodesDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
+	nodesDir := filepath.Join(tmpDir, ".deco", "nodes")
 
-	discovery := node.NewFileDiscovery(tmpDir)
+	discovery := node.NewFileDiscovery(nodesDir)
 
 	files, err := discovery.DiscoverAll()
 	if err != nil {
@@ -94,7 +95,7 @@ func TestFileDiscovery_IgnoreNonYAMLFiles(t *testing.T) {
 	createFile(t, nodesDir, "mechanics/notes.txt")
 	createFile(t, nodesDir, ".gitignore")
 
-	discovery := node.NewFileDiscovery(tmpDir)
+	discovery := node.NewFileDiscovery(nodesDir)
 
 	files, err := discovery.DiscoverAll()
 	if err != nil {
@@ -123,7 +124,7 @@ func TestFileDiscovery_NestedDirectories(t *testing.T) {
 	createFile(t, nodesDir, "mechanics/combat/weapons/sword.yaml")
 	createFile(t, nodesDir, "a/b/c/d/e/deep.yaml")
 
-	discovery := node.NewFileDiscovery(tmpDir)
+	discovery := node.NewFileDiscovery(nodesDir)
 
 	files, err := discovery.DiscoverAll()
 	if err != nil {
@@ -139,7 +140,7 @@ func TestFileDiscovery_PathToID(t *testing.T) {
 	tmpDir := t.TempDir()
 	nodesDir := filepath.Join(tmpDir, ".deco", "nodes")
 
-	discovery := node.NewFileDiscovery(tmpDir)
+	discovery := node.NewFileDiscovery(nodesDir)
 
 	tests := []struct {
 		name       string
@@ -182,7 +183,7 @@ func TestFileDiscovery_IDToPath(t *testing.T) {
 	tmpDir := t.TempDir()
 	nodesDir := filepath.Join(tmpDir, ".deco", "nodes")
 
-	discovery := node.NewFileDiscovery(tmpDir)
+	discovery := node.NewFileDiscovery(nodesDir)
 
 	tests := []struct {
 		name         string
@@ -223,7 +224,8 @@ func TestFileDiscovery_IDToPath(t *testing.T) {
 
 func TestFileDiscovery_RoundTrip(t *testing.T) {
 	tmpDir := t.TempDir()
-	discovery := node.NewFileDiscovery(tmpDir)
+	nodesDir := filepath.Join(tmpDir, ".deco", "nodes")
+	discovery := node.NewFileDiscovery(nodesDir)
 
 	// Test that PathToID and IDToPath are inverses
 	ids := []string{
@@ -253,7 +255,7 @@ func TestFileDiscovery_DiscoverByPattern(t *testing.T) {
 	createFile(t, nodesDir, "mechanics/combat.yaml")
 	createFile(t, nodesDir, "features/quest.yaml")
 
-	discovery := node.NewFileDiscovery(tmpDir)
+	discovery := node.NewFileDiscovery(nodesDir)
 
 	// Discover files matching pattern
 	files, err := discovery.DiscoverByPattern("systems")

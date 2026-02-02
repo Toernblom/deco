@@ -53,13 +53,13 @@ Examples:
 func runHistory(flags *historyFlags) error {
 	// Load config to verify project exists
 	configRepo := config.NewYAMLRepository(flags.targetDir)
-	_, err := configRepo.Load()
+	cfg, err := configRepo.Load()
 	if err != nil {
 		return fmt.Errorf(".deco directory not found or invalid: %w", err)
 	}
 
 	// Query history
-	historyRepo := history.NewYAMLRepository(flags.targetDir)
+	historyRepo := history.NewYAMLRepository(config.ResolveHistoryPath(cfg, flags.targetDir))
 	filter := history.Filter{
 		NodeID: flags.nodeID,
 		Limit:  flags.limit,

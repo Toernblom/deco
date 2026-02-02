@@ -8,24 +8,26 @@ import (
 
 // FileDiscovery handles discovering node files in the filesystem
 type FileDiscovery struct {
-	rootDir string
+	nodesDir string
 }
 
-// NewFileDiscovery creates a new file discovery instance
-func NewFileDiscovery(rootDir string) *FileDiscovery {
+// NewFileDiscovery creates a new file discovery instance.
+// nodesDir is the directory where node YAML files are stored.
+// Use config.ResolveNodesPath() to get this from the project config.
+func NewFileDiscovery(nodesDir string) *FileDiscovery {
 	return &FileDiscovery{
-		rootDir: rootDir,
+		nodesDir: nodesDir,
 	}
 }
 
-// nodesDir returns the path to the nodes directory
-func (d *FileDiscovery) nodesDir() string {
-	return filepath.Join(d.rootDir, ".deco", "nodes")
+// nodesPath returns the path to the nodes directory
+func (d *FileDiscovery) nodesPath() string {
+	return d.nodesDir
 }
 
 // DiscoverAll finds all .yaml files in the nodes directory
 func (d *FileDiscovery) DiscoverAll() ([]string, error) {
-	nodesDir := d.nodesDir()
+	nodesDir := d.nodesPath()
 
 	// Check if nodes directory exists
 	if _, err := os.Stat(nodesDir); os.IsNotExist(err) {
@@ -62,7 +64,7 @@ func (d *FileDiscovery) DiscoverAll() ([]string, error) {
 
 // DiscoverByPattern finds .yaml files matching a path pattern
 func (d *FileDiscovery) DiscoverByPattern(pattern string) ([]string, error) {
-	nodesDir := d.nodesDir()
+	nodesDir := d.nodesPath()
 	searchDir := filepath.Join(nodesDir, pattern)
 
 	// Check if search directory exists
@@ -101,7 +103,7 @@ func (d *FileDiscovery) DiscoverByPattern(pattern string) ([]string, error) {
 // PathToID converts a file path to a node ID
 // Example: .deco/nodes/systems/food.yaml -> systems/food
 func (d *FileDiscovery) PathToID(path string) string {
-	nodesDir := d.nodesDir()
+	nodesDir := d.nodesPath()
 
 	// Get relative path from nodes directory
 	relPath, err := filepath.Rel(nodesDir, path)
@@ -121,7 +123,7 @@ func (d *FileDiscovery) PathToID(path string) string {
 // IDToPath converts a node ID to a file path
 // Example: systems/food -> .deco/nodes/systems/food.yaml
 func (d *FileDiscovery) IDToPath(id string) string {
-	nodesDir := d.nodesDir()
+	nodesDir := d.nodesPath()
 
 	// Convert forward slashes to OS-specific separator
 	parts := strings.Split(id, "/")

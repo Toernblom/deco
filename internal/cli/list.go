@@ -59,13 +59,13 @@ Examples:
 func runList(flags *listFlags) error {
 	// Load config to verify project exists
 	configRepo := config.NewYAMLRepository(flags.targetDir)
-	_, err := configRepo.Load()
+	cfg, err := configRepo.Load()
 	if err != nil {
 		return fmt.Errorf(".deco directory not found or invalid: %w", err)
 	}
 
 	// Load all nodes
-	nodeRepo := node.NewYAMLRepository(flags.targetDir)
+	nodeRepo := node.NewYAMLRepository(config.ResolveNodesPath(cfg, flags.targetDir))
 	nodes, err := nodeRepo.LoadAll()
 	if err != nil {
 		return fmt.Errorf("failed to load nodes: %w", err)

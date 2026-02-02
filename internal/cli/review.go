@@ -67,13 +67,13 @@ func newSubmitCommand() *cobra.Command {
 func runSubmit(flags *reviewFlags) error {
 	// Load config
 	configRepo := config.NewYAMLRepository(flags.targetDir)
-	_, err := configRepo.Load()
+	cfg, err := configRepo.Load()
 	if err != nil {
 		return fmt.Errorf(".deco directory not found or invalid: %w", err)
 	}
 
 	// Load the node
-	nodeRepo := node.NewYAMLRepository(flags.targetDir)
+	nodeRepo := node.NewYAMLRepository(config.ResolveNodesPath(cfg, flags.targetDir))
 	n, err := nodeRepo.Load(flags.nodeID)
 	if err != nil {
 		return fmt.Errorf("node %q not found: %w", flags.nodeID, err)
@@ -94,7 +94,8 @@ func runSubmit(flags *reviewFlags) error {
 	}
 
 	// Log submit operation
-	if err := logReviewOperation(flags.targetDir, n.ID, "submit", oldStatus, n.Status, ""); err != nil {
+	historyPath := config.ResolveHistoryPath(cfg, flags.targetDir)
+	if err := logReviewOperation(historyPath, n.ID, "submit", oldStatus, n.Status, ""); err != nil {
 		fmt.Printf("Warning: failed to log submit operation: %v\n", err)
 	}
 
@@ -105,8 +106,8 @@ func runSubmit(flags *reviewFlags) error {
 	return nil
 }
 
-func logReviewOperation(targetDir, nodeID, operation, oldStatus, newStatus, note string) error {
-	historyRepo := history.NewYAMLRepository(targetDir)
+func logReviewOperation(historyPath, nodeID, operation, oldStatus, newStatus, note string) error {
+	historyRepo := history.NewYAMLRepository(historyPath)
 
 	username := "unknown"
 	if u, err := user.Current(); err == nil {
@@ -170,7 +171,7 @@ func runApprove(flags *approveFlags) error {
 	}
 
 	// Load the node
-	nodeRepo := node.NewYAMLRepository(flags.targetDir)
+	nodeRepo := node.NewYAMLRepository(config.ResolveNodesPath(cfg, flags.targetDir))
 	n, err := nodeRepo.Load(flags.nodeID)
 	if err != nil {
 		return fmt.Errorf("node %q not found: %w", flags.nodeID, err)
@@ -216,7 +217,8 @@ func runApprove(flags *approveFlags) error {
 	}
 
 	// Log approve operation
-	if err := logReviewOperation(flags.targetDir, n.ID, "approve", oldStatus, n.Status, flags.note); err != nil {
+	historyPath := config.ResolveHistoryPath(cfg, flags.targetDir)
+	if err := logReviewOperation(historyPath, n.ID, "approve", oldStatus, n.Status, flags.note); err != nil {
 		fmt.Printf("Warning: failed to log approve operation: %v\n", err)
 	}
 
@@ -271,13 +273,13 @@ func runReject(flags *rejectFlags) error {
 
 	// Load config
 	configRepo := config.NewYAMLRepository(flags.targetDir)
-	_, err := configRepo.Load()
+	cfg, err := configRepo.Load()
 	if err != nil {
 		return fmt.Errorf(".deco directory not found or invalid: %w", err)
 	}
 
 	// Load the node
-	nodeRepo := node.NewYAMLRepository(flags.targetDir)
+	nodeRepo := node.NewYAMLRepository(config.ResolveNodesPath(cfg, flags.targetDir))
 	n, err := nodeRepo.Load(flags.nodeID)
 	if err != nil {
 		return fmt.Errorf("node %q not found: %w", flags.nodeID, err)
@@ -298,7 +300,8 @@ func runReject(flags *rejectFlags) error {
 	}
 
 	// Log reject operation
-	if err := logReviewOperation(flags.targetDir, n.ID, "reject", oldStatus, n.Status, flags.note); err != nil {
+	historyPath := config.ResolveHistoryPath(cfg, flags.targetDir)
+	if err := logReviewOperation(historyPath, n.ID, "reject", oldStatus, n.Status, flags.note); err != nil {
 		fmt.Printf("Warning: failed to log reject operation: %v\n", err)
 	}
 
@@ -345,7 +348,7 @@ func runStatus(cmd *cobra.Command, flags *statusFlags) error {
 	}
 
 	// Load the node
-	nodeRepo := node.NewYAMLRepository(flags.targetDir)
+	nodeRepo := node.NewYAMLRepository(config.ResolveNodesPath(cfg, flags.targetDir))
 	n, err := nodeRepo.Load(flags.nodeID)
 	if err != nil {
 		return fmt.Errorf("node %q not found: %w", flags.nodeID, err)

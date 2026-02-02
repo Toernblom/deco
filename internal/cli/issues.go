@@ -85,12 +85,12 @@ func runIssues(w io.Writer, flags *issuesFlags) error {
 
 	// Verify project exists
 	configRepo := config.NewYAMLRepository(flags.targetDir)
-	_, err := configRepo.Load()
+	cfg, err := configRepo.Load()
 	if err != nil {
 		return fmt.Errorf(".deco directory not found or invalid: %w", err)
 	}
 
-	nodeRepo := node.NewYAMLRepository(flags.targetDir)
+	nodeRepo := node.NewYAMLRepository(config.ResolveNodesPath(cfg, flags.targetDir))
 
 	// Load all nodes
 	nodes, err := nodeRepo.LoadAll()

@@ -54,12 +54,12 @@ Examples:
 func runCreate(id string, flags *createFlags) error {
 	// Verify project exists
 	configRepo := config.NewYAMLRepository(flags.targetDir)
-	_, err := configRepo.Load()
+	cfg, err := configRepo.Load()
 	if err != nil {
 		return fmt.Errorf(".deco directory not found or invalid: %w", err)
 	}
 
-	nodeRepo := node.NewYAMLRepository(flags.targetDir)
+	nodeRepo := node.NewYAMLRepository(config.ResolveNodesPath(cfg, flags.targetDir))
 
 	// Check if node already exists
 	exists, err := nodeRepo.Exists(id)
@@ -91,7 +91,8 @@ func runCreate(id string, flags *createFlags) error {
 	}
 
 	// Log creation in history
-	if err := logCreation(flags.targetDir, newNode); err != nil {
+	historyPath := config.ResolveHistoryPath(cfg, flags.targetDir)
+	if err := logCreation(historyPath, newNode); err != nil {
 		fmt.Printf("Warning: failed to log creation: %v\n", err)
 	}
 
@@ -100,8 +101,8 @@ func runCreate(id string, flags *createFlags) error {
 }
 
 // logCreation adds a creation entry to the history log with content hash
-func logCreation(targetDir string, createdNode domain.Node) error {
-	historyRepo := history.NewYAMLRepository(targetDir)
+func logCreation(historyPath string, createdNode domain.Node) error {
+	historyRepo := history.NewYAMLRepository(historyPath)
 
 	entry := domain.AuditEntry{
 		Timestamp:   time.Now(),

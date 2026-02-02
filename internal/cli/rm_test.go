@@ -217,7 +217,8 @@ func TestRmCommand_RequiresProject(t *testing.T) {
 
 func createTestNode(t *testing.T, dir, id string) {
 	t.Helper()
-	nodeRepo := node.NewYAMLRepository(dir)
+	nodesDir := filepath.Join(dir, ".deco", "nodes")
+	nodeRepo := node.NewYAMLRepository(nodesDir)
 	n := domain.Node{
 		ID:      id,
 		Kind:    "test",

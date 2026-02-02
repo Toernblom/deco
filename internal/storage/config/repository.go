@@ -1,5 +1,7 @@
 package config
 
+import "path/filepath"
+
 // BlockTypeConfig defines validation rules for a custom block type.
 type BlockTypeConfig struct {
 	// RequiredFields lists field names that must be present in block.Data.
@@ -57,4 +59,36 @@ type Repository interface {
 
 	// Save writes the project configuration to storage.
 	Save(config Config) error
+}
+
+// DefaultNodesPath is the default directory for node YAML files.
+const DefaultNodesPath = ".deco/nodes"
+
+// DefaultHistoryPath is the default file path for the audit log.
+const DefaultHistoryPath = ".deco/history.jsonl"
+
+// ResolveNodesPath returns the absolute nodes directory path.
+// Uses config.NodesPath if set, otherwise DefaultNodesPath.
+func ResolveNodesPath(cfg Config, rootDir string) string {
+	path := cfg.NodesPath
+	if path == "" {
+		path = DefaultNodesPath
+	}
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(rootDir, path)
+}
+
+// ResolveHistoryPath returns the absolute history file path.
+// Uses config.HistoryPath if set, otherwise DefaultHistoryPath.
+func ResolveHistoryPath(cfg Config, rootDir string) string {
+	path := cfg.HistoryPath
+	if path == "" {
+		path = DefaultHistoryPath
+	}
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(rootDir, path)
 }

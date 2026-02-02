@@ -47,12 +47,12 @@ Examples:
 func runRm(id string, flags *rmFlags) error {
 	// Verify project exists
 	configRepo := config.NewYAMLRepository(flags.targetDir)
-	_, err := configRepo.Load()
+	cfg, err := configRepo.Load()
 	if err != nil {
 		return fmt.Errorf(".deco directory not found or invalid: %w", err)
 	}
 
-	nodeRepo := node.NewYAMLRepository(flags.targetDir)
+	nodeRepo := node.NewYAMLRepository(config.ResolveNodesPath(cfg, flags.targetDir))
 
 	// Check if node exists
 	exists, err := nodeRepo.Exists(id)
@@ -86,7 +86,8 @@ func runRm(id string, flags *rmFlags) error {
 	}
 
 	// Log deletion in history
-	if err := logDeletion(flags.targetDir, targetNode); err != nil {
+	historyPath := config.ResolveHistoryPath(cfg, flags.targetDir)
+	if err := logDeletion(historyPath, targetNode); err != nil {
 		// Node is already deleted, just warn
 		fmt.Printf("Warning: failed to log deletion: %v\n", err)
 	}
@@ -118,8 +119,8 @@ func findReverseRefs(nodeRepo *node.YAMLRepository, targetID string) ([]string, 
 }
 
 // logDeletion adds a deletion entry to the history log with content hash
-func logDeletion(targetDir string, deletedNode domain.Node) error {
-	historyRepo := history.NewYAMLRepository(targetDir)
+func logDeletion(historyPath string, deletedNode domain.Node) error {
+	historyRepo := history.NewYAMLRepository(historyPath)
 
 	entry := domain.AuditEntry{
 		Timestamp:   time.Now(),
