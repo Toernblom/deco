@@ -823,6 +823,403 @@ func TestConstraintValidator_ScopeWithMultipleConstraints(t *testing.T) {
 	}
 }
 
+// ===== ENHANCED CEL CONSTRAINT TESTS =====
+// Tests for SPEC-required capabilities: self, refs, allNodes, custom
+
+// Test accessing custom fields via self.custom.fieldname
+func TestConstraintValidator_SelfCustomAccess(t *testing.T) {
+	cv := validator.NewConstraintValidator()
+
+	node := domain.Node{
+		ID:      "systems/food",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Food System",
+		Custom: map[string]interface{}{
+			"starvation_time": 100,
+			"hunger_rate":     5,
+		},
+		Constraints: []domain.Constraint{
+			{
+				Expr:    "self.custom.starvation_time > 50",
+				Message: "Starvation time must be greater than 50",
+				Scope:   "all",
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, []domain.Node{node}, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for valid custom field constraint, got %d: %v", collector.Count(), collector.Errors())
+	}
+}
+
+// Test accessing custom fields directly via self (merged at top level)
+func TestConstraintValidator_SelfDirectCustomAccess(t *testing.T) {
+	cv := validator.NewConstraintValidator()
+
+	node := domain.Node{
+		ID:      "systems/food",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Food System",
+		Custom: map[string]interface{}{
+			"starvation_time": 100,
+		},
+		Constraints: []domain.Constraint{
+			{
+				// Access custom field directly from self (merged at top level)
+				Expr:    "self.starvation_time == 100",
+				Message: "Starvation time must be 100",
+				Scope:   "all",
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, []domain.Node{node}, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for direct custom field access, got %d: %v", collector.Count(), collector.Errors())
+	}
+}
+
+// Test failing custom field constraint
+func TestConstraintValidator_SelfCustomAccessFailing(t *testing.T) {
+	cv := validator.NewConstraintValidator()
+
+	node := domain.Node{
+		ID:      "systems/food",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Food System",
+		Custom: map[string]interface{}{
+			"starvation_time": 30, // Too low
+		},
+		Constraints: []domain.Constraint{
+			{
+				Expr:    "self.custom.starvation_time > 50",
+				Message: "Starvation time must be greater than 50",
+				Scope:   "all",
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, []domain.Node{node}, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for failing custom field constraint")
+	}
+
+	errs := collector.Errors()
+	if errs[0].Code != "E041" {
+		t.Errorf("expected error code E041, got %s", errs[0].Code)
+	}
+}
+
+// Test accessing other nodes via refs['node-id']
+func TestConstraintValidator_RefsLookup(t *testing.T) {
+	cv := validator.NewConstraintValidator()
+
+	foodSystem := domain.Node{
+		ID:      "systems/food",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Food System",
+		Custom: map[string]interface{}{
+			"starvation_time": 100,
+		},
+	}
+
+	colonist := domain.Node{
+		ID:      "entities/colonist",
+		Kind:    "entity",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Colonist",
+		Custom: map[string]interface{}{
+			"food_threshold": 100, // Matches starvation_time
+		},
+		Constraints: []domain.Constraint{
+			{
+				// SPEC example: check that colonist's food threshold matches food system's starvation time
+				Expr:    `self.custom.food_threshold == refs["systems/food"].custom.starvation_time`,
+				Message: "Food threshold must match starvation time in food system",
+				Scope:   "all",
+			},
+		},
+	}
+
+	allNodes := []domain.Node{foodSystem, colonist}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&colonist, allNodes, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for valid refs lookup constraint, got %d: %v", collector.Count(), collector.Errors())
+	}
+}
+
+// Test refs lookup with mismatched values
+func TestConstraintValidator_RefsLookupFailing(t *testing.T) {
+	cv := validator.NewConstraintValidator()
+
+	foodSystem := domain.Node{
+		ID:      "systems/food",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Food System",
+		Custom: map[string]interface{}{
+			"starvation_time": 100,
+		},
+	}
+
+	colonist := domain.Node{
+		ID:      "entities/colonist",
+		Kind:    "entity",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Colonist",
+		Custom: map[string]interface{}{
+			"food_threshold": 50, // Does NOT match starvation_time
+		},
+		Constraints: []domain.Constraint{
+			{
+				Expr:    `self.custom.food_threshold == refs["systems/food"].custom.starvation_time`,
+				Message: "Food threshold must match starvation time in food system",
+				Scope:   "all",
+			},
+		},
+	}
+
+	allNodes := []domain.Node{foodSystem, colonist}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&colonist, allNodes, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for mismatched refs lookup")
+	}
+
+	errs := collector.Errors()
+	if errs[0].Code != "E041" {
+		t.Errorf("expected error code E041, got %s", errs[0].Code)
+	}
+}
+
+// Test allNodes variable for cross-node constraints
+func TestConstraintValidator_AllNodesAccess(t *testing.T) {
+	cv := validator.NewConstraintValidator()
+
+	node1 := domain.Node{
+		ID:      "node1",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Node 1",
+	}
+
+	node2 := domain.Node{
+		ID:      "node2",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Node 2",
+	}
+
+	checker := domain.Node{
+		ID:      "checker",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Checker Node",
+		Constraints: []domain.Constraint{
+			{
+				// Check that there are at least 2 other nodes
+				Expr:    "size(allNodes) >= 3",
+				Message: "Must have at least 3 nodes total",
+				Scope:   "all",
+			},
+		},
+	}
+
+	allNodes := []domain.Node{node1, node2, checker}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&checker, allNodes, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for valid allNodes constraint, got %d: %v", collector.Count(), collector.Errors())
+	}
+}
+
+// Test allNodes with existence check
+func TestConstraintValidator_AllNodesExistenceCheck(t *testing.T) {
+	cv := validator.NewConstraintValidator()
+
+	foodSystem := domain.Node{
+		ID:      "systems/food",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Food System",
+	}
+
+	colonist := domain.Node{
+		ID:      "entities/colonist",
+		Kind:    "entity",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Colonist",
+		Refs: domain.Ref{
+			Uses: []domain.RefLink{{Target: "systems/food"}},
+		},
+		Constraints: []domain.Constraint{
+			{
+				// Check that all used refs exist in allNodes
+				Expr:    `allNodes.exists(n, n.id == "systems/food")`,
+				Message: "Referenced systems/food must exist",
+				Scope:   "all",
+			},
+		},
+	}
+
+	allNodes := []domain.Node{foodSystem, colonist}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&colonist, allNodes, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for valid existence check, got %d: %v", collector.Count(), collector.Errors())
+	}
+}
+
+// Test accessing custom variable directly (top-level shortcut)
+func TestConstraintValidator_CustomVariableAccess(t *testing.T) {
+	cv := validator.NewConstraintValidator()
+
+	node := domain.Node{
+		ID:      "systems/food",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Food System",
+		Custom: map[string]interface{}{
+			"starvation_time": 100,
+		},
+		Constraints: []domain.Constraint{
+			{
+				// Access custom via top-level custom variable
+				Expr:    "custom.starvation_time > 50",
+				Message: "Starvation time must be greater than 50",
+				Scope:   "all",
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, []domain.Node{node}, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for valid custom variable access, got %d: %v", collector.Count(), collector.Errors())
+	}
+}
+
+// Test nested custom field access
+func TestConstraintValidator_NestedCustomAccess(t *testing.T) {
+	cv := validator.NewConstraintValidator()
+
+	node := domain.Node{
+		ID:      "entities/colonist",
+		Kind:    "entity",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Colonist",
+		Custom: map[string]interface{}{
+			"needs": map[string]interface{}{
+				"food": map[string]interface{}{
+					"threshold": 100,
+				},
+			},
+		},
+		Constraints: []domain.Constraint{
+			{
+				// Access deeply nested custom field
+				Expr:    "self.needs.food.threshold == 100",
+				Message: "Food threshold must be 100",
+				Scope:   "all",
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&node, []domain.Node{node}, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for nested custom access, got %d: %v", collector.Count(), collector.Errors())
+	}
+}
+
+// Test the full SPEC example constraint pattern
+func TestConstraintValidator_SpecExamplePattern(t *testing.T) {
+	cv := validator.NewConstraintValidator()
+
+	// SPEC example: self.needs.food.threshold == refs['systems/food'].starvation_time
+	foodSystem := domain.Node{
+		ID:      "systems/food",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Food System",
+		Custom: map[string]interface{}{
+			"starvation_time": 100,
+		},
+	}
+
+	colonist := domain.Node{
+		ID:      "entities/colonist",
+		Kind:    "entity",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Colonist",
+		Custom: map[string]interface{}{
+			"needs": map[string]interface{}{
+				"food": map[string]interface{}{
+					"threshold": 100,
+				},
+			},
+		},
+		Refs: domain.Ref{
+			Uses: []domain.RefLink{{Target: "systems/food"}},
+		},
+		Constraints: []domain.Constraint{
+			{
+				// SPEC example pattern (adapted for our implementation)
+				Expr:    `self.needs.food.threshold == refs["systems/food"].starvation_time`,
+				Message: "Food threshold must match starvation time in food system",
+				Scope:   "all",
+			},
+		},
+	}
+
+	allNodes := []domain.Node{foodSystem, colonist}
+
+	collector := errors.NewCollectorWithLimit(100)
+	cv.Validate(&colonist, allNodes, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for SPEC example pattern, got %d: %v", collector.Count(), collector.Errors())
+	}
+}
+
 // ===== VALIDATOR ORCHESTRATOR TESTS =====
 
 // Test orchestrator runs all validators

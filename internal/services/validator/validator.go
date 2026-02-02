@@ -280,13 +280,24 @@ type ConstraintValidator struct {
 // NewConstraintValidator creates a new constraint validator.
 func NewConstraintValidator() *ConstraintValidator {
 	// Create a shared CEL environment - this is expensive so we do it once
+	// We expose:
+	// - Basic fields: id, kind, version, status, title, tags (for backward compatibility)
+	// - self: The full node as a map, including custom fields accessible as self.custom.fieldname
+	// - refs: A map of all nodes indexed by ID, allowing refs['node-id'].field access
+	// - allNodes: A list of all nodes for cross-node constraints
 	env, err := cel.NewEnv(
+		// Basic fields (backward compatibility)
 		cel.Variable("id", cel.StringType),
 		cel.Variable("kind", cel.StringType),
 		cel.Variable("version", cel.IntType),
 		cel.Variable("status", cel.StringType),
 		cel.Variable("title", cel.StringType),
 		cel.Variable("tags", cel.ListType(cel.StringType)),
+		// Extended fields for SPEC compliance
+		cel.Variable("self", cel.MapType(cel.StringType, cel.DynType)),
+		cel.Variable("refs", cel.MapType(cel.StringType, cel.DynType)),
+		cel.Variable("allNodes", cel.ListType(cel.MapType(cel.StringType, cel.DynType))),
+		cel.Variable("custom", cel.MapType(cel.StringType, cel.DynType)),
 	)
 	if err != nil {
 		// Should never happen with our static variable definitions
@@ -318,7 +329,7 @@ func (cv *ConstraintValidator) Validate(node *domain.Node, allNodes []domain.Nod
 			continue
 		}
 
-		if err := cv.evaluateConstraint(node, constraint, location, collector); err != nil {
+		if err := cv.evaluateConstraint(node, allNodes, constraint, location, collector); err != nil {
 			// If there's an error parsing or evaluating the CEL expression,
 			// add it as an E042 error (CEL expression error)
 			collector.Add(domain.DecoError{
@@ -358,22 +369,151 @@ func (cv *ConstraintValidator) matchesScope(scope string, node *domain.Node) boo
 	return false
 }
 
-// evaluateConstraint evaluates a single constraint using CEL
-func (cv *ConstraintValidator) evaluateConstraint(node *domain.Node, constraint domain.Constraint, location *domain.Location, collector *errors.Collector) error {
-	// Get or compile the program (cached)
-	prg, err := cv.getOrCompileProgram(constraint.Expr)
-	if err != nil {
-		return err
+// nodeToMap converts a domain.Node to a map suitable for CEL evaluation.
+// This allows CEL expressions to access all node fields including custom data.
+func nodeToMap(node *domain.Node) map[string]interface{} {
+	if node == nil {
+		return nil
 	}
 
-	// Prepare input data
-	inputData := map[string]interface{}{
+	m := map[string]interface{}{
 		"id":      node.ID,
 		"kind":    node.Kind,
 		"version": int64(node.Version),
 		"status":  node.Status,
 		"title":   node.Title,
 		"tags":    node.Tags,
+	}
+
+	// Add custom fields
+	if node.Custom != nil {
+		m["custom"] = node.Custom
+		// Also merge custom fields at top level for convenience (self.fieldname access)
+		for k, v := range node.Custom {
+			if _, exists := m[k]; !exists {
+				m[k] = v
+			}
+		}
+	} else {
+		m["custom"] = map[string]interface{}{}
+	}
+
+	// Add refs as a structured map
+	refsMap := map[string]interface{}{
+		"uses":         refLinksToList(node.Refs.Uses),
+		"related":      refLinksToList(node.Refs.Related),
+		"emits_events": node.Refs.EmitsEvents,
+		"vocabulary":   node.Refs.Vocabulary,
+	}
+	m["refs"] = refsMap
+
+	// Add content if present
+	if node.Content != nil {
+		m["content"] = contentToMap(node.Content)
+	}
+
+	// Add summary if present
+	if node.Summary != "" {
+		m["summary"] = node.Summary
+	}
+
+	// Add glossary if present
+	if node.Glossary != nil {
+		m["glossary"] = node.Glossary
+	}
+
+	return m
+}
+
+// refLinksToList converts a slice of RefLink to a list of maps for CEL.
+func refLinksToList(links []domain.RefLink) []interface{} {
+	result := make([]interface{}, len(links))
+	for i, link := range links {
+		result[i] = map[string]interface{}{
+			"target":   link.Target,
+			"context":  link.Context,
+			"resolved": link.Resolved,
+		}
+	}
+	return result
+}
+
+// contentToMap converts Content to a map for CEL.
+func contentToMap(content *domain.Content) map[string]interface{} {
+	if content == nil {
+		return nil
+	}
+	sections := make([]interface{}, len(content.Sections))
+	for i, section := range content.Sections {
+		blocks := make([]interface{}, len(section.Blocks))
+		for j, block := range section.Blocks {
+			blockMap := map[string]interface{}{
+				"type": block.Type,
+			}
+			for k, v := range block.Data {
+				blockMap[k] = v
+			}
+			blocks[j] = blockMap
+		}
+		sections[i] = map[string]interface{}{
+			"name":   section.Name,
+			"blocks": blocks,
+		}
+	}
+	return map[string]interface{}{
+		"sections": sections,
+	}
+}
+
+// buildRefsLookup creates a map of all nodes indexed by ID for refs['node-id'] access.
+func buildRefsLookup(allNodes []domain.Node) map[string]interface{} {
+	lookup := make(map[string]interface{})
+	for i := range allNodes {
+		lookup[allNodes[i].ID] = nodeToMap(&allNodes[i])
+	}
+	return lookup
+}
+
+// buildAllNodesList creates a list of all nodes as maps for allNodes variable.
+func buildAllNodesList(allNodes []domain.Node) []interface{} {
+	result := make([]interface{}, len(allNodes))
+	for i := range allNodes {
+		result[i] = nodeToMap(&allNodes[i])
+	}
+	return result
+}
+
+// evaluateConstraint evaluates a single constraint using CEL
+func (cv *ConstraintValidator) evaluateConstraint(node *domain.Node, allNodes []domain.Node, constraint domain.Constraint, location *domain.Location, collector *errors.Collector) error {
+	// Get or compile the program (cached)
+	prg, err := cv.getOrCompileProgram(constraint.Expr)
+	if err != nil {
+		return err
+	}
+
+	// Convert current node to map
+	selfMap := nodeToMap(node)
+
+	// Prepare custom map (empty if nil)
+	customMap := map[string]interface{}{}
+	if node.Custom != nil {
+		customMap = node.Custom
+	}
+
+	// Prepare input data with all CEL variables
+	inputData := map[string]interface{}{
+		// Basic fields (backward compatibility)
+		"id":      node.ID,
+		"kind":    node.Kind,
+		"version": int64(node.Version),
+		"status":  node.Status,
+		"title":   node.Title,
+		"tags":    node.Tags,
+		// Extended fields
+		"self":     selfMap,
+		"refs":     buildRefsLookup(allNodes),
+		"allNodes": buildAllNodesList(allNodes),
+		"custom":   customMap,
 	}
 
 	// Evaluate the expression
