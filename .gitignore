@@ -29,6 +29,9 @@ go.work
 # Claude Code local settings
 .claude/settings.local.json
 
+# Docker environment (contains API keys)
+.env
+
 # OS files
 .DS_Store
 Thumbs.db
