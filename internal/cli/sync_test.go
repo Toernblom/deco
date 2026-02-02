@@ -657,7 +657,298 @@ title: Broken Node
 	})
 }
 
+func TestRunSync_RenameDetection(t *testing.T) {
+	t.Run("detects manual rename and updates references", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectForSyncWithRefs(t, tmpDir)
+
+		// Create history for old ID (gameplay-001)
+		nodesDir := filepath.Join(tmpDir, ".deco", "nodes")
+		nodeRepo := node.NewYAMLRepository(nodesDir)
+
+		// Load combat-001 (which was renamed from gameplay-001) to get its hash
+		combat, _ := nodeRepo.Load("combat-001")
+		combatHash := ComputeContentHash(combat)
+
+		// Write history as if gameplay-001 existed with the same content hash
+		historyPath := filepath.Join(tmpDir, ".deco", "history.jsonl")
+		historyContent := fmt.Sprintf(`{"timestamp":"2026-01-01T00:00:00Z","node_id":"gameplay-001","operation":"create","user":"test","content_hash":"%s"}
+{"timestamp":"2026-01-01T00:00:00Z","node_id":"player-001","operation":"create","user":"test","content_hash":"abc123def456"}
+`, combatHash)
+		os.WriteFile(historyPath, []byte(historyContent), 0644)
+
+		flags := &syncFlags{targetDir: tmpDir, quiet: false}
+		exitCode, err := runSync(flags)
+
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if exitCode != syncExitModified {
+			t.Errorf("Expected exit code %d (rename detected), got %d", syncExitModified, exitCode)
+		}
+
+		// Verify player-001 had its reference updated from gameplay-001 to combat-001
+		player, err := nodeRepo.Load("player-001")
+		if err != nil {
+			t.Fatalf("Failed to load player-001: %v", err)
+		}
+
+		if len(player.Refs.Uses) == 0 {
+			t.Fatal("Expected player-001 to have Uses references")
+		}
+		if player.Refs.Uses[0].Target != "combat-001" {
+			t.Errorf("Expected reference updated to combat-001, got %s", player.Refs.Uses[0].Target)
+		}
+
+		// Verify version was bumped
+		if player.Version != 2 {
+			t.Errorf("Expected player version to be bumped to 2, got %d", player.Version)
+		}
+
+		// Verify move operation was logged
+		historyContent2, _ := os.ReadFile(historyPath)
+		historyStr := string(historyContent2)
+		if !strings.Contains(historyStr, `"operation":"move"`) {
+			t.Error("Expected move operation in history")
+		}
+		if !strings.Contains(historyStr, `"node_id":"combat-001"`) {
+			t.Error("Expected combat-001 in move history entry")
+		}
+	})
+
+	t.Run("dry-run shows rename without applying", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectForSyncWithRefs(t, tmpDir)
+
+		nodesDir := filepath.Join(tmpDir, ".deco", "nodes")
+		nodeRepo := node.NewYAMLRepository(nodesDir)
+		combat, _ := nodeRepo.Load("combat-001")
+		combatHash := ComputeContentHash(combat)
+
+		historyPath := filepath.Join(tmpDir, ".deco", "history.jsonl")
+		historyContent := fmt.Sprintf(`{"timestamp":"2026-01-01T00:00:00Z","node_id":"gameplay-001","operation":"create","user":"test","content_hash":"%s"}
+{"timestamp":"2026-01-01T00:00:00Z","node_id":"player-001","operation":"create","user":"test","content_hash":"abc123def456"}
+`, combatHash)
+		os.WriteFile(historyPath, []byte(historyContent), 0644)
+
+		flags := &syncFlags{targetDir: tmpDir, dryRun: true, quiet: true}
+		exitCode, err := runSync(flags)
+
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if exitCode != syncExitModified {
+			t.Errorf("Expected exit code %d for dry-run with rename, got %d", syncExitModified, exitCode)
+		}
+
+		// Verify player-001 was NOT modified
+		player, _ := nodeRepo.Load("player-001")
+		if player.Refs.Uses[0].Target != "gameplay-001" {
+			t.Error("Dry-run should not update references")
+		}
+		if player.Version != 1 {
+			t.Error("Dry-run should not bump version")
+		}
+	})
+
+	t.Run("no-refactor flag skips reference updates", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectForSyncWithRefs(t, tmpDir)
+
+		nodesDir := filepath.Join(tmpDir, ".deco", "nodes")
+		nodeRepo := node.NewYAMLRepository(nodesDir)
+		combat, _ := nodeRepo.Load("combat-001")
+		combatHash := ComputeContentHash(combat)
+
+		historyPath := filepath.Join(tmpDir, ".deco", "history.jsonl")
+		historyContent := fmt.Sprintf(`{"timestamp":"2026-01-01T00:00:00Z","node_id":"gameplay-001","operation":"create","user":"test","content_hash":"%s"}
+{"timestamp":"2026-01-01T00:00:00Z","node_id":"player-001","operation":"create","user":"test","content_hash":"abc123def456"}
+`, combatHash)
+		os.WriteFile(historyPath, []byte(historyContent), 0644)
+
+		flags := &syncFlags{targetDir: tmpDir, noRefactor: true, quiet: true}
+		exitCode, err := runSync(flags)
+
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		// Should still return modified because rename was detected
+		if exitCode != syncExitModified {
+			t.Errorf("Expected exit code %d, got %d", syncExitModified, exitCode)
+		}
+
+		// Verify player-001 was NOT modified (no-refactor)
+		player, _ := nodeRepo.Load("player-001")
+		if player.Refs.Uses[0].Target != "gameplay-001" {
+			t.Error("--no-refactor should not update references")
+		}
+	})
+
+	t.Run("no false positive on genuine new nodes", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectForSync(t, tmpDir)
+
+		// Create history for existing node only
+		nodesDir := filepath.Join(tmpDir, ".deco", "nodes")
+		nodeRepo := node.NewYAMLRepository(nodesDir)
+		n, _ := nodeRepo.Load("sword-001")
+		hash := ComputeContentHash(n)
+
+		historyPath := filepath.Join(tmpDir, ".deco", "history.jsonl")
+		historyContent := fmt.Sprintf(`{"timestamp":"2026-01-01T00:00:00Z","node_id":"sword-001","operation":"create","user":"test","content_hash":"%s"}
+`, hash)
+		os.WriteFile(historyPath, []byte(historyContent), 0644)
+
+		// Add a genuinely new node with different content
+		newNodeYAML := `id: shield-001
+kind: item
+version: 1
+status: draft
+title: Iron Shield
+summary: A basic iron shield
+tags:
+  - armor
+  - defense
+`
+		newNodePath := filepath.Join(nodesDir, "shield-001.yaml")
+		os.WriteFile(newNodePath, []byte(newNodeYAML), 0644)
+
+		flags := &syncFlags{targetDir: tmpDir, quiet: true}
+		exitCode, err := runSync(flags)
+
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		// Should return clean (baseline doesn't count as modified)
+		if exitCode != syncExitClean {
+			t.Errorf("Expected exit code %d, got %d", syncExitClean, exitCode)
+		}
+
+		// Verify shield-001 was baselined (not treated as rename)
+		historyContent2, _ := os.ReadFile(historyPath)
+		historyStr := string(historyContent2)
+		if !strings.Contains(historyStr, `"node_id":"shield-001"`) {
+			t.Error("Expected shield-001 to be baselined")
+		}
+		if !strings.Contains(historyStr, `"operation":"baseline"`) {
+			t.Error("Expected baseline operation for new node")
+		}
+		// Should NOT have move operation
+		if strings.Contains(historyStr, `"operation":"move"`) {
+			t.Error("Should not detect move for genuinely new node")
+		}
+	})
+
+	t.Run("rename with no references to update", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectForSync(t, tmpDir)
+
+		nodesDir := filepath.Join(tmpDir, ".deco", "nodes")
+		nodeRepo := node.NewYAMLRepository(nodesDir)
+
+		// Rename sword-001 to blade-001 manually
+		swordContent, _ := os.ReadFile(filepath.Join(nodesDir, "sword-001.yaml"))
+		bladeContent := strings.Replace(string(swordContent), "id: sword-001", "id: blade-001", 1)
+		os.WriteFile(filepath.Join(nodesDir, "blade-001.yaml"), []byte(bladeContent), 0644)
+		os.Remove(filepath.Join(nodesDir, "sword-001.yaml"))
+
+		// Create history for old ID
+		blade, _ := nodeRepo.Load("blade-001")
+		bladeHash := ComputeContentHash(blade)
+
+		historyPath := filepath.Join(tmpDir, ".deco", "history.jsonl")
+		historyContent := fmt.Sprintf(`{"timestamp":"2026-01-01T00:00:00Z","node_id":"sword-001","operation":"create","user":"test","content_hash":"%s"}
+`, bladeHash)
+		os.WriteFile(historyPath, []byte(historyContent), 0644)
+
+		flags := &syncFlags{targetDir: tmpDir, quiet: true}
+		exitCode, err := runSync(flags)
+
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if exitCode != syncExitModified {
+			t.Errorf("Expected exit code %d, got %d", syncExitModified, exitCode)
+		}
+
+		// Verify move operation was logged
+		historyContent2, _ := os.ReadFile(historyPath)
+		historyStr := string(historyContent2)
+		if !strings.Contains(historyStr, `"operation":"move"`) {
+			t.Error("Expected move operation in history")
+		}
+	})
+}
+
+func TestSyncCommand_NoRefactorFlag(t *testing.T) {
+	t.Run("has no-refactor flag", func(t *testing.T) {
+		cmd := NewSyncCommand()
+		flag := cmd.Flags().Lookup("no-refactor")
+		if flag == nil {
+			t.Fatal("Expected --no-refactor flag to be defined")
+		}
+	})
+}
+
 // Test helpers
+
+func setupProjectForSyncWithRefs(t *testing.T, dir string) {
+	t.Helper()
+
+	// Create .deco structure
+	decoDir := filepath.Join(dir, ".deco")
+	nodesDir := filepath.Join(decoDir, "nodes")
+	if err := os.MkdirAll(nodesDir, 0755); err != nil {
+		t.Fatalf("Failed to create nodes directory: %v", err)
+	}
+
+	// Create config.yaml
+	configYAML := `version: 1
+project_name: sync-test-project
+nodes_path: .deco/nodes
+history_path: .deco/history.jsonl
+`
+	configPath := filepath.Join(decoDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("Failed to create config.yaml: %v", err)
+	}
+
+	// Create combat-001 (simulating a rename from gameplay-001)
+	combatYAML := `id: combat-001
+kind: mechanic
+version: 1
+status: draft
+title: Combat System
+summary: Core combat mechanics
+tags:
+  - mechanic
+  - combat
+`
+	combatPath := filepath.Join(nodesDir, "combat-001.yaml")
+	if err := os.WriteFile(combatPath, []byte(combatYAML), 0644); err != nil {
+		t.Fatalf("Failed to create combat node: %v", err)
+	}
+
+	// Create player-001 with reference to old ID (gameplay-001)
+	playerYAML := `id: player-001
+kind: entity
+version: 1
+status: draft
+title: Player Character
+summary: The player's character
+tags:
+  - entity
+  - player
+refs:
+  uses:
+    - target: gameplay-001
+      context: uses gameplay mechanics
+`
+	playerPath := filepath.Join(nodesDir, "player-001.yaml")
+	if err := os.WriteFile(playerPath, []byte(playerYAML), 0644); err != nil {
+		t.Fatalf("Failed to create player node: %v", err)
+	}
+}
 
 func setupProjectForSync(t *testing.T, dir string) {
 	t.Helper()

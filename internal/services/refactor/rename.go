@@ -186,6 +186,76 @@ func copyNode(n domain.Node) domain.Node {
 	return copy
 }
 
+// UpdateReferences updates all references from oldID to newID across all nodes.
+// Unlike Rename, this does not require oldID to exist as a node - useful for
+// detecting manual renames where the old node file was already deleted/renamed.
+// Returns a new slice with updated references. Nodes whose references were
+// updated will have their version incremented.
+func (r *Renamer) UpdateReferences(nodes []domain.Node, oldID, newID string) ([]domain.Node, error) {
+	if nodes == nil {
+		return nil, fmt.Errorf("nodes slice cannot be nil")
+	}
+	if oldID == "" {
+		return nil, fmt.Errorf("oldID cannot be empty")
+	}
+	if newID == "" {
+		return nil, fmt.Errorf("newID cannot be empty")
+	}
+	if oldID == newID {
+		return nil, fmt.Errorf("newID must be different from oldID")
+	}
+
+	// Create deep copy of nodes
+	result := make([]domain.Node, len(nodes))
+	for i, node := range nodes {
+		result[i] = copyNode(node)
+	}
+
+	// Update all references pointing to oldID
+	for i := range result {
+		updated := false
+
+		// Update Uses references
+		for j := range result[i].Refs.Uses {
+			if result[i].Refs.Uses[j].Target == oldID {
+				result[i].Refs.Uses[j].Target = newID
+				updated = true
+			}
+		}
+
+		// Update Related references
+		for j := range result[i].Refs.Related {
+			if result[i].Refs.Related[j].Target == oldID {
+				result[i].Refs.Related[j].Target = newID
+				updated = true
+			}
+		}
+
+		// Update EmitsEvents references
+		for j := range result[i].Refs.EmitsEvents {
+			if result[i].Refs.EmitsEvents[j] == oldID {
+				result[i].Refs.EmitsEvents[j] = newID
+				updated = true
+			}
+		}
+
+		// Update Vocabulary references
+		for j := range result[i].Refs.Vocabulary {
+			if result[i].Refs.Vocabulary[j] == oldID {
+				result[i].Refs.Vocabulary[j] = newID
+				updated = true
+			}
+		}
+
+		// Increment version if this node's references were updated
+		if updated {
+			result[i].Version++
+		}
+	}
+
+	return result, nil
+}
+
 // copyRef creates a deep copy of a Ref.
 func copyRef(r domain.Ref) domain.Ref {
 	copy := domain.Ref{}

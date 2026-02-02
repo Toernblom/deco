@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Toernblom/deco/internal/domain"
+	"github.com/Toernblom/deco/internal/services/refactor"
 	"github.com/Toernblom/deco/internal/storage/config"
 	"github.com/Toernblom/deco/internal/storage/history"
 	"github.com/Toernblom/deco/internal/storage/node"
@@ -16,6 +17,7 @@ import (
 type syncFlags struct {
 	dryRun    bool
 	quiet     bool
+	noRefactor bool
 	targetDir string
 }
 
@@ -44,6 +46,12 @@ comparing content hashes and:
 3. Clears reviewers
 4. Logs the sync operation to history
 
+Rename Detection:
+When files are manually renamed (bypassing 'deco mv'), sync detects this
+by matching content hashes of orphan nodes (no history) to missing nodes
+(history but no file). Detected renames automatically update references
+in other nodes. Use --no-refactor to skip automatic reference updates.
+
 Nodes without history are automatically baselined (their current state
 is recorded without modification).
 
@@ -55,6 +63,7 @@ Exit codes:
 Examples:
   deco sync              # Sync nodes in current directory
   deco sync --dry-run    # Show what would change
+  deco sync --no-refactor # Skip automatic reference updates for renames
   deco sync /path/to/project`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -74,8 +83,16 @@ Examples:
 
 	cmd.Flags().BoolVar(&flags.dryRun, "dry-run", false, "Show what would change without applying")
 	cmd.Flags().BoolVarP(&flags.quiet, "quiet", "q", false, "Suppress output")
+	cmd.Flags().BoolVar(&flags.noRefactor, "no-refactor", false, "Skip automatic reference updates for detected renames")
 
 	return cmd
+}
+
+// renameDetection holds info about a detected manual rename
+type renameDetection struct {
+	oldID       string
+	newID       string
+	contentHash string
 }
 
 // syncResult holds info about a synced node
@@ -115,8 +132,11 @@ func runSync(flags *syncFlags) (int, error) {
 	}
 
 	nodeRepo := node.NewYAMLRepository(nodesPath)
-	var syncResults []syncResult
-	var baselinedNodes []string
+
+	// Phase 1: Load all nodes and detect renames
+	var allNodes []domain.Node
+	loadedNodeIDs := make(map[string]bool)
+	orphanNodes := make(map[string]domain.Node) // nodes with no history (keyed by content hash)
 	var errors []string
 
 	for _, nodePath := range nodePaths {
@@ -134,21 +154,145 @@ func runSync(flags *syncFlags) (int, error) {
 			continue
 		}
 
+		allNodes = append(allNodes, currentNode)
+		loadedNodeIDs[currentNode.ID] = true
+
+		// Check if this node has history
+		if latestHashes[currentNode.ID] == "" {
+			// No history - this is either a new node or a renamed node
+			contentHash := ComputeContentHash(currentNode)
+			orphanNodes[contentHash] = currentNode
+		}
+	}
+
+	// Find missing node IDs (history entries with no matching file)
+	missingNodeHashes := make(map[string]string) // oldID -> last content hash
+	for nodeID, hash := range latestHashes {
+		if !loadedNodeIDs[nodeID] {
+			missingNodeHashes[nodeID] = hash
+		}
+	}
+
+	// Detect renames by matching orphan content hashes to missing node hashes
+	var detectedRenames []renameDetection
+	for oldID, oldHash := range missingNodeHashes {
+		if orphanNode, found := orphanNodes[oldHash]; found {
+			// Content hash matches - this is a rename!
+			detectedRenames = append(detectedRenames, renameDetection{
+				oldID:       oldID,
+				newID:       orphanNode.ID,
+				contentHash: oldHash,
+			})
+			// Remove from orphan map so it won't be baselined
+			delete(orphanNodes, oldHash)
+		}
+	}
+
+	// Phase 2: Apply rename refactoring
+	var renameResults []string
+	var refUpdatedNodes map[string]bool // track which nodes had refs updated
+
+	if len(detectedRenames) > 0 && !flags.noRefactor {
+		refUpdatedNodes = make(map[string]bool)
+		renamer := refactor.NewRenamer()
+
+		for _, rename := range detectedRenames {
+			// Update references across all nodes
+			updatedNodes, err := renamer.UpdateReferences(allNodes, rename.oldID, rename.newID)
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("failed to update references for rename %s→%s: %v", rename.oldID, rename.newID, err))
+				if !flags.quiet {
+					fmt.Fprintf(os.Stderr, "Error: failed to update references for rename %s→%s: %v\n", rename.oldID, rename.newID, err)
+				}
+				continue
+			}
+
+			// Find which nodes were updated (version changed)
+			var updatedIDs []string
+			for i, updated := range updatedNodes {
+				if updated.Version != allNodes[i].Version {
+					updatedIDs = append(updatedIDs, updated.ID)
+					refUpdatedNodes[updated.ID] = true
+				}
+			}
+
+			// Apply updates to allNodes for subsequent renames
+			allNodes = updatedNodes
+
+			if !flags.dryRun {
+				// Save nodes whose references were updated
+				for _, updated := range updatedNodes {
+					if refUpdatedNodes[updated.ID] {
+						if err := nodeRepo.Save(updated); err != nil {
+							errors = append(errors, fmt.Sprintf("failed to save %s: %v", updated.ID, err))
+							if !flags.quiet {
+								fmt.Fprintf(os.Stderr, "Error: failed to save %s: %v\n", updated.ID, err)
+							}
+						}
+					}
+				}
+
+				// Log move operation (like deco mv does)
+				if err := logMoveOperation(historyPath, rename.oldID, rename.newID, rename.contentHash); err != nil {
+					errors = append(errors, fmt.Sprintf("failed to log rename %s→%s: %v", rename.oldID, rename.newID, err))
+					if !flags.quiet {
+						fmt.Fprintf(os.Stderr, "Error: failed to log rename %s→%s: %v\n", rename.oldID, rename.newID, err)
+					}
+				}
+			}
+
+			if len(updatedIDs) > 0 {
+				renameResults = append(renameResults, fmt.Sprintf("%s→%s (updated refs in: %s)", rename.oldID, rename.newID, strings.Join(updatedIDs, ", ")))
+			} else {
+				renameResults = append(renameResults, fmt.Sprintf("%s→%s (no refs to update)", rename.oldID, rename.newID))
+			}
+		}
+	} else if len(detectedRenames) > 0 && flags.noRefactor {
+		// Just report detected renames without applying refactor
+		for _, rename := range detectedRenames {
+			renameResults = append(renameResults, fmt.Sprintf("%s→%s (--no-refactor: refs not updated)", rename.oldID, rename.newID))
+		}
+	}
+
+	// Phase 3: Normal sync/baseline for remaining nodes
+	var syncResults []syncResult
+	var baselinedNodes []string
+
+	for _, currentNode := range allNodes {
 		currentHash := ComputeContentHash(currentNode)
-		lastHash := latestHashes[nodeID]
+		lastHash := latestHashes[currentNode.ID]
 
 		if lastHash == "" {
-			// No history - baseline this node
+			// No history - check if this was a detected rename (already handled)
+			wasRenamed := false
+			for _, rename := range detectedRenames {
+				if rename.newID == currentNode.ID {
+					wasRenamed = true
+					break
+				}
+			}
+			if wasRenamed {
+				// Already logged as move operation, skip baseline
+				continue
+			}
+
+			// Genuine new node - baseline it
 			if !flags.dryRun {
-				if err := logBaselineOperation(historyPath, nodeID, currentHash); err != nil {
-					errors = append(errors, fmt.Sprintf("failed to baseline %s: %v", nodeID, err))
+				if err := logBaselineOperation(historyPath, currentNode.ID, currentHash); err != nil {
+					errors = append(errors, fmt.Sprintf("failed to baseline %s: %v", currentNode.ID, err))
 					if !flags.quiet {
-						fmt.Fprintf(os.Stderr, "Error: failed to baseline %s: %v\n", nodeID, err)
+						fmt.Fprintf(os.Stderr, "Error: failed to baseline %s: %v\n", currentNode.ID, err)
 					}
 					continue
 				}
 			}
-			baselinedNodes = append(baselinedNodes, nodeID)
+			baselinedNodes = append(baselinedNodes, currentNode.ID)
+			continue
+		}
+
+		// Skip nodes that had their refs updated by rename refactoring
+		// (they've already been saved with version bump)
+		if refUpdatedNodes != nil && refUpdatedNodes[currentNode.ID] {
 			continue
 		}
 
@@ -166,10 +310,11 @@ func runSync(flags *syncFlags) (int, error) {
 		}
 
 		if !flags.dryRun {
-			if err := applySyncWithHash(historyPath, &currentNode, nodeRepo, currentHash); err != nil {
-				errors = append(errors, fmt.Sprintf("failed to sync %s: %v", nodeID, err))
+			nodeCopy := currentNode // copy for modification
+			if err := applySyncWithHash(historyPath, &nodeCopy, nodeRepo, currentHash); err != nil {
+				errors = append(errors, fmt.Sprintf("failed to sync %s: %v", currentNode.ID, err))
 				if !flags.quiet {
-					fmt.Fprintf(os.Stderr, "Error: failed to sync %s: %v\n", nodeID, err)
+					fmt.Fprintf(os.Stderr, "Error: failed to sync %s: %v\n", currentNode.ID, err)
 				}
 				continue
 			}
@@ -180,6 +325,17 @@ func runSync(flags *syncFlags) (int, error) {
 
 	// Output results
 	if !flags.quiet {
+		if len(renameResults) > 0 {
+			if flags.dryRun {
+				fmt.Println("Would apply renames:")
+			} else {
+				fmt.Println("Detected renames:")
+			}
+			for _, r := range renameResults {
+				fmt.Printf("  %s\n", r)
+			}
+		}
+
 		if len(baselinedNodes) > 0 {
 			if flags.dryRun {
 				fmt.Printf("Would baseline: %s (%d nodes)\n", strings.Join(baselinedNodes, ", "), len(baselinedNodes))
@@ -211,7 +367,7 @@ func runSync(flags *syncFlags) (int, error) {
 	}
 
 	// Return modified exit code if changes would be (or were) made
-	if len(syncResults) > 0 {
+	if len(syncResults) > 0 || len(renameResults) > 0 {
 		return syncExitModified, nil
 	}
 
@@ -300,4 +456,25 @@ func getLastContentHash(historyPath, nodeID string) string {
 	}
 
 	return ""
+}
+
+// logMoveOperation records a rename detected during sync (manual rename)
+func logMoveOperation(historyPath, oldID, newID, contentHash string) error {
+	historyRepo := history.NewYAMLRepository(historyPath)
+
+	entry := domain.AuditEntry{
+		Timestamp:   time.Now(),
+		NodeID:      newID,
+		Operation:   "move",
+		User:        GetCurrentUser(),
+		ContentHash: contentHash,
+		Before: map[string]interface{}{
+			"id": oldID,
+		},
+		After: map[string]interface{}{
+			"id": newID,
+		},
+	}
+
+	return historyRepo.Append(entry)
 }

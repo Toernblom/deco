@@ -847,3 +847,166 @@ func TestRenamer_DoesNotModifyOriginal(t *testing.T) {
 		t.Errorf("original referrer ref modified from %q to %q", origReferrerRef, original[1].Refs.Uses[0].Target)
 	}
 }
+
+// ===== UpdateReferences TESTS =====
+// These test the UpdateReferences method which updates references without requiring
+// the old node to exist (used for manual rename detection in sync)
+
+func TestRenamer_UpdateReferences_Basic(t *testing.T) {
+	r := refactor.NewRenamer()
+
+	// Note: oldID doesn't exist in the nodes - this is the key difference from Rename
+	nodes := []domain.Node{
+		{ID: "new-target", Kind: "system", Version: 1, Status: "draft", Title: "Target"},
+		{ID: "referrer", Kind: "mechanic", Version: 1, Status: "draft", Title: "Referrer",
+			Refs: domain.Ref{Uses: []domain.RefLink{{Target: "old-target"}}}},
+	}
+
+	result, err := r.UpdateReferences(nodes, "old-target", "new-target")
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	for _, node := range result {
+		if node.ID == "referrer" {
+			if len(node.Refs.Uses) != 1 {
+				t.Fatalf("expected 1 Uses ref, got %d", len(node.Refs.Uses))
+			}
+			if node.Refs.Uses[0].Target != "new-target" {
+				t.Errorf("expected Uses target 'new-target', got %q", node.Refs.Uses[0].Target)
+			}
+			if node.Version != 2 {
+				t.Errorf("expected version incremented to 2, got %d", node.Version)
+			}
+		}
+	}
+}
+
+func TestRenamer_UpdateReferences_AllRefTypes(t *testing.T) {
+	r := refactor.NewRenamer()
+
+	nodes := []domain.Node{
+		{ID: "new-target", Kind: "system", Version: 1, Status: "draft", Title: "Target"},
+		{ID: "referrer", Kind: "system", Version: 1, Status: "draft", Title: "Referrer",
+			Refs: domain.Ref{
+				Uses:        []domain.RefLink{{Target: "old-target"}},
+				Related:     []domain.RefLink{{Target: "old-target"}},
+				EmitsEvents: []string{"old-target"},
+				Vocabulary:  []string{"old-target"},
+			}},
+	}
+
+	result, err := r.UpdateReferences(nodes, "old-target", "new-target")
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	for _, node := range result {
+		if node.ID == "referrer" {
+			if node.Refs.Uses[0].Target != "new-target" {
+				t.Errorf("expected Uses target 'new-target', got %q", node.Refs.Uses[0].Target)
+			}
+			if node.Refs.Related[0].Target != "new-target" {
+				t.Errorf("expected Related target 'new-target', got %q", node.Refs.Related[0].Target)
+			}
+			if node.Refs.EmitsEvents[0] != "new-target" {
+				t.Errorf("expected EmitsEvents 'new-target', got %q", node.Refs.EmitsEvents[0])
+			}
+			if node.Refs.Vocabulary[0] != "new-target" {
+				t.Errorf("expected Vocabulary 'new-target', got %q", node.Refs.Vocabulary[0])
+			}
+			// Version should only increment once
+			if node.Version != 2 {
+				t.Errorf("expected version 2, got %d", node.Version)
+			}
+		}
+	}
+}
+
+func TestRenamer_UpdateReferences_NoRefsToUpdate(t *testing.T) {
+	r := refactor.NewRenamer()
+
+	nodes := []domain.Node{
+		{ID: "node-a", Kind: "system", Version: 1, Status: "draft", Title: "A"},
+		{ID: "node-b", Kind: "system", Version: 1, Status: "draft", Title: "B"},
+	}
+
+	result, err := r.UpdateReferences(nodes, "old-target", "new-target")
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// No versions should change
+	for _, node := range result {
+		if node.Version != 1 {
+			t.Errorf("expected version to remain 1 for %s, got %d", node.ID, node.Version)
+		}
+	}
+}
+
+func TestRenamer_UpdateReferences_ErrorOnNilNodes(t *testing.T) {
+	r := refactor.NewRenamer()
+
+	_, err := r.UpdateReferences(nil, "old", "new")
+
+	if err == nil {
+		t.Fatal("expected error for nil nodes")
+	}
+}
+
+func TestRenamer_UpdateReferences_ErrorOnEmptyOldID(t *testing.T) {
+	r := refactor.NewRenamer()
+
+	nodes := []domain.Node{{ID: "a", Kind: "system", Version: 1, Status: "draft", Title: "A"}}
+	_, err := r.UpdateReferences(nodes, "", "new")
+
+	if err == nil {
+		t.Fatal("expected error for empty oldID")
+	}
+}
+
+func TestRenamer_UpdateReferences_ErrorOnEmptyNewID(t *testing.T) {
+	r := refactor.NewRenamer()
+
+	nodes := []domain.Node{{ID: "a", Kind: "system", Version: 1, Status: "draft", Title: "A"}}
+	_, err := r.UpdateReferences(nodes, "old", "")
+
+	if err == nil {
+		t.Fatal("expected error for empty newID")
+	}
+}
+
+func TestRenamer_UpdateReferences_ErrorOnSameID(t *testing.T) {
+	r := refactor.NewRenamer()
+
+	nodes := []domain.Node{{ID: "a", Kind: "system", Version: 1, Status: "draft", Title: "A"}}
+	_, err := r.UpdateReferences(nodes, "same", "same")
+
+	if err == nil {
+		t.Fatal("expected error for same oldID and newID")
+	}
+}
+
+func TestRenamer_UpdateReferences_DoesNotModifyOriginal(t *testing.T) {
+	r := refactor.NewRenamer()
+
+	original := []domain.Node{
+		{ID: "referrer", Kind: "mechanic", Version: 1, Status: "draft", Title: "Referrer",
+			Refs: domain.Ref{Uses: []domain.RefLink{{Target: "old-target"}}}},
+	}
+
+	origRef := original[0].Refs.Uses[0].Target
+
+	_, err := r.UpdateReferences(original, "old-target", "new-target")
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if original[0].Refs.Uses[0].Target != origRef {
+		t.Errorf("original ref modified from %q to %q", origRef, original[0].Refs.Uses[0].Target)
+	}
+}
