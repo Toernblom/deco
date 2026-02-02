@@ -292,12 +292,13 @@ func logRewriteOperation(targetDir string, oldNode, newNode *domain.Node) error 
 	}
 
 	entry := domain.AuditEntry{
-		Timestamp: time.Now(),
-		NodeID:    newNode.ID,
-		Operation: "rewrite",
-		User:      username,
-		Before:    before,
-		After:     after,
+		Timestamp:   time.Now(),
+		NodeID:      newNode.ID,
+		Operation:   "rewrite",
+		User:        username,
+		ContentHash: ComputeContentHash(*newNode),
+		Before:      before,
+		After:       after,
 	}
 
 	return historyRepo.Append(entry)

@@ -106,6 +106,31 @@ func TestApplyCommand_ApplyPatchFile(t *testing.T) {
 			t.Errorf("Expected summary to be unset, got: %s", nodeYAML)
 		}
 	})
+
+	t.Run("writes content hash to history", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectForApply(t, tmpDir)
+		patchFile := createPatchFile(t, tmpDir, "hash-test.json", `[
+			{"op": "set", "path": "title", "value": "Hash Test Sword"}
+		]`)
+
+		cmd := NewApplyCommand()
+		cmd.SetArgs([]string{"sword-001", patchFile, tmpDir})
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		// Verify history contains content_hash
+		historyPath := filepath.Join(tmpDir, ".deco", "history.jsonl")
+		history, err := os.ReadFile(historyPath)
+		if err != nil {
+			t.Fatalf("Failed to read history: %v", err)
+		}
+		if !strings.Contains(string(history), "content_hash") {
+			t.Errorf("Expected history to contain content_hash, got: %s", string(history))
+		}
+	})
 }
 
 func TestApplyCommand_DryRun(t *testing.T) {

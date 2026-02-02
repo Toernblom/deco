@@ -156,7 +156,7 @@ func runApply(flags *applyFlags) error {
 	}
 
 	// Log apply operation in history
-	if err := logApplyOperation(flags.targetDir, n.ID, beforeValues, afterValues); err != nil {
+	if err := logApplyOperation(flags.targetDir, n, beforeValues, afterValues); err != nil {
 		fmt.Printf("Warning: failed to log apply operation: %v\n", err)
 	}
 
@@ -218,7 +218,7 @@ func capitalizeFirstApply(s string) string {
 }
 
 // logApplyOperation adds an apply entry to the history log
-func logApplyOperation(targetDir, nodeID string, beforeValues, afterValues map[string]interface{}) error {
+func logApplyOperation(targetDir string, n domain.Node, beforeValues, afterValues map[string]interface{}) error {
 	historyRepo := history.NewYAMLRepository(targetDir)
 
 	username := "unknown"
@@ -227,12 +227,13 @@ func logApplyOperation(targetDir, nodeID string, beforeValues, afterValues map[s
 	}
 
 	entry := domain.AuditEntry{
-		Timestamp: time.Now(),
-		NodeID:    nodeID,
-		Operation: "update",
-		User:      username,
-		Before:    beforeValues,
-		After:     afterValues,
+		Timestamp:   time.Now(),
+		NodeID:      n.ID,
+		Operation:   "update",
+		User:        username,
+		ContentHash: ComputeContentHash(n),
+		Before:      beforeValues,
+		After:       afterValues,
 	}
 
 	return historyRepo.Append(entry)

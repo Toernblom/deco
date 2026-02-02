@@ -102,6 +102,43 @@ title: Should Not Apply
 			t.Errorf("Expected original title, got: %s", nodeYAML)
 		}
 	})
+
+	t.Run("writes content hash to history", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectForRewrite(t, tmpDir)
+
+		newContent := `id: sword-001
+kind: item
+version: 2
+status: draft
+title: Hash Test Blade
+summary: Testing content hash
+`
+		inputFile := filepath.Join(tmpDir, "hash-test.yaml")
+		if err := os.WriteFile(inputFile, []byte(newContent), 0644); err != nil {
+			t.Fatalf("Failed to create input file: %v", err)
+		}
+
+		cmd := NewRewriteCommand()
+		cmd.SetArgs([]string{"sword-001", inputFile, tmpDir})
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		// Verify history contains content_hash
+		historyPath := filepath.Join(tmpDir, ".deco", "history.jsonl")
+		history, err := os.ReadFile(historyPath)
+		if err != nil {
+			t.Fatalf("Failed to read history: %v", err)
+		}
+		if !strings.Contains(string(history), "content_hash") {
+			t.Errorf("Expected history to contain content_hash, got: %s", string(history))
+		}
+		if !strings.Contains(string(history), "rewrite") {
+			t.Errorf("Expected history to contain 'rewrite' operation, got: %s", string(history))
+		}
+	})
 }
 
 func TestRewriteCommand_Validation(t *testing.T) {
