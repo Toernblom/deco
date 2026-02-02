@@ -73,6 +73,12 @@ func runUnset(flags *unsetFlags) error {
 		return fmt.Errorf("node %q not found: %w", flags.nodeID, err)
 	}
 
+	// Auto-reset review status on edit
+	if n.Status == "approved" || n.Status == "review" {
+		n.Status = "draft"
+		n.Reviewers = nil // Clear stale approvals
+	}
+
 	// Capture old value for history
 	oldValue := getFieldValueUnset(&n, flags.path)
 
