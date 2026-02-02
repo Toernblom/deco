@@ -94,19 +94,17 @@ func runShow(nodeID string, flags *showFlags) error {
 
 	reverseIndex := builder.BuildReverseIndex(g)
 
-	// Compute content hash
-	contentHash := ComputeContentHash(*targetNode)
-
 	// Output
 	if flags.jsonOutput {
+		contentHash := ComputeContentHash(*targetNode)
 		return outputJSON(targetNode, reverseIndex[nodeID], contentHash)
 	}
 
-	outputHuman(targetNode, reverseIndex[nodeID], contentHash)
+	outputHuman(targetNode, reverseIndex[nodeID])
 	return nil
 }
 
-func outputHuman(node *domain.Node, referencedBy []string, contentHash string) {
+func outputHuman(node *domain.Node, referencedBy []string) {
 	fmt.Printf("Node: %s\n", node.ID)
 	fmt.Println(strings.Repeat("=", len("Node: "+node.ID)))
 	fmt.Println()
@@ -116,7 +114,6 @@ func outputHuman(node *domain.Node, referencedBy []string, contentHash string) {
 	fmt.Printf("Version: %d\n", node.Version)
 	fmt.Printf("Status:  %s\n", node.Status)
 	fmt.Printf("Title:   %s\n", node.Title)
-	fmt.Printf("Hash:    %s (use with --expect-hash)\n", contentHash)
 
 	if node.Summary != "" {
 		fmt.Printf("Summary: %s\n", node.Summary)

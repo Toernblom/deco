@@ -217,38 +217,6 @@ func TestApplyCommand_ExpectHash(t *testing.T) {
 }
 
 func TestShowCommand_DisplaysHash(t *testing.T) {
-	t.Run("human output includes hash", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		setupProjectForConflict(t, tmpDir)
-
-		// Capture stdout
-		old := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
-		cmd := NewShowCommand()
-		cmd.SetArgs([]string{"sword-001", tmpDir})
-		err := cmd.Execute()
-
-		w.Close()
-		os.Stdout = old
-
-		if err != nil {
-			t.Fatalf("Expected no error, got %v", err)
-		}
-
-		buf := make([]byte, 4096)
-		n, _ := r.Read(buf)
-		output := string(buf[:n])
-
-		if !strings.Contains(output, "Hash:") {
-			t.Errorf("Expected 'Hash:' in output, got: %s", output)
-		}
-		if !strings.Contains(output, "use with --expect-hash") {
-			t.Errorf("Expected hint about --expect-hash, got: %s", output)
-		}
-	})
-
 	t.Run("json output includes content_hash", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		setupProjectForConflict(t, tmpDir)
