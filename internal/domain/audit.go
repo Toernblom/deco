@@ -43,9 +43,10 @@ func (a *AuditEntry) Validate() error {
 		"reject":   true,    // review -> draft
 		"sync":     true,    // auto-fix unversioned edits
 		"baseline": true,    // record current state without modification
+		"migrate":  true,    // schema migration
 	}
 	if !validOperations[a.Operation] {
-		return fmt.Errorf("audit entry Operation must be one of: create, update, delete, set, append, unset, move, submit, approve, reject, sync, baseline")
+		return fmt.Errorf("audit entry Operation must be one of: create, update, delete, set, append, unset, move, submit, approve, reject, sync, baseline, migrate")
 	}
 
 	return nil

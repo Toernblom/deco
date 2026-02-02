@@ -41,6 +41,10 @@ type Config struct {
 	// Keys are kind names (e.g., "character", "quest"), values define required fields.
 	SchemaRules map[string]SchemaRuleConfig `yaml:"schema_rules,omitempty" json:"schema_rules,omitempty"`
 
+	// SchemaVersion is a hash of the schema configuration (CustomBlockTypes + SchemaRules).
+	// Used to detect when schema changes require migration.
+	SchemaVersion string `yaml:"schema_version,omitempty" json:"schema_version,omitempty"`
+
 	// Custom allows projects to add arbitrary configuration fields.
 	Custom map[string]interface{} `yaml:"custom,omitempty" json:"custom,omitempty"`
 }

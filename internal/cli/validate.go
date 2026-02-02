@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 
+	"github.com/Toernblom/deco/internal/migrations"
 	"github.com/Toernblom/deco/internal/services/validator"
 	"github.com/Toernblom/deco/internal/storage/config"
 	"github.com/Toernblom/deco/internal/storage/node"
@@ -31,7 +32,8 @@ Checks:
 
 Exit codes:
   0: All nodes are valid
-  1: Validation errors found`,
+  1: Validation errors found
+  2: Schema version mismatch (run 'deco migrate')`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
@@ -54,6 +56,21 @@ func runValidate(flags *validateFlags) error {
 	cfg, err := configRepo.Load()
 	if err != nil {
 		return fmt.Errorf(".deco directory not found or invalid: %w", err)
+	}
+
+	// Check schema version before validation
+	needsMigration, currentHash, expectedHash, err := migrations.NeedsMigration(flags.targetDir)
+	if err != nil {
+		return fmt.Errorf("failed to check schema version: %w", err)
+	}
+	if needsMigration {
+		if !flags.quiet {
+			fmt.Printf("✗ Schema version mismatch\n")
+			fmt.Printf("  Current:  %s\n", formatSchemaHash(currentHash))
+			fmt.Printf("  Expected: %s\n", formatSchemaHash(expectedHash))
+			fmt.Printf("\nRun 'deco migrate' to update nodes to the current schema.\n")
+		}
+		return NewExitError(ExitCodeSchemaMismatch, "schema version mismatch")
 	}
 
 	// Load all nodes
@@ -86,4 +103,12 @@ func runValidate(flags *validateFlags) error {
 
 	// Return error to trigger exit code 1
 	return fmt.Errorf("validation failed with %d error(s)", collector.Count())
+}
+
+// formatSchemaHash formats a schema hash for display.
+func formatSchemaHash(hash string) string {
+	if hash == "" {
+		return "(none)"
+	}
+	return hash
 }
