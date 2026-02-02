@@ -2089,3 +2089,149 @@ func TestOrchestrator_ApprovalValidation(t *testing.T) {
 		}
 	})
 }
+
+// ===== VALIDATE NODE (SINGLE NODE) TESTS =====
+
+// Tests for ValidateNode method which validates a single node without cross-node checks
+func TestOrchestrator_ValidateNode(t *testing.T) {
+	t.Run("validates valid node", func(t *testing.T) {
+		orch := validator.NewOrchestrator()
+
+		node := &domain.Node{
+			ID:      "test-node",
+			Kind:    "mechanic",
+			Version: 1,
+			Status:  "draft",
+			Title:   "Test Node",
+		}
+
+		collector := orch.ValidateNode(node)
+
+		if collector.HasErrors() {
+			t.Errorf("Expected no errors for valid node, got %d: %v", collector.Count(), collector.Errors())
+		}
+	})
+
+	t.Run("detects missing required fields", func(t *testing.T) {
+		orch := validator.NewOrchestrator()
+
+		node := &domain.Node{
+			ID:      "test-node",
+			Kind:    "mechanic",
+			Version: 1,
+			Status:  "draft",
+			// Title missing
+		}
+
+		collector := orch.ValidateNode(node)
+
+		if !collector.HasErrors() {
+			t.Error("Expected error for missing title")
+		}
+
+		hasE008 := false
+		for _, err := range collector.Errors() {
+			if err.Code == "E008" {
+				hasE008 = true
+				break
+			}
+		}
+		if !hasE008 {
+			t.Error("Expected E008 error code for missing required field")
+		}
+	})
+
+	t.Run("detects published without content", func(t *testing.T) {
+		orch := validator.NewOrchestrator()
+
+		node := &domain.Node{
+			ID:      "test-node",
+			Kind:    "mechanic",
+			Version: 1,
+			Status:  "published",
+			Title:   "Published Node",
+			// No content
+		}
+
+		collector := orch.ValidateNode(node)
+
+		if !collector.HasErrors() {
+			t.Error("Expected error for published node without content")
+		}
+
+		hasE046 := false
+		for _, err := range collector.Errors() {
+			if err.Code == "E046" {
+				hasE046 = true
+				break
+			}
+		}
+		if !hasE046 {
+			t.Error("Expected E046 error for published without content")
+		}
+	})
+
+	t.Run("validates constraints", func(t *testing.T) {
+		orch := validator.NewOrchestrator()
+
+		node := &domain.Node{
+			ID:      "test-node",
+			Kind:    "mechanic",
+			Version: 1,
+			Status:  "draft",
+			Title:   "Test Node",
+			Constraints: []domain.Constraint{
+				{
+					Scope:   "all",
+					Expr:    "version > 5",
+					Message: "Version must be greater than 5",
+				},
+			},
+		}
+
+		collector := orch.ValidateNode(node)
+
+		// Should fail because version is 1, not > 5
+		hasE041 := false
+		for _, err := range collector.Errors() {
+			if err.Code == "E041" {
+				hasE041 = true
+				break
+			}
+		}
+		if !hasE041 {
+			t.Error("Expected E041 constraint violation")
+		}
+	})
+
+	t.Run("validates with schema rules", func(t *testing.T) {
+		schemaRules := map[string]config.SchemaRuleConfig{
+			"mechanic": {
+				RequiredFields: []string{"complexity"},
+			},
+		}
+		orch := validator.NewOrchestratorWithFullConfig(1, nil, schemaRules)
+
+		node := &domain.Node{
+			ID:      "test-node",
+			Kind:    "mechanic",
+			Version: 1,
+			Status:  "draft",
+			Title:   "Test Node",
+			// Missing required "complexity" in Custom
+		}
+
+		collector := orch.ValidateNode(node)
+
+		hasE051 := false
+		for _, err := range collector.Errors() {
+			if err.Code == "E051" {
+				hasE051 = true
+				break
+			}
+		}
+		if !hasE051 {
+			t.Error("Expected E051 error for missing required schema field")
+		}
+	})
+}

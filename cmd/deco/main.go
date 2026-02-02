@@ -23,6 +23,7 @@ func main() {
 	root.AddCommand(cli.NewAppendCommand())
 	root.AddCommand(cli.NewUnsetCommand())
 	root.AddCommand(cli.NewApplyCommand())
+	root.AddCommand(cli.NewRewriteCommand())
 	root.AddCommand(cli.NewHistoryCommand())
 	root.AddCommand(cli.NewMvCommand())
 	root.AddCommand(cli.NewGraphCommand())

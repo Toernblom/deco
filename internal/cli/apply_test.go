@@ -64,7 +64,7 @@ func TestApplyCommand_ApplyPatchFile(t *testing.T) {
 		setupProjectForApply(t, tmpDir)
 		patchFile := createPatchFile(t, tmpDir, "multi-op.json", `[
 			{"op": "set", "path": "title", "value": "Golden Sword"},
-			{"op": "set", "path": "status", "value": "published"},
+			{"op": "set", "path": "status", "value": "review"},
 			{"op": "append", "path": "tags", "value": "legendary"}
 		]`)
 
@@ -79,7 +79,7 @@ func TestApplyCommand_ApplyPatchFile(t *testing.T) {
 		if !strings.Contains(nodeYAML, "Golden Sword") {
 			t.Errorf("Expected title to be modified, got: %s", nodeYAML)
 		}
-		if !strings.Contains(nodeYAML, "status: published") {
+		if !strings.Contains(nodeYAML, "status: review") {
 			t.Errorf("Expected status to be modified, got: %s", nodeYAML)
 		}
 		if !strings.Contains(nodeYAML, "legendary") {
@@ -312,6 +312,71 @@ func TestApplyCommand_QuietFlag(t *testing.T) {
 		err := cmd.Execute()
 		if err != nil {
 			t.Fatalf("Expected no error with --quiet, got %v", err)
+		}
+	})
+}
+
+func TestApplyCommand_ValidationGate(t *testing.T) {
+	t.Run("rejects patch that creates invalid node", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectForApply(t, tmpDir)
+		// Setting status to "published" without content should fail validation
+		patchFile := createPatchFile(t, tmpDir, "invalid.json", `[
+			{"op": "set", "path": "status", "value": "published"}
+		]`)
+
+		cmd := NewApplyCommand()
+		cmd.SetArgs([]string{"sword-001", patchFile, tmpDir})
+		err := cmd.Execute()
+		if err == nil {
+			t.Fatal("Expected validation error for published status without content")
+		}
+		if !strings.Contains(err.Error(), "validation failed") {
+			t.Errorf("Expected validation failure error, got: %v", err)
+		}
+
+		// Node should not have been modified
+		nodeYAML := readNodeFile(t, tmpDir, "sword-001")
+		if strings.Contains(nodeYAML, "status: published") {
+			t.Errorf("Node should not have been modified on validation failure")
+		}
+	})
+
+	t.Run("rejects patch that removes required field", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectForApply(t, tmpDir)
+		// Unsetting title should fail validation (required field)
+		patchFile := createPatchFile(t, tmpDir, "unset-required.json", `[
+			{"op": "unset", "path": "title"}
+		]`)
+
+		cmd := NewApplyCommand()
+		cmd.SetArgs([]string{"sword-001", patchFile, tmpDir})
+		err := cmd.Execute()
+		if err == nil {
+			t.Fatal("Expected error for unsetting required field")
+		}
+	})
+
+	t.Run("dry-run shows validation failure without modifying", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectForApply(t, tmpDir)
+		patchFile := createPatchFile(t, tmpDir, "invalid-dry.json", `[
+			{"op": "set", "path": "status", "value": "published"}
+		]`)
+
+		cmd := NewApplyCommand()
+		cmd.SetArgs([]string{"--dry-run", "sword-001", patchFile, tmpDir})
+		err := cmd.Execute()
+		// dry-run should succeed even if validation fails
+		if err != nil {
+			t.Fatalf("Expected dry-run to succeed, got %v", err)
+		}
+
+		// Node should not have been modified
+		nodeYAML := readNodeFile(t, tmpDir, "sword-001")
+		if strings.Contains(nodeYAML, "status: published") {
+			t.Errorf("Dry run should not modify node")
 		}
 	})
 }

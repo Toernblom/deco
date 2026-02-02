@@ -739,3 +739,35 @@ func (o *Orchestrator) ValidateAllWithDir(nodes []domain.Node, rootDir string) *
 
 	return collector
 }
+
+// ValidateNode validates a single node without cross-node checks.
+// This is useful for pre-save validation after patches/rewrites.
+// It runs schema, content, block, and constraint validation but skips
+// reference and duplicate ID checks which require all nodes.
+func (o *Orchestrator) ValidateNode(node *domain.Node) *errors.Collector {
+	collector := errors.NewCollectorWithLimit(100)
+
+	// Run schema validation
+	o.schemaValidator.Validate(node, collector)
+
+	// Run schema rules validation (per-kind required fields)
+	if o.schemaRulesValidator != nil {
+		o.schemaRulesValidator.Validate(node, collector)
+	}
+
+	// Run content validation (approved/published require content)
+	o.contentValidator.Validate(node, collector)
+
+	// Run block validation
+	o.blockValidator.Validate(node, collector)
+
+	// Run constraint validation (single node, no cross-node checks)
+	o.constraintValidator.Validate(node, []domain.Node{*node}, collector)
+
+	// Run approval validator
+	if o.approvalValidator != nil {
+		o.approvalValidator.Validate(node, collector)
+	}
+
+	return collector
+}

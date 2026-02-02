@@ -6,12 +6,14 @@ import (
 	"os"
 	"os/user"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/services/patcher"
+	"github.com/Toernblom/deco/internal/services/validator"
 	"github.com/Toernblom/deco/internal/storage/config"
 	"github.com/Toernblom/deco/internal/storage/history"
 	"github.com/Toernblom/deco/internal/storage/node"
@@ -75,9 +77,9 @@ The version number is automatically incremented after a successful apply.`,
 }
 
 func runApply(flags *applyFlags) error {
-	// Load config to verify project exists
+	// Load config to get validation settings
 	configRepo := config.NewYAMLRepository(flags.targetDir)
-	_, err := configRepo.Load()
+	cfg, err := configRepo.Load()
 	if err != nil {
 		return fmt.Errorf(".deco directory not found or invalid: %w", err)
 	}
@@ -100,7 +102,7 @@ func runApply(flags *applyFlags) error {
 		return fmt.Errorf("node %q not found: %w", flags.nodeID, err)
 	}
 
-	// Capture before values for history
+	// Capture before values for diff and history
 	beforeValues := make(map[string]interface{})
 	for _, op := range operations {
 		beforeValues[op.Path] = getFieldValueApply(&n, op.Path)
@@ -113,19 +115,35 @@ func runApply(flags *applyFlags) error {
 		return fmt.Errorf("failed to apply patch: %w", err)
 	}
 
+	// Capture after values for diff and history
+	afterValues := make(map[string]interface{})
+	for _, op := range operations {
+		afterValues[op.Path] = getFieldValueApply(&n, op.Path)
+	}
+
+	// Validate the resulting node before save
+	orchestrator := validator.NewOrchestratorWithFullConfig(cfg.RequiredApprovals, cfg.CustomBlockTypes, cfg.SchemaRules)
+	collector := orchestrator.ValidateNode(&n)
+	validationPassed := !collector.HasErrors()
+
 	if flags.dryRun {
 		if !flags.quiet {
-			fmt.Printf("Dry run: %d operation(s) would be applied to %s\n", len(operations), flags.nodeID)
+			printApplyDiff(flags.nodeID, beforeValues, afterValues, operations)
+			printValidationResult(validationPassed, collector)
+			if validationPassed {
+				fmt.Println("\nRun without --dry-run to apply.")
+			}
 		}
 		return nil
 	}
 
-	// Capture after values for history
-	afterValues := make(map[string]interface{})
-	for _, op := range operations {
-		if op.Op != "unset" {
-			afterValues[op.Path] = getFieldValueApply(&n, op.Path)
+	// Abort if validation fails
+	if !validationPassed {
+		fmt.Printf("Patch would create invalid node %s:\n\n", flags.nodeID)
+		for _, err := range collector.Errors() {
+			fmt.Println("  " + err.Error())
 		}
+		return fmt.Errorf("patch rejected: validation failed with %d error(s)", collector.Count())
 	}
 
 	// Increment version
@@ -218,4 +236,118 @@ func logApplyOperation(targetDir, nodeID string, beforeValues, afterValues map[s
 	}
 
 	return historyRepo.Append(entry)
+}
+
+// printApplyDiff shows field-level changes for dry-run
+func printApplyDiff(nodeID string, before, after map[string]interface{}, operations []patcher.PatchOperation) {
+	fmt.Printf("Proposed changes to %s:\n", nodeID)
+
+	// Collect all paths
+	paths := make(map[string]bool)
+	for _, op := range operations {
+		paths[op.Path] = true
+	}
+
+	// Sort paths for consistent output
+	var sortedPaths []string
+	for path := range paths {
+		sortedPaths = append(sortedPaths, path)
+	}
+	sort.Strings(sortedPaths)
+
+	for _, path := range sortedPaths {
+		beforeVal, hasBefore := before[path]
+		afterVal, hasAfter := after[path]
+
+		// Determine the operation type
+		opType := ""
+		for _, op := range operations {
+			if op.Path == path {
+				opType = op.Op
+				break
+			}
+		}
+
+		switch opType {
+		case "unset":
+			fmt.Printf("  - %s: %s\n", path, formatApplyValue(beforeVal))
+		case "set":
+			if hasBefore && beforeVal != nil && !isZeroValue(beforeVal) {
+				fmt.Printf("  %s: %s → %s\n", path, formatApplyValue(beforeVal), formatApplyValue(afterVal))
+			} else {
+				fmt.Printf("  + %s: %s\n", path, formatApplyValue(afterVal))
+			}
+		case "append":
+			if hasBefore && hasAfter {
+				fmt.Printf("  %s: %s → %s\n", path, formatApplyValue(beforeVal), formatApplyValue(afterVal))
+			} else {
+				fmt.Printf("  + %s: %s\n", path, formatApplyValue(afterVal))
+			}
+		default:
+			if hasBefore && hasAfter {
+				fmt.Printf("  %s: %s → %s\n", path, formatApplyValue(beforeVal), formatApplyValue(afterVal))
+			}
+		}
+	}
+}
+
+// printValidationResult shows validation status
+func printValidationResult(passed bool, collector interface{ Count() int; Errors() []domain.DecoError }) {
+	fmt.Println()
+	if passed {
+		fmt.Println("Validation: ✓ Valid")
+	} else {
+		fmt.Printf("Validation: ✗ Invalid (%d error(s))\n", collector.Count())
+		for _, err := range collector.Errors() {
+			fmt.Println("  " + err.Summary)
+		}
+	}
+}
+
+// formatApplyValue formats a value for diff display
+func formatApplyValue(v interface{}) string {
+	if v == nil {
+		return "(nil)"
+	}
+	switch val := v.(type) {
+	case []interface{}:
+		if len(val) == 0 {
+			return "[]"
+		}
+		var items []string
+		for _, item := range val {
+			items = append(items, fmt.Sprintf("%v", item))
+		}
+		return "[" + strings.Join(items, ", ") + "]"
+	case []string:
+		if len(val) == 0 {
+			return "[]"
+		}
+		return "[" + strings.Join(val, ", ") + "]"
+	case string:
+		return fmt.Sprintf("%q", val)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+// isZeroValue checks if a value is considered "empty"
+func isZeroValue(v interface{}) bool {
+	if v == nil {
+		return true
+	}
+	switch val := v.(type) {
+	case string:
+		return val == ""
+	case []interface{}:
+		return len(val) == 0
+	case []string:
+		return len(val) == 0
+	case int:
+		return val == 0
+	case float64:
+		return val == 0
+	default:
+		return false
+	}
 }
