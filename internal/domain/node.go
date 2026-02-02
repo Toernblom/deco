@@ -172,10 +172,11 @@ func (n *Node) Validate() error {
 	return nil
 }
 
-// sortedStringMap wraps map[string]string for deterministic YAML output
-type sortedStringMap map[string]string
+// SortedStringMap wraps map[string]string for deterministic YAML output.
+// Keys are sorted alphabetically when marshaling to YAML.
+type SortedStringMap map[string]string
 
-func (m sortedStringMap) MarshalYAML() (interface{}, error) {
+func (m SortedStringMap) MarshalYAML() (interface{}, error) {
 	if len(m) == 0 {
 		return nil, nil
 	}
@@ -194,10 +195,11 @@ func (m sortedStringMap) MarshalYAML() (interface{}, error) {
 	return node, nil
 }
 
-// sortedInterfaceMap wraps map[string]interface{} for deterministic YAML output
-type sortedInterfaceMap map[string]interface{}
+// SortedInterfaceMap wraps map[string]interface{} for deterministic YAML output.
+// Keys are sorted alphabetically when marshaling to YAML.
+type SortedInterfaceMap map[string]interface{}
 
-func (m sortedInterfaceMap) MarshalYAML() (interface{}, error) {
+func (m SortedInterfaceMap) MarshalYAML() (interface{}, error) {
 	if len(m) == 0 {
 		return nil, nil
 	}
@@ -220,22 +222,22 @@ func (m sortedInterfaceMap) MarshalYAML() (interface{}, error) {
 
 // nodeForMarshal is an internal type for marshaling Node with sorted map keys
 type nodeForMarshal struct {
-	ID          string              `yaml:"id"`
-	Kind        string              `yaml:"kind"`
-	Version     int                 `yaml:"version"`
-	Status      string              `yaml:"status"`
-	Title       string              `yaml:"title"`
-	Tags        []string            `yaml:"tags,omitempty"`
-	Refs        Ref                 `yaml:"refs,omitempty"`
-	Content     *Content            `yaml:"content,omitempty"`
-	Issues      []Issue             `yaml:"issues,omitempty"`
-	Summary     string              `yaml:"summary,omitempty"`
-	Glossary    sortedStringMap     `yaml:"glossary,omitempty"`
-	Contracts   []Contract          `yaml:"contracts,omitempty"`
-	LLMContext  string              `yaml:"llm_context,omitempty"`
-	Constraints []Constraint        `yaml:"constraints,omitempty"`
-	Reviewers   []Reviewer          `yaml:"reviewers,omitempty"`
-	Custom      sortedInterfaceMap  `yaml:"custom,omitempty"`
+	ID          string             `yaml:"id"`
+	Kind        string             `yaml:"kind"`
+	Version     int                `yaml:"version"`
+	Status      string             `yaml:"status"`
+	Title       string             `yaml:"title"`
+	Tags        []string           `yaml:"tags,omitempty"`
+	Refs        Ref                `yaml:"refs,omitempty"`
+	Content     *Content           `yaml:"content,omitempty"`
+	Issues      []Issue            `yaml:"issues,omitempty"`
+	Summary     string             `yaml:"summary,omitempty"`
+	Glossary    SortedStringMap    `yaml:"glossary,omitempty"`
+	Contracts   []Contract         `yaml:"contracts,omitempty"`
+	LLMContext  string             `yaml:"llm_context,omitempty"`
+	Constraints []Constraint       `yaml:"constraints,omitempty"`
+	Reviewers   []Reviewer         `yaml:"reviewers,omitempty"`
+	Custom      SortedInterfaceMap `yaml:"custom,omitempty"`
 }
 
 // MarshalYAML implements custom YAML marshaling for Node.
@@ -252,11 +254,11 @@ func (n Node) MarshalYAML() (interface{}, error) {
 		Content:     n.Content,
 		Issues:      n.Issues,
 		Summary:     n.Summary,
-		Glossary:    sortedStringMap(n.Glossary),
+		Glossary:    SortedStringMap(n.Glossary),
 		Contracts:   n.Contracts,
 		LLMContext:  n.LLMContext,
 		Constraints: n.Constraints,
 		Reviewers:   n.Reviewers,
-		Custom:      sortedInterfaceMap(n.Custom),
+		Custom:      SortedInterfaceMap(n.Custom),
 	}, nil
 }

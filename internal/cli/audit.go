@@ -12,19 +12,20 @@ import (
 // contentFields holds all fields that affect content hash.
 // Excluded: ID (structural), Version (auto-incremented), Status (workflow),
 // Reviewers (workflow), SourceFile (internal).
+// Uses SortedStringMap and SortedInterfaceMap for deterministic hashing.
 type contentFields struct {
-	Kind        string                 `yaml:"kind"`
-	Title       string                 `yaml:"title"`
-	Summary     string                 `yaml:"summary"`
-	Tags        []string               `yaml:"tags,omitempty"`
-	Refs        domain.Ref             `yaml:"refs,omitempty"`
-	Issues      []domain.Issue         `yaml:"issues,omitempty"`
-	Content     *domain.Content        `yaml:"content,omitempty"`
-	Glossary    map[string]string      `yaml:"glossary,omitempty"`
-	Contracts   []domain.Contract      `yaml:"contracts,omitempty"`
-	LLMContext  string                 `yaml:"llm_context,omitempty"`
-	Constraints []domain.Constraint    `yaml:"constraints,omitempty"`
-	Custom      map[string]interface{} `yaml:"custom,omitempty"`
+	Kind        string                   `yaml:"kind"`
+	Title       string                   `yaml:"title"`
+	Summary     string                   `yaml:"summary"`
+	Tags        []string                 `yaml:"tags,omitempty"`
+	Refs        domain.Ref               `yaml:"refs,omitempty"`
+	Issues      []domain.Issue           `yaml:"issues,omitempty"`
+	Content     *domain.Content          `yaml:"content,omitempty"`
+	Glossary    domain.SortedStringMap   `yaml:"glossary,omitempty"`
+	Contracts   []domain.Contract        `yaml:"contracts,omitempty"`
+	LLMContext  string                   `yaml:"llm_context,omitempty"`
+	Constraints []domain.Constraint      `yaml:"constraints,omitempty"`
+	Custom      domain.SortedInterfaceMap `yaml:"custom,omitempty"`
 }
 
 // ComputeContentHash computes a SHA-256 hash of the content fields.
@@ -44,11 +45,11 @@ func ComputeContentHash(n domain.Node) string {
 		Refs:        n.Refs,
 		Issues:      n.Issues,
 		Content:     n.Content,
-		Glossary:    n.Glossary,
+		Glossary:    domain.SortedStringMap(n.Glossary),
 		Contracts:   n.Contracts,
 		LLMContext:  n.LLMContext,
 		Constraints: n.Constraints,
-		Custom:      n.Custom,
+		Custom:      domain.SortedInterfaceMap(n.Custom),
 	}
 
 	data, err := yaml.Marshal(fields)

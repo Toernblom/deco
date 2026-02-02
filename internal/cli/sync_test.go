@@ -74,6 +74,47 @@ func TestComputeContentHash(t *testing.T) {
 		}
 	})
 
+	t.Run("returns deterministic hash for Glossary and Custom maps", func(t *testing.T) {
+		// Glossary (map[string]string) and Custom (map[string]interface{}) must be
+		// hashed deterministically regardless of Go's random map iteration order.
+		// This test verifies the fix for non-deterministic content hash.
+		nodeWithMaps := domain.Node{
+			ID:      "test-maps",
+			Kind:    "mechanic",
+			Version: 1,
+			Status:  "draft",
+			Title:   "Map Test",
+			Glossary: map[string]string{
+				"zebra":    "last animal",
+				"alpha":    "first letter",
+				"banana":   "yellow fruit",
+				"delta":    "fourth letter",
+				"charlie":  "third letter",
+				"echo":     "fifth letter",
+			},
+			Custom: map[string]interface{}{
+				"zulu":     "military alphabet",
+				"apple":    42,
+				"bravo":    true,
+				"foxtrot":  []string{"f", "o", "x"},
+				"golf":     map[string]interface{}{"nested": "value"},
+				"hotel":    3.14,
+			},
+		}
+
+		// Hash 100 times to ensure determinism despite random map iteration
+		hashes := make([]string, 100)
+		for i := 0; i < 100; i++ {
+			hashes[i] = ComputeContentHash(nodeWithMaps)
+		}
+
+		for i := 1; i < len(hashes); i++ {
+			if hashes[i] != hashes[0] {
+				t.Errorf("Non-deterministic hash for Glossary/Custom maps: run 0=%s, run %d=%s", hashes[0], i, hashes[i])
+			}
+		}
+	})
+
 	t.Run("returns different hash for different content", func(t *testing.T) {
 		modified := n
 		modified.Title = "Different Title"
