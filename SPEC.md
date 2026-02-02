@@ -2,7 +2,17 @@
 
 ## What It Is
 
-A Go CLI that replaces traditional GDDs entirely. Your game design lives as structured, validated YAML - no separate docs, wikis, or Notion pages needed. Deco is the GDD.
+A Go CLI for managing complex documentation as structured, validated YAML. Your specifications, designs, and requirements live as interconnected nodes with schema validation, reference tracking, and audit trails. Works with git, works with AI.
+
+## Use Cases
+
+| Domain | Example Nodes |
+|--------|---------------|
+| Game Design | systems, mechanics, items, characters, quests |
+| API Specs | endpoints, schemas, authentication, versioning |
+| Technical Architecture | components, interfaces, services, data flows |
+| Product Requirements | features, user stories, epics, acceptance criteria |
+| Knowledge Bases | concepts, definitions, relationships |
 
 ## Core Decisions
 
@@ -20,7 +30,7 @@ A Go CLI that replaces traditional GDDs entirely. Your game design lives as stru
 
 Core fields (required at top level, not nested under `meta`):
 - `id`: Unique identifier, maps to file path
-- `kind`: Node type (system, mechanic, feature, item, etc.)
+- `kind`: Node type (system, component, feature, requirement, etc.)
 - `version`: Auto-incremented on updates
 - `status`: draft, review, approved, published, deprecated
 - `title`: Human-readable name
@@ -78,7 +88,7 @@ deco sync                    # Detect manual edits, fix metadata
 
 ## Design Principles
 
-**No ambiguity in a complete GDD.** A design is "complete" when:
+**No ambiguity in complete documentation.** A spec is "complete" when:
 - Zero open `issues` (no TBDs, no unanswered questions)
 - All refs resolve to existing nodes
 - All required fields populated
@@ -90,8 +100,8 @@ deco sync                    # Detect manual edits, fix metadata
 Example constraint:
 ```yaml
 constraints:
-  - expr: "self.needs.food.threshold == refs['systems/food'].starvation_time"
-    message: "Food threshold must match starvation time in food system"
+  - expr: "self.rate_limit == refs['systems/api'].default_rate_limit"
+    message: "Rate limit must match API default"
 ```
 
 Deco doesn't magically detect semantic contradictions - you declare what must be consistent, and Deco enforces it.
@@ -100,7 +110,7 @@ Deco doesn't magically detect semantic contradictions - you declare what must be
 
 - Gherkin compilation or test execution
 - UI or editor plugins (CLI only)
-- Game engine integration (it's just a design tool)
+- Runtime integration (it's a documentation tool)
 
 ## Project Layout
 
@@ -110,9 +120,11 @@ Deco doesn't magically detect semantic contradictions - you declare what must be
   history.jsonl        # Audit log
   nodes/
     systems/
-      settlement/
-        colonists.yaml
-        housing.yaml
+      auth/
+        core.yaml
+        tokens.yaml
+    components/
+      database.yaml
 ```
 
 ## Project Configuration
@@ -120,7 +132,7 @@ Deco doesn't magically detect semantic contradictions - you declare what must be
 The `.deco/config.yaml` file supports:
 
 ```yaml
-project_name: my-game
+project_name: my-project
 nodes_path: .deco/nodes
 history_path: .deco/history.jsonl
 version: 1
@@ -128,22 +140,22 @@ required_approvals: 2  # For review workflow
 
 # Define custom block types with validation
 custom_block_types:
-  powerup:
+  endpoint:
     required_fields:
-      - name
-      - effect
-      - duration
+      - method
+      - path
+      - response
 
 # Define per-kind schema rules for nodes
 schema_rules:
-  character:
+  requirement:
     required_fields:
-      - backstory
-      - role
-  quest:
+      - priority
+      - acceptance_criteria
+  component:
     required_fields:
-      - difficulty
-      - rewards
+      - owner
+      - dependencies
 ```
 
 Custom block types extend the built-in types (rule, table, param, mechanic, list). When a custom type shares a name with a built-in type, both validations apply.

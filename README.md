@@ -1,19 +1,27 @@
-# Deco — Design Engine for Game Documents
+# Deco — Structured Documentation for Complex Systems
 
-Deco is a CLI for managing game design documents (GDDs) as **structured, validated YAML**. Instead of treating design as scattered prose, Deco treats it like source code: typed nodes, explicit references, schema validation, and an audit trail.
+Deco is a CLI for managing complex documentation as **structured, validated YAML**. Instead of treating specs as scattered prose, Deco treats them like source code: typed nodes, explicit references, schema validation, and an audit trail.
 
 ## Why Deco?
 
-If you've maintained a big GDD, you know how it ends:
+If you've maintained complex documentation—system specs, API designs, game design docs, product requirements—you know how it ends:
 - "TBDs" everywhere, contradictory rules, outdated pages
-- Updating one system means hunting references across 30 documents
+- Updating one component means hunting references across 30 documents
 - An LLM helps write content, then loses context, and now you have two truths
 
-Deco fixes this by making your GDD:
+Deco fixes this by making your documentation:
 - **Validated** — Schema, reference, and constraint checking
 - **Refactorable** — Rename nodes and all references update automatically
 - **Auditable** — Every change tracked with who/what/when
 - **AI-friendly** — Patch operations or full rewrites, the engine enforces correctness
+
+## Use Cases
+
+- **Game Design Documents** — Systems, mechanics, items, characters with interconnected rules
+- **API Specifications** — Endpoints, schemas, authentication, versioning with dependency tracking
+- **Technical Architecture** — Components, interfaces, data flows with validation
+- **Product Requirements** — Features, user stories, acceptance criteria with status workflow
+- **Knowledge Bases** — Interconnected concepts with reference integrity
 
 ## Quick Start
 
@@ -22,41 +30,41 @@ Deco fixes this by making your GDD:
 go install github.com/anthropics/deco/cmd/deco@latest
 
 # Initialize a project
-deco init my-game
-cd my-game
+deco init my-project
+cd my-project
 
-# Create your first design node
-cat > .deco/nodes/systems/combat.yaml << 'EOF'
-id: systems/combat
+# Create your first node
+cat > .deco/nodes/systems/auth.yaml << 'EOF'
+id: systems/auth
 kind: system
 version: 1
 status: draft
-title: "Combat System"
-tags: [core, gameplay]
+title: "Authentication System"
+tags: [core, security]
 
-summary: "Turn-based tactical combat with action points."
+summary: "JWT-based authentication with refresh tokens."
 
 refs:
   uses:
-    - target: systems/characters
-      context: "Characters have combat stats"
+    - target: systems/users
+      context: "Authenticates user identities"
 
 content:
   sections:
     - name: overview
       blocks:
         - type: rule
-          text: "Each turn, characters spend action points to perform moves."
+          text: "All API endpoints require valid JWT except /auth/login and /auth/refresh."
 EOF
 
-# Validate your design
+# Validate your documentation
 deco validate
 
 # List all nodes
 deco list
 
 # Show node details with reverse references
-deco show systems/combat
+deco show systems/auth
 ```
 
 ## Project Structure
@@ -65,19 +73,19 @@ deco show systems/combat
 .deco/
 ├── config.yaml          # Project configuration
 ├── history.jsonl        # Append-only audit log
-└── nodes/               # Design documents (nested directories supported)
+└── nodes/               # Documentation nodes (nested directories supported)
     ├── systems/
-    │   ├── combat.yaml
-    │   └── settlement/
-    │       ├── colonists.yaml
-    │       └── housing.yaml
-    ├── items/
-    │   └── weapons.yaml
-    └── characters/
-        └── hero.yaml
+    │   ├── auth.yaml
+    │   └── api/
+    │       ├── endpoints.yaml
+    │       └── schemas.yaml
+    ├── components/
+    │   └── database.yaml
+    └── requirements/
+        └── user-stories.yaml
 ```
 
-Node IDs map to file paths: `systems/settlement/colonists` → `.deco/nodes/systems/settlement/colonists.yaml`
+Node IDs map to file paths: `systems/api/endpoints` → `.deco/nodes/systems/api/endpoints.yaml`
 
 ## Node Format
 
@@ -85,75 +93,75 @@ Every node has required fields and optional extensions:
 
 ```yaml
 # Required fields
-id: systems/settlement/colonists
-kind: system                      # Any type: system, mechanic, item, character, quest...
+id: systems/api/endpoints
+kind: system                      # Any type: system, component, feature, requirement...
 version: 1                        # Auto-incremented on updates
 status: draft                     # draft, review, approved, published, deprecated
-title: "Settlement: Colonists"
+title: "API Endpoints"
 
 # Optional metadata
-tags: [settlement, population]
-summary: "Named individuals who power the settlement economy."
+tags: [api, rest]
+summary: "REST API endpoint definitions and contracts."
 
 # References to other nodes
 refs:
   uses:                           # Hard dependencies
-    - target: systems/settlement/housing
-      context: "Colonists need shelter"
+    - target: systems/auth
+      context: "All endpoints require authentication"
   related:                        # Informational links
-    - target: systems/settlement/morale
+    - target: components/database
   emits_events:                   # Events this system produces
-    - events/colonist/born
-    - events/colonist/died
+    - events/api/request-logged
   vocabulary:                     # Shared term definitions
-    - glossaries/game-terms
+    - glossaries/api-terms
 
 # Structured content
 content:
   sections:
-    - name: needs
+    - name: endpoints
       blocks:
         - type: table
-          columns: [need, effect_if_unmet]
+          columns: [method, path, description]
           rows:
-            - need: food
-              effect_if_unmet: "Starvation → Death"
+            - method: GET
+              path: /users/{id}
+              description: "Retrieve user by ID"
         - type: rule
-          text: "Unmet needs reduce morale daily."
+          text: "All endpoints return JSON with consistent error format."
         - type: param
-          name: "Starting Population"
+          name: "Rate Limit"
           datatype: range_int
-          min: 4
-          max: 5
+          min: 100
+          max: 1000
 
 # Tracked questions/TBDs
 issues:
-  - id: tbd_child_duration
-    description: "Define child stage duration"
+  - id: tbd_pagination
+    description: "Define pagination strategy for list endpoints"
     severity: medium
     resolved: false
 
 # BDD-style acceptance criteria
 contracts:
-  - name: "Starvation kills colonists"
-    scenario: "48 hours without food is fatal"
+  - name: "Unauthorized access returns 401"
+    scenario: "Request without valid token"
     given:
-      - "colonist c1 has food need at 0"
+      - "no Authorization header present"
     when:
-      - "48 hours pass"
+      - "GET /users/123 is called"
     then:
-      - "colonist c1 is dead"
-      - "cause of death is starvation"
+      - "response status is 401"
+      - "response body contains error message"
 
 # CEL-based validation rules
 constraints:
   - expr: "version > 0"
     message: "Version must be positive"
-    scope: all                    # Applies to all nodes (can be: all, kind/*, specific-id)
+    scope: all                    # Applies to all nodes
 
 # Extensible custom fields
 custom:
-  designer_notes: "Balance this after playtesting"
+  owner: "platform-team"
 ```
 
 ## CLI Commands
@@ -165,7 +173,7 @@ deco init [directory]        # Initialize a new project
 deco init . --force          # Reinitialize existing project
 
 deco create <id>             # Create a new node with scaffolding
-deco create systems/combat --kind mechanic --title "Combat System"
+deco create systems/auth --kind system --title "Auth System"
 ```
 
 ### Querying & Reading
@@ -174,13 +182,13 @@ deco create systems/combat --kind mechanic --title "Combat System"
 deco list                    # List all nodes
 deco list --kind system      # Filter by type
 deco list --status draft     # Filter by status
-deco list --tag combat       # Filter by tag
+deco list --tag security     # Filter by tag
 
 deco show <node-id>          # Show node details + reverse references
-deco show systems/combat --json   # Output as JSON
+deco show systems/auth --json   # Output as JSON
 
-deco query sword             # Search title/summary for "sword"
-deco query --kind item --status published   # Combined filters
+deco query auth              # Search title/summary for "auth"
+deco query --kind system --status published   # Combined filters
 
 deco validate                # Validate all nodes (schema, refs, constraints)
 deco validate --quiet        # Exit code only (for CI)
@@ -197,24 +205,24 @@ deco graph --format mermaid  # Output as Mermaid for Markdown
 
 ```bash
 # Set a field value
-deco set systems/combat title "Tactical Combat"
-deco set systems/combat status approved
-deco set systems/combat tags[0] core-gameplay
+deco set systems/auth title "Authentication & Authorization"
+deco set systems/auth status approved
+deco set systems/auth tags[0] security
 
 # Append to arrays
-deco append systems/combat tags stealth
+deco append systems/auth tags oauth
 
 # Remove fields
-deco unset systems/combat summary
-deco unset systems/combat tags[2]
+deco unset systems/auth summary
+deco unset systems/auth tags[2]
 
 # Delete a node
-deco rm sword-001            # Fails if other nodes reference it
-deco rm sword-001 --force    # Delete even with references
+deco rm old-spec            # Fails if other nodes reference it
+deco rm old-spec --force    # Delete even with references
 
 # Batch operations (transactional)
-deco apply systems/combat patch.json
-deco apply systems/combat patch.json --dry-run
+deco apply systems/auth patch.json
+deco apply systems/auth patch.json --dry-run
 ```
 
 Patch file format:
@@ -231,7 +239,7 @@ Patch file format:
 ```bash
 # Rename a node (automatically updates all references)
 deco mv old-node-id new-node-id
-deco mv systems/combat systems/tactical-combat
+deco mv systems/auth systems/authentication
 ```
 
 ### Review Workflow
@@ -247,7 +255,7 @@ deco review status <id>      # Show review status
 
 ```bash
 deco history                 # Show all changes
-deco history --node systems/combat   # Filter by node
+deco history --node systems/auth   # Filter by node
 deco history --limit 10      # Limit entries
 
 deco diff <id>               # Show before/after for all changes
@@ -269,7 +277,7 @@ When nodes are edited directly (bypassing CLI), `sync` detects changes by conten
 
 ## Validation
 
-Deco validates your design graph across three dimensions:
+Deco validates your documentation graph across three dimensions:
 
 ### Schema Validation
 Every node must have: `id`, `kind`, `version`, `status`, `title`
@@ -277,7 +285,7 @@ Every node must have: `id`, `kind`, `version`, `status`, `title`
 ```bash
 $ deco validate
 ERROR [E008] Missing required field: status
-  → systems/combat.yaml:1
+  → systems/auth.yaml:1
   Suggestion: Add 'status: draft' to the node
 ```
 
@@ -286,9 +294,9 @@ All references must resolve to existing nodes:
 
 ```bash
 $ deco validate
-ERROR [E020] Reference not found: systems/combaat
-  → systems/weapons.yaml:12
-  Did you mean: systems/combat?
+ERROR [E020] Reference not found: systems/auht
+  → systems/api.yaml:12
+  Did you mean: systems/auth?
 ```
 
 ### Constraint Validation
@@ -304,7 +312,7 @@ constraints:
     scope: all
   - expr: "size(tags) > 0"
     message: "At least one tag required"
-    scope: mechanic  # Only applies to mechanic nodes
+    scope: requirement  # Only applies to requirement nodes
 ```
 
 ## Contracts
@@ -313,28 +321,28 @@ Define testable acceptance criteria using BDD-style scenarios:
 
 ```yaml
 contracts:
-  - name: "Hunger damages health"
-    scenario: "A colonist with no food loses health over time"
+  - name: "Rate limiting enforced"
+    scenario: "Too many requests triggers rate limit"
     given:
-      - "colonist c1 has health 100 and food need 0"
+      - "client has made 100 requests in 1 minute"
     when:
-      - "24 hours pass"
+      - "client makes another request"
     then:
-      - "colonist c1 has health 80"
-      - "event colonist/starving is emitted"
+      - "response status is 429"
+      - "Retry-After header is present"
 
-  - name: "Death from starvation"
-    scenario: "Extended hunger leads to death"
+  - name: "Token refresh extends session"
+    scenario: "Valid refresh token issues new access token"
     given:
-      - "colonist c1 has health 10 and food need 0"
+      - "user has valid refresh token"
     when:
-      - "24 hours pass"
+      - "POST /auth/refresh is called"
     then:
-      - "colonist c1 is dead"
-      - "cause of death is starvation"
+      - "new access token is returned"
+      - "refresh token is rotated"
 ```
 
-Contracts serve as executable specifications — your design documents what should happen, and tests verify it actually does.
+Contracts serve as executable specifications — your documentation defines what should happen, and tests verify it actually does.
 
 ## Issues: Tracking TBDs
 
@@ -342,18 +350,18 @@ Mark unresolved questions directly in nodes:
 
 ```yaml
 issues:
-  - id: tbd_damage_formula
-    description: "Finalize damage calculation formula"
+  - id: tbd_error_format
+    description: "Finalize error response schema"
     severity: high          # low, medium, high, critical
-    location: "content.sections.damage"
+    location: "content.sections.errors"
     resolved: false
 ```
 
-A design is complete when all issues are resolved, all references exist, and all constraints pass.
+Documentation is complete when all issues are resolved, all references exist, and all constraints pass.
 
 ## AI Integration
 
-Deco is designed for AI-assisted design workflows. The engine validates all changes, so AI can propose updates without breaking consistency.
+Deco is designed for AI-assisted documentation workflows. The engine validates all changes, so AI can propose updates without breaking consistency.
 
 ### Two Update Modes
 
@@ -361,7 +369,7 @@ Deco is designed for AI-assisted design workflows. The engine validates all chan
 ```json
 [
   {"op": "set", "path": "status", "value": "approved"},
-  {"op": "append", "path": "tags", "value": "balanced"},
+  {"op": "append", "path": "tags", "value": "reviewed"},
   {"op": "unset", "path": "issues[0]"}
 ]
 ```
@@ -373,12 +381,12 @@ Deco is designed for AI-assisted design workflows. The engine validates all chan
 Add context for AI assistants directly in the node:
 
 ```yaml
-llm_context: "This combat system is the core loop. Balance carefully."
+llm_context: "This is the core authentication system. Changes affect all API security."
 ```
 
 ### Workflow Example
 
-1. Designer describes intent in natural language
+1. Author describes intent in natural language
 2. AI generates structured YAML or patch operations
 3. Deco validates schema, references, and constraints
 4. Changes applied only if valid
@@ -389,8 +397,8 @@ The engine — not the AI — is the source of truth.
 ## Typical Workflow
 
 ```bash
-# Start a new game design
-deco init my-rpg && cd my-rpg
+# Start a new documentation project
+deco init my-api && cd my-api
 
 # Create core systems
 # (manually or via AI-generated YAML)
@@ -398,23 +406,23 @@ deco init my-rpg && cd my-rpg
 # Validate as you go
 deco validate
 
-# Explore your design
+# Explore your documentation
 deco list --kind system
-deco show systems/combat
-deco query "damage"
+deco show systems/auth
+deco query "endpoint"
 
 # Make changes
-deco set systems/combat status approved
-deco append systems/combat tags balanced
+deco set systems/auth status approved
+deco append systems/auth tags reviewed
 
 # Refactor when needed
-deco mv items/sword items/weapons/sword
+deco mv components/db components/database
 
 # Review history
-deco history --node systems/combat
+deco history --node systems/auth
 
 # CI integration
-deco validate --quiet && echo "Design valid"
+deco validate --quiet && echo "Documentation valid"
 ```
 
 ## Architecture
