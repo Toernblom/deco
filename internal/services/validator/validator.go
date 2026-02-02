@@ -268,6 +268,46 @@ func (rv *ReferenceValidator) Validate(nodes []domain.Node, collector *errors.Co
 				collector.Add(err)
 			}
 		}
+
+		// Check EmitsEvents references
+		for _, eventRef := range node.Refs.EmitsEvents {
+			if !nodeIDs[eventRef] {
+				err := domain.DecoError{
+					Code:     "E020",
+					Summary:  "Reference not found: " + eventRef,
+					Detail:   "Referenced event node '" + eventRef + "' does not exist",
+					Location: location,
+				}
+
+				// Generate suggestion for similar IDs
+				suggs := rv.suggester.Suggest(eventRef, allIDs)
+				if len(suggs) > 0 {
+					err.Suggestion = "Did you mean '" + suggs[0] + "'?"
+				}
+
+				collector.Add(err)
+			}
+		}
+
+		// Check Vocabulary references
+		for _, vocabRef := range node.Refs.Vocabulary {
+			if !nodeIDs[vocabRef] {
+				err := domain.DecoError{
+					Code:     "E020",
+					Summary:  "Reference not found: " + vocabRef,
+					Detail:   "Referenced vocabulary node '" + vocabRef + "' does not exist",
+					Location: location,
+				}
+
+				// Generate suggestion for similar IDs
+				suggs := rv.suggester.Suggest(vocabRef, allIDs)
+				if len(suggs) > 0 {
+					err.Suggestion = "Did you mean '" + suggs[0] + "'?"
+				}
+
+				collector.Add(err)
+			}
+		}
 	}
 }
 

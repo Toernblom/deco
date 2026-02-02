@@ -529,6 +529,132 @@ func TestReferenceValidator_EmptyReferences(t *testing.T) {
 	}
 }
 
+// Test valid EmitsEvents references
+func TestReferenceValidator_ValidEmitsEvents(t *testing.T) {
+	rv := validator.NewReferenceValidator()
+
+	nodes := []domain.Node{
+		{ID: "events/player-died", Kind: "event", Version: 1, Status: "draft", Title: "Player Died Event"},
+		{ID: "systems/combat", Kind: "system", Version: 1, Status: "draft", Title: "Combat System",
+			Refs: domain.Ref{EmitsEvents: []string{"events/player-died"}}},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	rv.Validate(nodes, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for valid EmitsEvents references, got %d: %v", collector.Count(), collector.Errors())
+	}
+}
+
+// Test broken EmitsEvents reference
+func TestReferenceValidator_BrokenEmitsEvents(t *testing.T) {
+	rv := validator.NewReferenceValidator()
+
+	nodes := []domain.Node{
+		{ID: "systems/combat", Kind: "system", Version: 1, Status: "draft", Title: "Combat System",
+			Refs: domain.Ref{EmitsEvents: []string{"events/nonexistent"}}},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	rv.Validate(nodes, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for broken EmitsEvents reference")
+	}
+
+	errs := collector.Errors()
+	if errs[0].Code != "E020" {
+		t.Errorf("expected error code E020, got %s", errs[0].Code)
+	}
+}
+
+// Test valid Vocabulary references
+func TestReferenceValidator_ValidVocabulary(t *testing.T) {
+	rv := validator.NewReferenceValidator()
+
+	nodes := []domain.Node{
+		{ID: "glossary/terms", Kind: "glossary", Version: 1, Status: "draft", Title: "Game Terms"},
+		{ID: "systems/combat", Kind: "system", Version: 1, Status: "draft", Title: "Combat System",
+			Refs: domain.Ref{Vocabulary: []string{"glossary/terms"}}},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	rv.Validate(nodes, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for valid Vocabulary references, got %d: %v", collector.Count(), collector.Errors())
+	}
+}
+
+// Test broken Vocabulary reference
+func TestReferenceValidator_BrokenVocabulary(t *testing.T) {
+	rv := validator.NewReferenceValidator()
+
+	nodes := []domain.Node{
+		{ID: "systems/combat", Kind: "system", Version: 1, Status: "draft", Title: "Combat System",
+			Refs: domain.Ref{Vocabulary: []string{"glossary/nonexistent"}}},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	rv.Validate(nodes, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for broken Vocabulary reference")
+	}
+
+	errs := collector.Errors()
+	if errs[0].Code != "E020" {
+		t.Errorf("expected error code E020, got %s", errs[0].Code)
+	}
+}
+
+// Test suggestion for typo in EmitsEvents
+func TestReferenceValidator_EmitsEventsSuggestion(t *testing.T) {
+	rv := validator.NewReferenceValidator()
+
+	nodes := []domain.Node{
+		{ID: "events/player-died", Kind: "event", Version: 1, Status: "draft", Title: "Player Died Event"},
+		{ID: "systems/combat", Kind: "system", Version: 1, Status: "draft", Title: "Combat System",
+			Refs: domain.Ref{EmitsEvents: []string{"events/player-deid"}}}, // typo
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	rv.Validate(nodes, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for typo in EmitsEvents")
+	}
+
+	errs := collector.Errors()
+	if errs[0].Suggestion == "" {
+		t.Error("expected suggestion for similar ID, got none")
+	}
+}
+
+// Test all ref types validated together
+func TestReferenceValidator_AllRefTypes(t *testing.T) {
+	rv := validator.NewReferenceValidator()
+
+	nodes := []domain.Node{
+		{ID: "systems/combat", Kind: "system", Version: 1, Status: "draft", Title: "Combat System",
+			Refs: domain.Ref{
+				Uses:        []domain.RefLink{{Target: "missing-uses"}},
+				Related:     []domain.RefLink{{Target: "missing-related"}},
+				EmitsEvents: []string{"missing-event"},
+				Vocabulary:  []string{"missing-vocab"},
+			}},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	rv.Validate(nodes, collector)
+
+	// Should have 4 errors - one for each missing ref type
+	if collector.Count() != 4 {
+		t.Errorf("expected 4 errors (one per ref type), got %d", collector.Count())
+	}
+}
+
 // ===== CONSTRAINT VALIDATOR TESTS =====
 
 // Test passing constraint
