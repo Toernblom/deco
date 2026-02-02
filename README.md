@@ -121,8 +121,10 @@ content:
         - type: rule
           text: "Unmet needs reduce morale daily."
         - type: param
-          key: starting_population
-          value: { min: 4, max: 5 }
+          name: "Starting Population"
+          datatype: range_int
+          min: 4
+          max: 5
 
 # Tracked questions/TBDs
 issues:

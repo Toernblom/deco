@@ -64,9 +64,10 @@ content:
 
         - type: param
           id: starting_population
-          key: starting_population_families
+          name: "Starting Population Families"
           datatype: range_int
-          value: { min: 4, max: 5 }
+          min: 4
+          max: 5
           notes: "Starting population: 4-5 families."
 
         - type: mechanic
