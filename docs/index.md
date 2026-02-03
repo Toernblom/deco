@@ -78,7 +78,8 @@ deco/
 │
 ├── docs/                           # Documentation
 │   ├── index.md                    # This file (codebase structure)
-│   └── llm-reference.md            # Complete YAML reference for LLMs
+│   ├── llm-reference.md            # Complete YAML reference for LLMs
+│   └── cli-reference.md            # CLI command reference
 │
 ├── .github/workflows/              # CI/CD
 │   ├── ci.yml                      # Continuous Integration

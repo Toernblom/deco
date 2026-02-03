@@ -400,6 +400,77 @@ Custom types allow `required_fields` + `optional_fields` + `id`. If a custom typ
 
 ---
 
+## Review Workflow
+
+Nodes progress through a review workflow based on their `status` field.
+
+### Status Lifecycle
+
+```
+draft → review → approved → published → deprecated
+```
+
+| Status | Description |
+|--------|-------------|
+| `draft` | Initial state, work in progress |
+| `review` | Submitted for review, awaiting approvals |
+| `approved` | Received required approvals |
+| `published` | Final/released state |
+| `deprecated` | No longer active |
+
+### Reviewers Field
+
+The `reviewers` field tracks approval records. It's managed by the CLI and should not be edited manually.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Reviewer username |
+| `timestamp` | datetime | When approval was given |
+| `version` | integer | Node version that was approved |
+| `note` | string | Optional approval comment |
+
+```yaml
+reviewers:
+  - name: alice
+    timestamp: 2026-02-03T14:30:00Z
+    version: 2
+    note: "LGTM"
+  - name: bob
+    timestamp: 2026-02-03T15:45:00Z
+    version: 2
+```
+
+**Important**: Approvals are tied to a specific version. If the node is modified after approval (version increments), previous approvals become "stale" and don't count toward the approval threshold.
+
+### CLI Commands
+
+```bash
+# Submit draft for review (draft → review)
+deco review submit <node-id>
+
+# Approve a node under review
+deco review approve <node-id>
+deco review approve <node-id> --note "Looks good"
+
+# Reject back to draft (review → draft)
+deco review reject <node-id> --note "Needs more detail on X"
+
+# Check review status
+deco review status <node-id>
+```
+
+### Configuration
+
+Set required approvals in `.deco/config.yaml`:
+
+```yaml
+required_approvals: 2    # Number of approvals needed for review → approved
+```
+
+When the approval count reaches `required_approvals`, status automatically transitions from `review` to `approved`.
+
+---
+
 ## Validation Errors
 
 Common validation errors and how to fix them:
