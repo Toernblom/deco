@@ -2,19 +2,15 @@ project_name: snake
 nodes_path: .deco/nodes
 history_path: .deco/history.jsonl
 version: 1
-
-# Custom block types for game design documents
+required_approvals: 1
 custom_block_types:
-  # Power-up block type for game collectibles
-  powerup:
-    required_fields:
-      - name
-      - effect
-      - duration
-
-# Per-kind schema rules for nodes
+    powerup:
+        required_fields:
+            - name
+            - effect
+            - duration
 schema_rules:
-  # All item nodes must have an item_type in their custom section
-  item:
-    required_fields:
-      - item_type
+    item:
+        required_fields:
+            - item_type
+schema_version: f9aea1cadb5dae88
