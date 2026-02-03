@@ -230,6 +230,57 @@ func TestBlockValidator_TableColumnMissingKey(t *testing.T) {
 	}
 }
 
+func TestBlockValidator_TableColumnUnknownField(t *testing.T) {
+	validator := NewBlockValidator()
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Data",
+					Blocks: []domain.Block{
+						{
+							Type: "table",
+							Data: map[string]interface{}{
+								"id": "test_table",
+								"columns": []interface{}{
+									map[string]interface{}{
+										"key":     "name",
+										"type":    "string",
+										"display": "Name",
+										"dispay":  "typo",
+									},
+								},
+								"rows": []interface{}{
+									map[string]interface{}{"name": "Test"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for unknown table column field")
+	}
+
+	found := false
+	for _, err := range collector.Errors() {
+		if err.Code == "E049" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected E049 for unknown table column field")
+	}
+}
+
 func TestBlockValidator_ValidParamBlock(t *testing.T) {
 	validator := NewBlockValidator()
 	collector := errors.NewCollectorWithLimit(100)
@@ -333,6 +384,55 @@ func TestBlockValidator_ParamMissingDatatype(t *testing.T) {
 	errs := collector.Errors()
 	if errs[0].Code != "E047" {
 		t.Errorf("expected E047, got %s", errs[0].Code)
+	}
+}
+
+func TestBlockValidator_UnknownBlockField(t *testing.T) {
+	validator := NewBlockValidator()
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Parameters",
+					Blocks: []domain.Block{
+						{
+							Type: "param",
+							Data: map[string]interface{}{
+								"id":       "test_param",
+								"name":     "Test Parameter",
+								"datatype": "int",
+								"datatyp":  "typo",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for unknown block field")
+	}
+
+	var unknownErr domain.DecoError
+	found := false
+	for _, err := range collector.Errors() {
+		if err.Code == "E049" {
+			unknownErr = err
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected E049 for unknown block field")
+	}
+	if unknownErr.Suggestion == "" {
+		t.Error("expected suggestion for unknown block field")
 	}
 }
 
@@ -753,6 +853,44 @@ func TestBlockValidator_CustomType_Valid(t *testing.T) {
 	}
 }
 
+func TestBlockValidator_CustomType_OptionalFields(t *testing.T) {
+	customTypes := map[string]config.BlockTypeConfig{
+		"quest": {
+			RequiredFields: []string{"name"},
+			OptionalFields: []string{"reward"},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Quests",
+					Blocks: []domain.Block{
+						{
+							Type: "quest",
+							Data: map[string]interface{}{
+								"id":     "main_quest",
+								"name":   "Defeat the Dragon",
+								"reward": "100 gold",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for custom block with optional fields, got: %v", collector.Errors())
+	}
+}
+
 func TestBlockValidator_CustomType_MissingRequiredField(t *testing.T) {
 	customTypes := map[string]config.BlockTypeConfig{
 		"quest": {
@@ -838,6 +976,7 @@ func TestBlockValidator_CustomType_NoRequiredFields(t *testing.T) {
 	customTypes := map[string]config.BlockTypeConfig{
 		"note": {
 			RequiredFields: []string{}, // no required fields
+			OptionalFields: []string{"text"},
 		},
 	}
 	validator := NewBlockValidatorWithConfig(customTypes)

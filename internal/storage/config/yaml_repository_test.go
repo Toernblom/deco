@@ -22,6 +22,12 @@ func TestYAMLRepository_Load(t *testing.T) {
 nodes_path: ".deco/nodes"
 history_path: ".deco/history.jsonl"
 version: 1
+custom_block_types:
+  quest:
+    required_fields:
+      - name
+    optional_fields:
+      - reward
 custom:
   author: "Test Author"
   tags:
@@ -53,6 +59,19 @@ custom:
 	}
 	if cfg.Version != 1 {
 		t.Errorf("Expected Version 1, got %d", cfg.Version)
+	}
+	if cfg.CustomBlockTypes == nil {
+		t.Fatal("Expected custom block types to be loaded")
+	}
+	questCfg, ok := cfg.CustomBlockTypes["quest"]
+	if !ok {
+		t.Fatal("Expected quest block type to be present")
+	}
+	if len(questCfg.RequiredFields) != 1 || questCfg.RequiredFields[0] != "name" {
+		t.Error("Expected custom block type required_fields to be loaded")
+	}
+	if len(questCfg.OptionalFields) != 1 || questCfg.OptionalFields[0] != "reward" {
+		t.Error("Expected custom block type optional_fields to be loaded")
 	}
 
 	// Verify custom fields

@@ -6,6 +6,8 @@ import "path/filepath"
 type BlockTypeConfig struct {
 	// RequiredFields lists field names that must be present in block.Data.
 	RequiredFields []string `yaml:"required_fields" json:"required_fields"`
+	// OptionalFields lists additional allowed fields for the block type.
+	OptionalFields []string `yaml:"optional_fields,omitempty" json:"optional_fields,omitempty"`
 }
 
 // SchemaRuleConfig defines validation rules for nodes of a specific kind.

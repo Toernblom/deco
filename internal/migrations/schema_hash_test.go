@@ -81,11 +81,31 @@ func TestComputeSchemaHash_DifferentSchemas(t *testing.T) {
 	}
 }
 
+func TestComputeSchemaHash_CustomBlockOptionalFields(t *testing.T) {
+	cfg1 := config.Config{
+		CustomBlockTypes: map[string]config.BlockTypeConfig{
+			"quest": {RequiredFields: []string{"name"}},
+		},
+	}
+	cfg2 := config.Config{
+		CustomBlockTypes: map[string]config.BlockTypeConfig{
+			"quest": {RequiredFields: []string{"name"}, OptionalFields: []string{"reward"}},
+		},
+	}
+
+	hash1 := ComputeSchemaHash(cfg1)
+	hash2 := ComputeSchemaHash(cfg2)
+
+	if hash1 == hash2 {
+		t.Errorf("optional fields should affect schema hash: %q == %q", hash1, hash2)
+	}
+}
+
 func TestSchemaVersionMatches(t *testing.T) {
 	tests := []struct {
-		name    string
-		cfg     config.Config
-		want    bool
+		name string
+		cfg  config.Config
+		want bool
 	}{
 		{
 			name: "empty schema no version",

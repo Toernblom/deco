@@ -44,6 +44,7 @@ References (`refs`):
 Content (`content.sections`):
 - Blocks of type: table, rule, param, mechanic, list
 - Custom block types can be defined in project config
+- Block fields are strictly validated; unknown fields are errors (table columns allow only `key`, `type`, `enum`, `display`)
 
 Issues (`issues`):
 - Tracked TBDs with id, description, severity (low/medium/high/critical), location, resolved
@@ -145,6 +146,9 @@ custom_block_types:
       - method
       - path
       - response
+    optional_fields:
+      - auth
+      - rate_limit
 
 # Define per-kind schema rules for nodes
 schema_rules:
@@ -158,7 +162,9 @@ schema_rules:
       - dependencies
 ```
 
-Custom block types extend the built-in types (rule, table, param, mechanic, list). When a custom type shares a name with a built-in type, both validations apply.
+Custom block types extend the built-in types (rule, table, param, mechanic, list). When a custom type shares a name with a built-in type, both validations apply. Custom block types allow `required_fields` + `optional_fields` + `id`.
+
+Block fields are strictly validated: unknown block fields (including table column keys outside `key`, `type`, `enum`, `display`) produce validation errors with suggestions.
 
 Schema rules enforce required custom fields per node kind. The `required_fields` must be present in the node's `custom:` section. Nodes with kinds not listed in schema_rules are not constrained.
 

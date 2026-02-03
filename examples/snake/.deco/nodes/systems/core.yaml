@@ -28,7 +28,6 @@ content:
           datatype: range_int
           min: 112
           max: 500
-          asdasdasd: 200
           unit: "ms"
           description: "Time between snake movements"
 

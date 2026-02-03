@@ -42,8 +42,12 @@ func buildCanonicalSchema(cfg config.Config) []byte {
 			fields := make([]string, len(bt.RequiredFields))
 			copy(fields, bt.RequiredFields)
 			sort.Strings(fields)
+			optionalFields := make([]string, len(bt.OptionalFields))
+			copy(optionalFields, bt.OptionalFields)
+			sort.Strings(optionalFields)
 			blockTypes[name] = map[string]interface{}{
 				"required_fields": fields,
+				"optional_fields": optionalFields,
 			}
 		}
 		schema["custom_block_types"] = sortedMap(blockTypes)

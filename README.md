@@ -315,6 +315,9 @@ constraints:
     scope: requirement  # Only applies to requirement nodes
 ```
 
+### Block Validation
+Blocks use strict field allowlists. Unknown block fields (and table column keys outside `key`, `type`, `enum`, `display`) are validation errors with suggestions.
+
 ## Contracts
 
 Define testable acceptance criteria using BDD-style scenarios:

@@ -2,6 +2,7 @@ package validator
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/errors"
@@ -15,6 +16,21 @@ var knownBlockTypes = map[string]bool{
 	"param":    true,
 	"mechanic": true,
 	"list":     true,
+}
+
+var builtInBlockFields = map[string][]string{
+	"rule":     {"id", "text"},
+	"table":    {"id", "columns", "rows"},
+	"param":    {"id", "name", "datatype", "min", "max", "default", "unit", "description"},
+	"mechanic": {"id", "name", "description", "conditions", "outputs", "inputs"},
+	"list":     {"id", "items"},
+}
+
+var allowedTableColumnFields = map[string]bool{
+	"key":     true,
+	"type":    true,
+	"enum":    true,
+	"display": true,
 }
 
 // BlockValidator validates that blocks within content sections have the required
@@ -129,6 +145,9 @@ func (bv *BlockValidator) validateBlock(block *domain.Block, nodeID, sectionName
 	if customTypeConfig != nil {
 		bv.validateCustomType(block, customTypeConfig, nodeID, sectionName, blockIdx, location, collector)
 	}
+
+	allowedFields := bv.allowedFieldsForBlock(block.Type, isBuiltIn, customTypeConfig)
+	bv.validateUnknownBlockFields(block, allowedFields, nodeID, sectionName, blockIdx, location, collector)
 }
 
 // validateRule checks that rule blocks have required fields.
@@ -170,6 +189,31 @@ func (bv *BlockValidator) validateTableColumns(columns interface{}, nodeID, sect
 				Detail:   bv.formatLocation(nodeID, sectionName, blockIdx),
 				Location: location,
 			})
+		}
+
+		columnKeys := make([]string, 0, len(colMap))
+		for key := range colMap {
+			columnKeys = append(columnKeys, key)
+		}
+		sort.Strings(columnKeys)
+
+		allowed := allowedFieldList(allowedTableColumnFields)
+		for _, key := range columnKeys {
+			if !allowedTableColumnFields[key] {
+				err := domain.DecoError{
+					Code:     "E049",
+					Summary:  fmt.Sprintf("Unknown table column field %q in column %d", key, colIdx),
+					Detail:   bv.formatLocation(nodeID, sectionName, blockIdx),
+					Location: location,
+				}
+
+				suggs := bv.suggester.Suggest(key, allowed)
+				if len(suggs) > 0 {
+					err.Suggestion = fmt.Sprintf("Did you mean %q?", suggs[0])
+				}
+
+				collector.Add(err)
+			}
 		}
 	}
 }
@@ -216,4 +260,65 @@ func (bv *BlockValidator) validateCustomType(block *domain.Block, cfg *config.Bl
 	for _, field := range cfg.RequiredFields {
 		bv.requireField(block, field, nodeID, sectionName, blockIdx, location, collector)
 	}
+}
+
+func (bv *BlockValidator) allowedFieldsForBlock(blockType string, isBuiltIn bool, cfg *config.BlockTypeConfig) map[string]bool {
+	allowed := map[string]bool{}
+	if isBuiltIn {
+		for _, field := range builtInBlockFields[blockType] {
+			allowed[field] = true
+		}
+	}
+	if cfg != nil {
+		for _, field := range cfg.RequiredFields {
+			allowed[field] = true
+		}
+		for _, field := range cfg.OptionalFields {
+			allowed[field] = true
+		}
+	}
+	if isBuiltIn || cfg != nil {
+		allowed["id"] = true
+	}
+	return allowed
+}
+
+func (bv *BlockValidator) validateUnknownBlockFields(block *domain.Block, allowed map[string]bool, nodeID, sectionName string, blockIdx int, location *domain.Location, collector *errors.Collector) {
+	if block == nil || len(block.Data) == 0 || len(allowed) == 0 {
+		return
+	}
+
+	blockKeys := make([]string, 0, len(block.Data))
+	for key := range block.Data {
+		blockKeys = append(blockKeys, key)
+	}
+	sort.Strings(blockKeys)
+
+	allowedList := allowedFieldList(allowed)
+	for _, key := range blockKeys {
+		if !allowed[key] {
+			err := domain.DecoError{
+				Code:     "E049",
+				Summary:  fmt.Sprintf("Unknown field %q in %s block", key, block.Type),
+				Detail:   bv.formatLocation(nodeID, sectionName, blockIdx),
+				Location: location,
+			}
+
+			suggs := bv.suggester.Suggest(key, allowedList)
+			if len(suggs) > 0 {
+				err.Suggestion = fmt.Sprintf("Did you mean %q?", suggs[0])
+			}
+
+			collector.Add(err)
+		}
+	}
+}
+
+func allowedFieldList(allowed map[string]bool) []string {
+	allowedList := make([]string, 0, len(allowed))
+	for key := range allowed {
+		allowedList = append(allowedList, key)
+	}
+	sort.Strings(allowedList)
+	return allowedList
 }
