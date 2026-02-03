@@ -1,0 +1,48 @@
+id: systems/errors
+kind: system
+version: 1
+status: approved
+title: Error Handling Patterns
+tags:
+    - errors
+    - api
+refs:
+    uses:
+        - target: schemas/error
+          context: Standard error response schema
+content:
+    sections:
+        - name: Envelope
+          blocks:
+            - type: rule
+              id: error_envelope
+              text: Errors follow the standard schema and include a request_id for tracing.
+        - name: Common Errors
+          blocks:
+            - type: error_case
+              id: auth_required
+              code: AUTH_REQUIRED
+              message: Authentication required
+              http_status: 401
+              retryable: false
+            - type: error_case
+              id: forbidden
+              code: FORBIDDEN
+              message: Insufficient permissions
+              http_status: 403
+              retryable: false
+            - type: error_case
+              id: rate_limited
+              code: RATE_LIMITED
+              message: Too many requests
+              http_status: 429
+              retryable: true
+summary: |
+    Consistent error semantics used by every endpoint.
+custom:
+    owner: Platform Team
+    tier: core
+reviewers:
+    - name: Example Reviewer
+      timestamp: 2026-02-03T21:30:00Z
+      version: 1

@@ -1,0 +1,66 @@
+id: systems/rate-limits
+kind: system
+version: 1
+status: approved
+title: Rate Limiting Policy
+tags:
+    - rate-limit
+    - api
+content:
+    sections:
+        - name: Defaults
+          blocks:
+            - type: param
+              id: default_limit
+              name: Default limit
+              datatype: int
+              default: 120
+              unit: requests/min
+              description: Standard per-user limit for authenticated endpoints.
+            - type: param
+              id: burst_limit
+              name: Burst limit
+              datatype: int
+              default: 240
+              unit: requests/min
+              description: Short burst allowance for retries.
+            - type: rule
+              id: rate_headers
+              text: Responses include X-RateLimit-* headers with remaining budget.
+        - name: Tier Matrix
+          blocks:
+            - type: table
+              id: tier_limits
+              columns:
+                - key: tier
+                  type: string
+                  display: Tier
+                - key: rpm
+                  type: string
+                  display: Requests/Min
+                - key: burst
+                  type: string
+                  display: Burst
+                - key: notes
+                  type: string
+                  display: Notes
+              rows:
+                - tier: standard
+                  rpm: "120"
+                  burst: "240"
+                  notes: Default for most clients
+                - tier: partner
+                  rpm: "300"
+                  burst: "600"
+                  notes: Requires signed agreement
+summary: |
+    Defines default and tiered rate limits for the API.
+custom:
+    owner: Platform Team
+    tier: core
+    default_limit: 120
+    burst_limit: 240
+reviewers:
+    - name: Example Reviewer
+      timestamp: 2026-02-03T21:30:00Z
+      version: 1

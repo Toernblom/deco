@@ -1,0 +1,49 @@
+id: schemas/auth-token
+kind: schema
+version: 1
+status: approved
+title: Auth Token Schema
+tags:
+    - schema
+    - auth
+content:
+    sections:
+        - name: Fields
+          blocks:
+            - type: schema_field
+              id: access_token
+              name: access_token
+              datatype: string
+              required: true
+              description: JWT access token string.
+              example: eyJhbGciOiJSUzI1NiIs...
+            - type: schema_field
+              id: refresh_token
+              name: refresh_token
+              datatype: string
+              required: true
+              description: Opaque refresh token.
+              example: rfr_12345
+            - type: schema_field
+              id: expires_in
+              name: expires_in
+              datatype: int
+              required: true
+              description: Seconds until access token expiry.
+              example: 900
+            - type: schema_field
+              id: token_type
+              name: token_type
+              datatype: string
+              required: true
+              description: Token type for Authorization header.
+              example: Bearer
+summary: |
+    Token pair returned by login and refresh flows.
+custom:
+    data_classification: internal
+    pii: false
+reviewers:
+    - name: Example Reviewer
+      timestamp: 2026-02-03T21:30:00Z
+      version: 1

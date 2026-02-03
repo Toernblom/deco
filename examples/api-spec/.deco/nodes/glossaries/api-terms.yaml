@@ -1,0 +1,30 @@
+id: glossaries/api-terms
+kind: glossary
+version: 1
+status: approved
+title: API Glossary
+tags:
+    - glossary
+    - api
+content:
+    sections:
+        - name: Terms
+          blocks:
+            - type: list
+              id: terms
+              items:
+                - JWT
+                - Bearer token
+                - Rate limit
+                - Request id
+summary: |
+    Shared vocabulary for the API specification example.
+glossary:
+    Bearer token: Authorization header value using the Bearer scheme
+    JWT: JSON Web Token signed by the auth service
+    Rate limit: Maximum number of requests allowed per minute
+    Request id: Server-generated identifier included with every response
+reviewers:
+    - name: Example Reviewer
+      timestamp: 2026-02-03T21:30:00Z
+      version: 1

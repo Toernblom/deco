@@ -1,0 +1,42 @@
+id: schemas/error
+kind: schema
+version: 1
+status: approved
+title: Error Schema
+tags:
+    - schema
+    - errors
+content:
+    sections:
+        - name: Fields
+          blocks:
+            - type: schema_field
+              id: error_code
+              name: code
+              datatype: string
+              required: true
+              description: Machine-readable error code.
+              example: RATE_LIMITED
+            - type: schema_field
+              id: error_message
+              name: message
+              datatype: string
+              required: true
+              description: Human-readable error message.
+              example: Too many requests
+            - type: schema_field
+              id: request_id
+              name: request_id
+              datatype: string
+              required: true
+              description: Trace identifier for support.
+              example: req_9f1b2c
+summary: |
+    Standard error payload returned by all endpoints.
+custom:
+    data_classification: internal
+    pii: false
+reviewers:
+    - name: Example Reviewer
+      timestamp: 2026-02-03T21:30:00Z
+      version: 1

@@ -19,6 +19,13 @@ Retro shooter demonstrating:
 - **Mechanics**: Formation movement, wave progression
 - **Rules**: Game flow and constraints
 
+### API Spec (`api-spec/`)
+REST API documentation demonstrating:
+- **Custom blocks**: Endpoint and schema field definitions
+- **Systems**: Auth, rate limits, error handling
+- **Schemas**: User, product, auth token, error payloads
+- **Constraints**: Cross-node validation of rate limits
+
 ## Usage
 
 ```bash

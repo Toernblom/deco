@@ -1,0 +1,56 @@
+id: endpoints/products
+kind: endpoint
+version: 1
+status: approved
+title: Product Endpoints
+tags:
+    - products
+    - rest
+refs:
+    uses:
+        - target: systems/auth
+          context: Bearer token required for catalog access
+        - target: systems/rate-limits
+          context: Catalog endpoints follow standard rate limits
+        - target: systems/errors
+          context: Standard error responses
+        - target: schemas/product
+          context: Product resource schema
+        - target: schemas/error
+          context: Error payload schema
+content:
+    sections:
+        - name: Endpoints
+          blocks:
+            - type: endpoint
+              id: list_products
+              method: GET
+              path: /products
+              response: schemas/product
+              auth: Bearer
+              rate_limit: standard
+              description: List products with optional filters.
+              errors:
+                - FORBIDDEN
+                - RATE_LIMITED
+            - type: endpoint
+              id: get_product
+              method: GET
+              path: /products/{id}
+              response: schemas/product
+              auth: Bearer
+              rate_limit: standard
+              description: Fetch a product by id.
+              errors:
+                - FORBIDDEN
+                - RATE_LIMITED
+summary: |
+    Product catalog endpoints used by storefront and back office clients.
+custom:
+    owner: Catalog Squad
+    rate_limit_per_minute: 100
+    stability: beta
+reviewers:
+    - name: Example Reviewer
+      timestamp: 2026-02-03T21:30:00Z
+      version: 1

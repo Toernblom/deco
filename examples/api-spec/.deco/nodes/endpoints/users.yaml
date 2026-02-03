@@ -1,0 +1,72 @@
+id: endpoints/users
+kind: endpoint
+version: 1
+status: approved
+title: User Endpoints
+tags:
+    - users
+    - rest
+refs:
+    uses:
+        - target: systems/auth
+          context: Bearer token required for all user operations
+        - target: systems/rate-limits
+          context: User endpoints follow default rate limit policy
+        - target: systems/errors
+          context: Standard error responses
+        - target: schemas/user
+          context: User resource schema
+        - target: schemas/error
+          context: Error payload schema
+content:
+    sections:
+        - name: Endpoints
+          blocks:
+            - type: endpoint
+              id: list_users
+              method: GET
+              path: /users
+              response: schemas/user
+              auth: Bearer
+              rate_limit: standard
+              description: List users visible to the caller.
+              errors:
+                - FORBIDDEN
+                - RATE_LIMITED
+            - type: endpoint
+              id: create_user
+              method: POST
+              path: /users
+              request: schemas/user
+              response: schemas/user
+              auth: Bearer
+              rate_limit: standard
+              description: Create a new user account.
+              errors:
+                - FORBIDDEN
+                - RATE_LIMITED
+            - type: endpoint
+              id: get_user
+              method: GET
+              path: /users/{id}
+              response: schemas/user
+              auth: Bearer
+              rate_limit: standard
+              description: Fetch a single user by id.
+              errors:
+                - FORBIDDEN
+                - RATE_LIMITED
+constraints:
+    - expr: "self.custom.rate_limit_per_minute <= refs['systems/rate-limits'].custom.default_limit"
+      message: User endpoints cannot exceed the platform default rate limit.
+      scope: endpoints/*
+summary: |
+    REST endpoints for listing and managing users.
+custom:
+    owner: Identity Squad
+    rate_limit_per_minute: 120
+    stability: stable
+reviewers:
+    - name: Example Reviewer
+      timestamp: 2026-02-03T21:30:00Z
+      version: 1

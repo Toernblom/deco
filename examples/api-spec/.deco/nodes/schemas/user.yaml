@@ -1,0 +1,49 @@
+id: schemas/user
+kind: schema
+version: 1
+status: approved
+title: User Schema
+tags:
+    - schema
+    - users
+content:
+    sections:
+        - name: Fields
+          blocks:
+            - type: schema_field
+              id: user_id
+              name: id
+              datatype: string
+              required: true
+              description: Unique user identifier.
+              example: usr_123
+            - type: schema_field
+              id: email
+              name: email
+              datatype: string
+              required: true
+              description: Primary email address.
+              example: user@example.com
+            - type: schema_field
+              id: full_name
+              name: full_name
+              datatype: string
+              required: true
+              description: Display name.
+              example: Pat Doe
+            - type: schema_field
+              id: created_at
+              name: created_at
+              datatype: timestamp
+              required: true
+              description: RFC3339 creation timestamp.
+              example: 2026-02-01T10:15:00Z
+summary: |
+    Canonical user object returned by user endpoints.
+custom:
+    data_classification: confidential
+    pii: true
+reviewers:
+    - name: Example Reviewer
+      timestamp: 2026-02-03T21:30:00Z
+      version: 1

@@ -1,0 +1,67 @@
+id: endpoints/auth
+kind: endpoint
+version: 1
+status: approved
+title: Authentication Endpoints
+tags:
+    - auth
+    - rest
+refs:
+    uses:
+        - target: systems/auth
+          context: Auth service behavior and token format
+        - target: systems/errors
+          context: Standard error responses
+        - target: schemas/auth-token
+          context: Token response payload
+        - target: schemas/user
+          context: Login request payload
+        - target: schemas/error
+          context: Error payload schema
+content:
+    sections:
+        - name: Endpoints
+          blocks:
+            - type: endpoint
+              id: login
+              method: POST
+              path: /auth/login
+              request: schemas/user
+              response: schemas/auth-token
+              auth: none
+              rate_limit: strict
+              description: Exchange credentials for an access token.
+              errors:
+                - AUTH_REQUIRED
+                - RATE_LIMITED
+            - type: endpoint
+              id: refresh
+              method: POST
+              path: /auth/refresh
+              request: schemas/auth-token
+              response: schemas/auth-token
+              auth: Bearer
+              rate_limit: strict
+              description: Rotate refresh token and issue a new access token.
+              errors:
+                - AUTH_REQUIRED
+                - RATE_LIMITED
+contracts:
+    - name: Successful login issues tokens
+      scenario: Valid credentials return a token pair
+      given:
+        - "Client submits valid credentials to @systems/auth"
+      when:
+        - "POST /auth/login is called"
+      then:
+        - "Response body conforms to @schemas/auth-token"
+summary: |
+    Endpoints for login and token refresh.
+custom:
+    owner: Identity Squad
+    rate_limit_per_minute: 60
+    stability: stable
+reviewers:
+    - name: Example Reviewer
+      timestamp: 2026-02-03T21:30:00Z
+      version: 1

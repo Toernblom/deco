@@ -1,0 +1,47 @@
+project_name: api-spec
+nodes_path: .deco/nodes
+history_path: .deco/history.jsonl
+version: 1
+required_approvals: 1
+custom_block_types:
+    endpoint:
+        required_fields:
+            - method
+            - path
+            - response
+        optional_fields:
+            - auth
+            - rate_limit
+            - request
+            - errors
+            - description
+    schema_field:
+        required_fields:
+            - name
+            - datatype
+        optional_fields:
+            - required
+            - description
+            - example
+    error_case:
+        required_fields:
+            - code
+            - message
+        optional_fields:
+            - http_status
+            - retryable
+schema_rules:
+    endpoint:
+        required_fields:
+            - owner
+            - rate_limit_per_minute
+            - stability
+    schema:
+        required_fields:
+            - data_classification
+            - pii
+    system:
+        required_fields:
+            - owner
+            - tier
+schema_version: 8230a41a7b252859

@@ -1,0 +1,50 @@
+id: systems/api
+kind: system
+version: 1
+status: approved
+title: Public API Overview
+tags:
+    - api
+    - platform
+refs:
+    uses:
+        - target: systems/auth
+          context: Authentication and token handling
+        - target: systems/rate-limits
+          context: Global rate limit policy
+        - target: systems/errors
+          context: Standard error envelope
+    vocabulary:
+        - glossaries/api-terms
+content:
+    sections:
+        - name: Base URLs
+          blocks:
+            - type: table
+              id: base_urls
+              columns:
+                - key: environment
+                  type: string
+                  display: Environment
+                - key: url
+                  type: string
+                  display: Base URL
+              rows:
+                - environment: Production
+                  url: https://api.acme.test/v1
+                - environment: Sandbox
+                  url: https://sandbox.api.acme.test/v1
+        - name: Versioning
+          blocks:
+            - type: rule
+              id: versioning
+              text: Version is encoded in the URL path (/v1) and only changes for breaking updates.
+summary: |
+    Entry point and shared conventions for the Acme Store public API.
+custom:
+    owner: Platform Team
+    tier: core
+reviewers:
+    - name: Example Reviewer
+      timestamp: 2026-02-03T21:30:00Z
+      version: 1

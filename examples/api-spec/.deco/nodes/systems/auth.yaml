@@ -1,0 +1,58 @@
+id: systems/auth
+kind: system
+version: 1
+status: approved
+title: Authentication and Tokens
+tags:
+    - auth
+    - security
+refs:
+    uses:
+        - target: schemas/auth-token
+          context: Token payload returned by login and refresh
+        - target: schemas/error
+          context: Error envelope for auth failures
+content:
+    sections:
+        - name: Token Strategy
+          blocks:
+            - type: rule
+              id: jwt_required
+              text: Access tokens are JWTs signed with RS256 and include tenant_id and scope claims.
+            - type: param
+              id: access_ttl
+              name: Access token TTL
+              datatype: duration
+              default: 15m
+              description: Access tokens expire quickly to limit exposure.
+            - type: param
+              id: refresh_ttl
+              name: Refresh token TTL
+              datatype: duration
+              default: 30d
+              description: Refresh tokens are long-lived and stored server-side.
+        - name: Scopes
+          blocks:
+            - type: list
+              id: scopes
+              items:
+                - "users:read"
+                - "users:write"
+                - "products:read"
+                - "orders:write"
+issues:
+    - id: auth-rotation
+      description: Confirm whether refresh tokens are rotated on every use.
+      severity: low
+      location: content.sections[0]
+      resolved: true
+summary: |
+    Authentication uses bearer tokens issued by the auth service.
+    Scopes control access per endpoint.
+custom:
+    owner: Platform Team
+    tier: core
+reviewers:
+    - name: Example Reviewer
+      timestamp: 2026-02-03T21:30:00Z
+      version: 1
