@@ -77,7 +77,8 @@ deco/
 │       └── .deco/nodes/            # aliens, player, core
 │
 ├── docs/                           # Documentation
-│   └── index.md                    # This file
+│   ├── index.md                    # This file (codebase structure)
+│   └── llm-reference.md            # Complete YAML reference for LLMs
 │
 ├── .github/workflows/              # CI/CD
 │   ├── ci.yml                      # Continuous Integration
