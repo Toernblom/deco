@@ -185,6 +185,22 @@ func runSync(flags *syncFlags) (int, error) {
 			})
 			// Remove from orphan map so it won't be baselined
 			delete(orphanNodes, oldHash)
+			// Remove from missing so it won't be treated as deletion
+			delete(missingNodeHashes, oldID)
+		}
+	}
+
+	// Detect deletions: remaining missing nodes (history but no file, not renamed)
+	var deletedNodes []string
+	for deletedID := range missingNodeHashes {
+		deletedNodes = append(deletedNodes, deletedID)
+		if !flags.dryRun {
+			if err := logDeleteOperation(historyPath, deletedID); err != nil {
+				errors = append(errors, fmt.Sprintf("failed to log deletion of %s: %v", deletedID, err))
+				if !flags.quiet {
+					fmt.Fprintf(os.Stderr, "Error: failed to log deletion of %s: %v\n", deletedID, err)
+				}
+			}
 		}
 	}
 
@@ -325,6 +341,14 @@ func runSync(flags *syncFlags) (int, error) {
 
 	// Output results
 	if !flags.quiet {
+		if len(deletedNodes) > 0 {
+			if flags.dryRun {
+				fmt.Printf("Would mark deleted: %s (%d nodes)\n", strings.Join(deletedNodes, ", "), len(deletedNodes))
+			} else {
+				fmt.Printf("Deleted: %s (%d nodes)\n", strings.Join(deletedNodes, ", "), len(deletedNodes))
+			}
+		}
+
 		if len(renameResults) > 0 {
 			if flags.dryRun {
 				fmt.Println("Would apply renames:")
@@ -367,7 +391,7 @@ func runSync(flags *syncFlags) (int, error) {
 	}
 
 	// Return modified exit code if changes would be (or were) made
-	if len(syncResults) > 0 || len(renameResults) > 0 {
+	if len(syncResults) > 0 || len(renameResults) > 0 || len(deletedNodes) > 0 {
 		return syncExitModified, nil
 	}
 
@@ -474,6 +498,20 @@ func logMoveOperation(historyPath, oldID, newID, contentHash string) error {
 		After: map[string]interface{}{
 			"id": newID,
 		},
+	}
+
+	return historyRepo.Append(entry)
+}
+
+// logDeleteOperation records a node deletion detected during sync
+func logDeleteOperation(historyPath, nodeID string) error {
+	historyRepo := history.NewYAMLRepository(historyPath)
+
+	entry := domain.AuditEntry{
+		Timestamp: time.Now(),
+		NodeID:    nodeID,
+		Operation: "delete",
+		User:      GetCurrentUser(),
 	}
 
 	return historyRepo.Append(entry)

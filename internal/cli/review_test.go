@@ -245,7 +245,7 @@ func TestReviewCommand_Status(t *testing.T) {
 }
 
 func TestReviewWorkflow_Integration(t *testing.T) {
-	t.Run("full workflow: draft -> review -> approved -> edit -> draft", func(t *testing.T) {
+	t.Run("full workflow: draft -> review -> approved", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		setupReviewProject(t, tmpDir)
 		createDraftNode(t, tmpDir, "test/node")
@@ -274,20 +274,8 @@ func TestReviewWorkflow_Integration(t *testing.T) {
 			t.Fatalf("Expected status 'approved' after approve")
 		}
 
-		// 3. Edit (should reset to draft)
-		setCmd := NewSetCommand()
-		setCmd.SetArgs([]string{"test/node", "title", "Updated Title", tmpDir})
-		if err := setCmd.Execute(); err != nil {
-			t.Fatalf("Set failed: %v", err)
-		}
-
-		nodeYAML = readNodeFileByID(t, tmpDir, "test/node")
-		if !strings.Contains(nodeYAML, "status: draft") {
-			t.Fatalf("Expected status 'draft' after edit")
-		}
-		if strings.Contains(nodeYAML, "reviewers:") {
-			t.Fatalf("Expected reviewers to be cleared after edit")
-		}
+		// Note: Edit->draft workflow is now tested via sync_test.go
+		// (file edit + deco sync resets status to draft)
 	})
 }
 

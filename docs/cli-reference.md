@@ -2,11 +2,18 @@
 
 Complete command reference for the Deco CLI.
 
+## Workflow Overview
+
+Deco is designed for LLM-assisted workflows where YAML files are edited directly:
+
+```
+Edit YAML → deco sync → deco validate → deco review approve
+```
+
 ## Global Flags
 
 | Flag | Description |
 |------|-------------|
-| `-c, --config` | Path to deco project directory (default `.deco`) |
 | `-q, --quiet` | Suppress non-error output |
 | `--verbose` | Enable verbose output |
 | `-v, --version` | Show version |
@@ -25,21 +32,6 @@ deco init .                    # Initialize in current directory
 deco init my-project           # Create and initialize new directory
 deco init . --force            # Reinitialize existing project
 ```
-
-### `deco create`
-
-Create a new node with required fields.
-
-```bash
-deco create <node-id>
-deco create systems/auth
-deco create systems/auth --kind system --title "Authentication"
-```
-
-| Flag | Description |
-|------|-------------|
-| `--kind` | Node kind (default: inferred from path) |
-| `--title` | Node title |
 
 ---
 
@@ -131,99 +123,47 @@ deco graph --format dot        # Graphviz DOT format
 
 ---
 
-## Modifying Nodes
+## Sync & Change Detection
 
-### `deco set`
+### `deco sync`
 
-Set a field value on a node.
-
-```bash
-deco set <node-id> <path> <value>
-deco set systems/auth title "New Title"
-deco set systems/auth status approved
-deco set systems/auth tags[0] security
-```
-
-Supports dot notation and array indexing.
-
-### `deco append`
-
-Append a value to an array field.
+Detect and process changes made directly to YAML files.
 
 ```bash
-deco append <node-id> <path> <value>
-deco append systems/auth tags oauth
-deco append systems/auth refs.uses.target items/token
-```
-
-### `deco unset`
-
-Remove a field or array element.
-
-```bash
-deco unset <node-id> <path>
-deco unset systems/auth summary
-deco unset systems/auth tags[2]
-```
-
-### `deco apply`
-
-Apply a batch of patch operations from a JSON file.
-
-```bash
-deco apply <node-id> <patch-file>
-deco apply systems/auth changes.json
-deco apply systems/auth changes.json --dry-run
-```
-
-Patch file format:
-```json
-[
-  {"op": "set", "path": "title", "value": "New Title"},
-  {"op": "append", "path": "tags", "value": "new-tag"},
-  {"op": "unset", "path": "summary"}
-]
+deco sync
+deco sync --dry-run            # Show what would change
+deco sync --no-refactor        # Skip automatic reference updates
 ```
 
 | Flag | Description |
 |------|-------------|
 | `--dry-run` | Show what would change without applying |
+| `--no-refactor` | Skip automatic reference updates for renames |
+| `-q, --quiet` | Suppress output |
 
-### `deco rewrite`
+**What sync detects:**
 
-Replace entire node content from a YAML file.
+1. **Modified nodes**: Content changed since last sync
+   - Bumps version number
+   - Resets status to `draft` if was `approved` or `review`
+   - Clears reviewers
+   - Logs to history
 
-```bash
-deco rewrite <node-id> <yaml-file>
-deco rewrite systems/auth new-content.yaml
-```
+2. **New nodes**: Files with no history
+   - Baselines current state (records in history)
 
-Replaces the node content completely. Validates before saving.
+3. **Renamed nodes**: File moved/renamed manually
+   - Detects via content hash matching
+   - Automatically updates references in other nodes
+   - Logs move operation to history
 
-### `deco rm`
+4. **Deleted nodes**: Files removed
+   - Logs deletion to history
 
-Delete a node.
-
-```bash
-deco rm <node-id>
-deco rm old-spec               # Fails if other nodes reference it
-deco rm old-spec --force       # Delete even with references
-```
-
-| Flag | Description |
-|------|-------------|
-| `--force` | Delete even if other nodes reference this node |
-
-### `deco mv`
-
-Rename a node and update all references.
-
-```bash
-deco mv <old-id> <new-id>
-deco mv systems/auth systems/authentication
-```
-
-Automatically updates all nodes that reference the renamed node.
+**Exit codes:**
+- `0` - No changes needed
+- `1` - Files modified (re-commit needed)
+- `2` - Error occurred
 
 ---
 
@@ -318,20 +258,6 @@ deco diff systems/auth --since 2h  # Changes in last 2 hours
 | `--last` | Show last N changes |
 | `--since` | Show changes since duration (e.g., `2h`, `1d`) |
 
-### `deco sync`
-
-Detect and fix unversioned node changes.
-
-```bash
-deco sync
-deco sync --dry-run            # Show what would change
-```
-
-When nodes are edited directly (bypassing CLI), `sync` detects changes by content hash and:
-- Bumps the version number
-- Resets status to `draft` if it was `approved` or `review`
-- Logs the sync operation to history
-
 ---
 
 ## Migration
@@ -395,10 +321,17 @@ schema_rules:
 # Start a new project
 deco init my-docs && cd my-docs
 
-# Create nodes
-deco create systems/auth --kind system --title "Authentication"
+# Create node by writing YAML directly
+cat > .deco/nodes/systems/auth.yaml << 'EOF'
+id: systems/auth
+kind: system
+version: 1
+status: draft
+title: Authentication System
+summary: Handles user login and session management
+EOF
 
-# Edit the YAML file directly, then sync
+# Sync to register the new node
 deco sync
 
 # Validate
@@ -414,19 +347,33 @@ deco review approve systems/auth --note "LGTM"
 deco review status systems/auth
 ```
 
+### Renaming Nodes
+
+```bash
+# Rename by moving the file
+mv .deco/nodes/components/db.yaml .deco/nodes/components/database.yaml
+
+# Edit the file to update the id field
+# Then sync - references are updated automatically
+deco sync
+
+# Check what changed
+deco history --limit 5
+```
+
+### Deleting Nodes
+
+```bash
+# Delete by removing the file
+rm .deco/nodes/old-spec.yaml
+
+# Sync to record the deletion
+deco sync
+```
+
 ### CI Integration
 
 ```bash
 # Validate all nodes (quiet mode for CI)
 deco validate --quiet && echo "Documentation valid"
-```
-
-### Refactoring
-
-```bash
-# Rename a node (updates all references)
-deco mv components/db components/database
-
-# Check what changed
-deco history --limit 5
 ```

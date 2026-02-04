@@ -17,13 +17,14 @@ deco/
 │   │   ├── list.go                 # List nodes with filtering
 │   │   ├── show.go                 # Display node details + reverse refs
 │   │   ├── query.go                # Search/filter nodes
-│   │   ├── set.go                  # Set field values (dot notation)
-│   │   ├── append.go               # Append values to arrays
-│   │   ├── unset.go                # Remove fields/array elements
-│   │   ├── apply.go                # Apply structured patch files
-│   │   ├── mv.go                   # Move/rename nodes with ref updates
+│   │   ├── sync.go                 # Detect changes, renames, deletions
+│   │   ├── review.go               # Review workflow (submit/approve/reject)
 │   │   ├── history.go              # View audit log
 │   │   ├── diff.go                 # Show node change history
+│   │   ├── graph.go                # Output dependency graph
+│   │   ├── stats.go                # Project statistics
+│   │   ├── issues.go               # List TBDs/issues
+│   │   ├── migrate.go              # Schema migrations
 │   │   └── *_test.go               # Tests for each command
 │   │
 │   ├── domain/                     # Core domain models
@@ -51,12 +52,10 @@ deco/
 │   │   │   └── builder.go          # Build graph, detect cycles
 │   │   ├── validator/
 │   │   │   └── validator.go        # Schema validation, required fields
-│   │   ├── patcher/
-│   │   │   └── patcher.go          # Set/Append/Unset operations
 │   │   ├── query/
 │   │   │   └── query.go            # Node filtering/search
 │   │   └── refactor/
-│   │       └── rename.go           # Rename with ref updates
+│   │       └── rename.go           # Reference updates (used by sync)
 │   │
 │   └── storage/                    # Persistence layer
 │       ├── config/
@@ -120,4 +119,4 @@ CLI (cmd/deco) → Commands (internal/cli) → Services (internal/services) → 
 | Change validation rules | `internal/services/validator/validator.go` |
 | Update reference handling | `internal/domain/ref.go`, `internal/services/graph/builder.go` |
 | Add new error code | `internal/domain/error_codes.go`, `internal/domain/error_docs.go` |
-| Modify patching behavior | `internal/services/patcher/patcher.go` |
+| Change sync behavior | `internal/cli/sync.go`, `internal/services/refactor/rename.go` |
