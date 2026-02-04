@@ -639,6 +639,56 @@ var knownTopLevelKeys = map[string]bool{
 	"custom":      true, // Explicit extension namespace
 }
 
+// knownRefsKeys defines the valid keys in the refs section.
+var knownRefsKeys = map[string]bool{
+	"uses":         true,
+	"related":      true,
+	"emits_events": true,
+	"vocabulary":   true,
+}
+
+// knownRefLinkKeys defines the valid keys in a ref link entry (refs.uses[], refs.related[]).
+var knownRefLinkKeys = map[string]bool{
+	"target":   true,
+	"context":  true,
+	"resolved": true,
+}
+
+// knownReviewerKeys defines the valid keys in a reviewer entry.
+var knownReviewerKeys = map[string]bool{
+	"name":      true,
+	"timestamp": true,
+	"version":   true,
+	"note":      true,
+}
+
+// knownConstraintKeys defines the valid keys in a constraint entry.
+var knownConstraintKeys = map[string]bool{
+	"expr":    true,
+	"message": true,
+	"scope":   true,
+}
+
+// knownContractKeys defines the valid keys in a contract entry.
+var knownContractKeys = map[string]bool{
+	"name":     true,
+	"scenario": true,
+	"given":    true,
+	"when":     true,
+	"then":     true,
+}
+
+// knownContentKeys defines the valid keys in the content section.
+var knownContentKeys = map[string]bool{
+	"sections": true,
+}
+
+// knownSectionKeys defines the valid keys in a content section entry.
+var knownSectionKeys = map[string]bool{
+	"name":   true,
+	"blocks": true,
+}
+
 // DuplicateIDValidator detects nodes with duplicate IDs.
 type DuplicateIDValidator struct{}
 
@@ -733,6 +783,113 @@ func (uf *UnknownFieldValidator) ValidateYAML(nodeID string, filePath string, ra
 	}
 }
 
+// ValidateNestedFields checks nested structures in raw YAML for unknown fields.
+// This catches typos like "conext" instead of "context" in refs.uses[] entries.
+func (uf *UnknownFieldValidator) ValidateNestedFields(nodeID string, filePath string, rawMap map[string]interface{}, collector *errors.Collector) {
+	var location *domain.Location
+	if filePath != "" {
+		location = &domain.Location{File: filePath}
+	}
+
+	// Validate refs section
+	if refs, ok := rawMap["refs"].(map[string]interface{}); ok {
+		uf.validateMapKeys(nodeID, "refs", refs, knownRefsKeys, location, collector)
+
+		// Validate refs.uses[] entries
+		if uses, ok := refs["uses"].([]interface{}); ok {
+			for i, entry := range uses {
+				if entryMap, ok := entry.(map[string]interface{}); ok {
+					path := fmt.Sprintf("refs.uses[%d]", i)
+					uf.validateMapKeys(nodeID, path, entryMap, knownRefLinkKeys, location, collector)
+				}
+			}
+		}
+
+		// Validate refs.related[] entries
+		if related, ok := refs["related"].([]interface{}); ok {
+			for i, entry := range related {
+				if entryMap, ok := entry.(map[string]interface{}); ok {
+					path := fmt.Sprintf("refs.related[%d]", i)
+					uf.validateMapKeys(nodeID, path, entryMap, knownRefLinkKeys, location, collector)
+				}
+			}
+		}
+	}
+
+	// Validate reviewers[] entries
+	if reviewers, ok := rawMap["reviewers"].([]interface{}); ok {
+		for i, entry := range reviewers {
+			if entryMap, ok := entry.(map[string]interface{}); ok {
+				path := fmt.Sprintf("reviewers[%d]", i)
+				uf.validateMapKeys(nodeID, path, entryMap, knownReviewerKeys, location, collector)
+			}
+		}
+	}
+
+	// Validate constraints[] entries
+	if constraints, ok := rawMap["constraints"].([]interface{}); ok {
+		for i, entry := range constraints {
+			if entryMap, ok := entry.(map[string]interface{}); ok {
+				path := fmt.Sprintf("constraints[%d]", i)
+				uf.validateMapKeys(nodeID, path, entryMap, knownConstraintKeys, location, collector)
+			}
+		}
+	}
+
+	// Validate contracts[] entries
+	if contracts, ok := rawMap["contracts"].([]interface{}); ok {
+		for i, entry := range contracts {
+			if entryMap, ok := entry.(map[string]interface{}); ok {
+				path := fmt.Sprintf("contracts[%d]", i)
+				uf.validateMapKeys(nodeID, path, entryMap, knownContractKeys, location, collector)
+			}
+		}
+	}
+
+	// Validate content section
+	if content, ok := rawMap["content"].(map[string]interface{}); ok {
+		uf.validateMapKeys(nodeID, "content", content, knownContentKeys, location, collector)
+
+		// Validate content.sections[] entries
+		if sections, ok := content["sections"].([]interface{}); ok {
+			for i, entry := range sections {
+				if entryMap, ok := entry.(map[string]interface{}); ok {
+					path := fmt.Sprintf("content.sections[%d]", i)
+					uf.validateMapKeys(nodeID, path, entryMap, knownSectionKeys, location, collector)
+				}
+			}
+		}
+	}
+}
+
+// validateMapKeys checks that all keys in a map are in the allowed set.
+func (uf *UnknownFieldValidator) validateMapKeys(nodeID string, path string, data map[string]interface{}, allowed map[string]bool, location *domain.Location, collector *errors.Collector) {
+	// Collect allowed keys for suggestions
+	var knownKeys []string
+	for k := range allowed {
+		knownKeys = append(knownKeys, k)
+	}
+
+	for key := range data {
+		if !allowed[key] {
+			err := domain.DecoError{
+				Code:     "E010",
+				Summary:  fmt.Sprintf("Unknown field %q in %s (node %s)", key, path, nodeID),
+				Detail:   fmt.Sprintf("Field %q is not a recognized field in %s.", key, path),
+				Location: location,
+			}
+
+			// Generate suggestion for similar field names
+			suggs := uf.suggester.Suggest(key, knownKeys)
+			if len(suggs) > 0 {
+				err.Suggestion = fmt.Sprintf("Did you mean %q?", suggs[0])
+			}
+
+			collector.Add(err)
+		}
+	}
+}
+
 // ValidateDirectory reads all YAML files in a nodes directory and checks for unknown fields.
 func (uf *UnknownFieldValidator) ValidateDirectory(rootDir string, collector *errors.Collector) {
 	nodesDir := filepath.Join(rootDir, ".deco", "nodes")
@@ -788,6 +945,9 @@ func (uf *UnknownFieldValidator) ValidateDirectory(rootDir string, collector *er
 
 		// Validate keys (pass the file path for location reporting)
 		uf.ValidateYAML(nodeID, path, keys, collector)
+
+		// Validate nested structures
+		uf.ValidateNestedFields(nodeID, path, rawMap, collector)
 
 		return nil
 	})

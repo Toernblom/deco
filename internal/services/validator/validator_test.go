@@ -1,6 +1,7 @@
 package validator_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -1663,6 +1664,229 @@ func TestUnknownFieldValidator_MultipleUnknownFields(t *testing.T) {
 	// Should have 3 errors (foo, bar, baz)
 	if collector.Count() != 3 {
 		t.Errorf("expected 3 unknown field errors, got %d", collector.Count())
+	}
+}
+
+// Test unknown field in refs.uses[] (e.g., "conext" typo)
+func TestUnknownFieldValidator_NestedRefLinkTypo(t *testing.T) {
+	uf := validator.NewUnknownFieldValidator()
+
+	rawMap := map[string]interface{}{
+		"refs": map[string]interface{}{
+			"uses": []interface{}{
+				map[string]interface{}{
+					"target":  "systems/foo",
+					"conext":  "This is a typo", // Should be "context"
+				},
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	uf.ValidateNestedFields("test-node", "", rawMap, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for unknown field 'conext' in refs.uses[]")
+	}
+
+	// Should detect typo and suggest correction
+	found := false
+	for _, err := range collector.Errors() {
+		if err.Code == "E010" && strings.Contains(err.Summary, "conext") {
+			found = true
+			if !strings.Contains(err.Suggestion, "context") {
+				t.Errorf("expected suggestion 'context', got %q", err.Suggestion)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected E010 error for 'conext' typo")
+	}
+}
+
+// Test unknown field in reviewers[]
+func TestUnknownFieldValidator_NestedReviewerTypo(t *testing.T) {
+	uf := validator.NewUnknownFieldValidator()
+
+	rawMap := map[string]interface{}{
+		"reviewers": []interface{}{
+			map[string]interface{}{
+				"name":      "reviewer@example.com",
+				"timestamp": "2024-01-01T00:00:00Z",
+				"versoin":   1, // Should be "version"
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	uf.ValidateNestedFields("test-node", "", rawMap, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for unknown field 'versoin' in reviewers[]")
+	}
+
+	found := false
+	for _, err := range collector.Errors() {
+		if err.Code == "E010" && strings.Contains(err.Summary, "versoin") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected E010 error for 'versoin' typo")
+	}
+}
+
+// Test unknown field in constraints[]
+func TestUnknownFieldValidator_NestedConstraintTypo(t *testing.T) {
+	uf := validator.NewUnknownFieldValidator()
+
+	rawMap := map[string]interface{}{
+		"constraints": []interface{}{
+			map[string]interface{}{
+				"expr":    "node.status != 'invalid'",
+				"mesage":  "Invalid status", // Should be "message"
+				"scope":   "all",
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	uf.ValidateNestedFields("test-node", "", rawMap, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for unknown field 'mesage' in constraints[]")
+	}
+
+	found := false
+	for _, err := range collector.Errors() {
+		if err.Code == "E010" && strings.Contains(err.Summary, "mesage") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected E010 error for 'mesage' typo")
+	}
+}
+
+// Test unknown field in contracts[]
+func TestUnknownFieldValidator_NestedContractTypo(t *testing.T) {
+	uf := validator.NewUnknownFieldValidator()
+
+	rawMap := map[string]interface{}{
+		"contracts": []interface{}{
+			map[string]interface{}{
+				"name":     "Test Contract",
+				"scenario": "Test scenario",
+				"givn":     []string{"a condition"}, // Should be "given"
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	uf.ValidateNestedFields("test-node", "", rawMap, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for unknown field 'givn' in contracts[]")
+	}
+
+	found := false
+	for _, err := range collector.Errors() {
+		if err.Code == "E010" && strings.Contains(err.Summary, "givn") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected E010 error for 'givn' typo")
+	}
+}
+
+// Test unknown field in refs section itself
+func TestUnknownFieldValidator_NestedRefsTypo(t *testing.T) {
+	uf := validator.NewUnknownFieldValidator()
+
+	rawMap := map[string]interface{}{
+		"refs": map[string]interface{}{
+			"usees": []interface{}{}, // Should be "uses"
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	uf.ValidateNestedFields("test-node", "", rawMap, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for unknown field 'usees' in refs")
+	}
+
+	found := false
+	for _, err := range collector.Errors() {
+		if err.Code == "E010" && strings.Contains(err.Summary, "usees") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected E010 error for 'usees' typo")
+	}
+}
+
+// Test valid nested structures pass without errors
+func TestUnknownFieldValidator_NestedValidStructures(t *testing.T) {
+	uf := validator.NewUnknownFieldValidator()
+
+	rawMap := map[string]interface{}{
+		"refs": map[string]interface{}{
+			"uses": []interface{}{
+				map[string]interface{}{
+					"target":  "systems/foo",
+					"context": "Valid context",
+				},
+			},
+			"related": []interface{}{
+				map[string]interface{}{
+					"target": "systems/bar",
+				},
+			},
+			"emits_events": []string{"event1"},
+			"vocabulary":   []string{"term1"},
+		},
+		"reviewers": []interface{}{
+			map[string]interface{}{
+				"name":      "reviewer@example.com",
+				"timestamp": "2024-01-01T00:00:00Z",
+				"version":   1,
+				"note":      "Approved",
+			},
+		},
+		"constraints": []interface{}{
+			map[string]interface{}{
+				"expr":    "true",
+				"message": "Always valid",
+				"scope":   "all",
+			},
+		},
+		"contracts": []interface{}{
+			map[string]interface{}{
+				"name":     "Test",
+				"scenario": "Test scenario",
+				"given":    []string{"condition"},
+				"when":     []string{"action"},
+				"then":     []string{"outcome"},
+			},
+		},
+		"content": map[string]interface{}{
+			"sections": []interface{}{
+				map[string]interface{}{
+					"name":   "Section 1",
+					"blocks": []interface{}{},
+				},
+			},
+		},
+	}
+
+	collector := errors.NewCollectorWithLimit(100)
+	uf.ValidateNestedFields("test-node", "", rawMap, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for valid nested structures, got %d: %v", collector.Count(), collector.Errors())
 	}
 }
 
