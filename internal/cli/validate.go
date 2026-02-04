@@ -3,6 +3,8 @@ package cli
 import (
 	"fmt"
 
+	"github.com/Toernblom/deco/internal/cli/style"
+	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/migrations"
 	"github.com/Toernblom/deco/internal/services/validator"
 	"github.com/Toernblom/deco/internal/storage/config"
@@ -65,10 +67,10 @@ func runValidate(flags *validateFlags) error {
 	}
 	if needsMigration {
 		if !flags.quiet {
-			fmt.Printf("✗ Schema version mismatch\n")
-			fmt.Printf("  Current:  %s\n", formatSchemaHash(currentHash))
-			fmt.Printf("  Expected: %s\n", formatSchemaHash(expectedHash))
-			fmt.Printf("\nRun 'deco migrate' to update nodes to the current schema.\n")
+			fmt.Printf("%s %s\n", style.ErrorIcon(), style.Error.Sprint("Schema version mismatch"))
+			fmt.Printf("  %s  %s\n", style.Muted.Sprint("Current:"), formatSchemaHash(currentHash))
+			fmt.Printf("  %s %s\n", style.Muted.Sprint("Expected:"), formatSchemaHash(expectedHash))
+			fmt.Printf("\n%s\n", style.Info.Sprint("Run 'deco migrate' to update nodes to the current schema."))
 		}
 		return NewExitError(ExitCodeSchemaMismatch, "schema version mismatch")
 	}
@@ -87,7 +89,7 @@ func runValidate(flags *validateFlags) error {
 	// Check if there are errors
 	if !collector.HasErrors() {
 		if !flags.quiet {
-			fmt.Println("✓ All nodes are valid")
+			fmt.Printf("%s All nodes are valid\n", style.SuccessIcon())
 		}
 		return nil
 	}
@@ -95,14 +97,18 @@ func runValidate(flags *validateFlags) error {
 	// Print errors unless quiet
 	if !flags.quiet {
 		errors := collector.Errors()
-		fmt.Printf("✗ Found %d validation error(s):\n\n", collector.Count())
+		fmt.Printf("%s Found %s validation error(s):\n\n", style.ErrorIcon(), style.Error.Sprint(collector.Count()))
+
+		formatter := domain.NewErrorFormatter()
+		formatter.SetColor(style.IsEnabled())
+
 		for _, err := range errors {
-			fmt.Println(err.Error())
+			fmt.Println(formatter.Format(err))
 		}
 	}
 
-	// Return error to trigger exit code 1
-	return fmt.Errorf("validation failed with %d error(s)", collector.Count())
+	// Return exit error (message is for programmatic use, not printed again)
+	return NewExitError(ExitCodeError, fmt.Sprintf("validation failed with %d error(s)", collector.Count()))
 }
 
 // formatSchemaHash formats a schema hash for display.

@@ -1,7 +1,7 @@
 id: systems/api
 kind: system
-version: 1
-status: approved
+version: 2
+status: draft
 title: Public API Overview
 tags:
     - api
@@ -21,14 +21,14 @@ content:
         - name: Base URLs
           blocks:
             - type: table
-              id: base_urls
               columns:
-                - key: environment
+                - display: Environment
+                  ke: environment
                   type: string
-                  display: Environment
-                - key: url
+                - display: Base URL
+                  key: url
                   type: string
-                  display: Base URL
+              id: base_urls
               rows:
                 - environment: Production
                   url: https://api.acme.test/v1
@@ -44,7 +44,3 @@ summary: |
 custom:
     owner: Platform Team
     tier: core
-reviewers:
-    - name: Example Reviewer
-      timestamp: 2026-02-03T21:30:00Z
-      version: 1

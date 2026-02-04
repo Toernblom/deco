@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Toernblom/deco/internal/cli/style"
 	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/services/graph"
 	"github.com/Toernblom/deco/internal/storage/config"
@@ -104,35 +105,41 @@ func runShow(nodeID string, flags *showFlags) error {
 }
 
 func outputHuman(node *domain.Node, referencedBy []string) {
-	fmt.Printf("Node: %s\n", node.ID)
-	fmt.Println(strings.Repeat("=", len("Node: "+node.ID)))
+	fmt.Printf("%s %s\n", style.Header.Sprint("Node:"), node.ID)
+	fmt.Println(style.Muted.Sprint(strings.Repeat("═", len("Node: "+node.ID))))
 	fmt.Println()
 
 	// Basic fields
-	fmt.Printf("Kind:    %s\n", node.Kind)
-	fmt.Printf("Version: %d\n", node.Version)
-	fmt.Printf("Status:  %s\n", node.Status)
-	fmt.Printf("Title:   %s\n", node.Title)
+	fmt.Printf("%s    %s\n", style.Muted.Sprint("Kind:"), node.Kind)
+	fmt.Printf("%s %d\n", style.Muted.Sprint("Version:"), node.Version)
+
+	// Color the status
+	statusStr := node.Status
+	if c := style.StatusColor(node.Status); c != nil {
+		statusStr = c.Sprint(node.Status)
+	}
+	fmt.Printf("%s  %s\n", style.Muted.Sprint("Status:"), statusStr)
+	fmt.Printf("%s   %s\n", style.Muted.Sprint("Title:"), node.Title)
 
 	if node.Summary != "" {
-		fmt.Printf("Summary: %s\n", node.Summary)
+		fmt.Printf("%s %s\n", style.Muted.Sprint("Summary:"), node.Summary)
 	}
 
 	// Tags
 	if len(node.Tags) > 0 {
-		fmt.Printf("Tags:    %s\n", strings.Join(node.Tags, ", "))
+		fmt.Printf("%s    %s\n", style.Muted.Sprint("Tags:"), style.Info.Sprint(strings.Join(node.Tags, ", ")))
 	}
 
 	// Content
 	if node.Content != nil && len(node.Content.Sections) > 0 {
 		fmt.Println()
-		fmt.Println("Content:")
+		fmt.Println(style.Header.Sprint("Content:"))
 		for _, section := range node.Content.Sections {
-			fmt.Printf("  [%s]\n", section.Name)
+			fmt.Printf("  %s\n", style.Info.Sprintf("[%s]", section.Name))
 			// For now, just note that it has blocks
 			// Full rendering would require block type-specific formatting
 			if len(section.Blocks) > 0 {
-				fmt.Printf("    (%d block(s))\n", len(section.Blocks))
+				fmt.Printf("    %s\n", style.Muted.Sprintf("(%d block(s))", len(section.Blocks)))
 			}
 		}
 	}
@@ -140,26 +147,26 @@ func outputHuman(node *domain.Node, referencedBy []string) {
 	// References (what this node uses/relates to)
 	if len(node.Refs.Uses) > 0 || len(node.Refs.Related) > 0 {
 		fmt.Println()
-		fmt.Println("References:")
+		fmt.Println(style.Header.Sprint("References:"))
 
 		if len(node.Refs.Uses) > 0 {
-			fmt.Println("  Uses:")
+			fmt.Printf("  %s\n", style.Muted.Sprint("Uses:"))
 			for _, ref := range node.Refs.Uses {
 				if ref.Context != "" {
-					fmt.Printf("    - %s (%s)\n", ref.Target, ref.Context)
+					fmt.Printf("    %s %s %s\n", style.SymbolBullet, ref.Target, style.Muted.Sprintf("(%s)", ref.Context))
 				} else {
-					fmt.Printf("    - %s\n", ref.Target)
+					fmt.Printf("    %s %s\n", style.SymbolBullet, ref.Target)
 				}
 			}
 		}
 
 		if len(node.Refs.Related) > 0 {
-			fmt.Println("  Related:")
+			fmt.Printf("  %s\n", style.Muted.Sprint("Related:"))
 			for _, ref := range node.Refs.Related {
 				if ref.Context != "" {
-					fmt.Printf("    - %s (%s)\n", ref.Target, ref.Context)
+					fmt.Printf("    %s %s %s\n", style.SymbolBullet, ref.Target, style.Muted.Sprintf("(%s)", ref.Context))
 				} else {
-					fmt.Printf("    - %s\n", ref.Target)
+					fmt.Printf("    %s %s\n", style.SymbolBullet, ref.Target)
 				}
 			}
 		}
@@ -168,21 +175,21 @@ func outputHuman(node *domain.Node, referencedBy []string) {
 	// Reverse references (what references this node)
 	if len(referencedBy) > 0 {
 		fmt.Println()
-		fmt.Println("Referenced By:")
+		fmt.Println(style.Header.Sprint("Referenced By:"))
 		for _, refID := range referencedBy {
-			fmt.Printf("  - %s\n", refID)
+			fmt.Printf("  %s %s\n", style.SymbolBullet, refID)
 		}
 	}
 
 	// Constraints
 	if len(node.Constraints) > 0 {
 		fmt.Println()
-		fmt.Println("Constraints:")
+		fmt.Println(style.Header.Sprint("Constraints:"))
 		for _, constraint := range node.Constraints {
 			if constraint.Message != "" {
-				fmt.Printf("  - %s (%s)\n", constraint.Expr, constraint.Message)
+				fmt.Printf("  %s %s %s\n", style.SymbolBullet, style.Code.Sprint(constraint.Expr), style.Muted.Sprintf("(%s)", constraint.Message))
 			} else {
-				fmt.Printf("  - %s\n", constraint.Expr)
+				fmt.Printf("  %s %s\n", style.SymbolBullet, style.Code.Sprint(constraint.Expr))
 			}
 		}
 	}
@@ -190,9 +197,9 @@ func outputHuman(node *domain.Node, referencedBy []string) {
 	// Custom fields
 	if len(node.Custom) > 0 {
 		fmt.Println()
-		fmt.Println("Custom Fields:")
+		fmt.Println(style.Header.Sprint("Custom Fields:"))
 		for key, value := range node.Custom {
-			fmt.Printf("  %s: %v\n", key, value)
+			fmt.Printf("  %s: %v\n", style.Muted.Sprint(key), value)
 		}
 	}
 }

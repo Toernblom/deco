@@ -171,9 +171,6 @@ custom:
 ```bash
 deco init [directory]        # Initialize a new project
 deco init . --force          # Reinitialize existing project
-
-deco create <id>             # Create a new node with scaffolding
-deco create systems/auth --kind system --title "Auth System"
 ```
 
 ### Querying & Reading
@@ -203,44 +200,17 @@ deco graph --format mermaid  # Output as Mermaid for Markdown
 
 ### Modifying Nodes
 
-```bash
-# Set a field value
-deco set systems/auth title "Authentication & Authorization"
-deco set systems/auth status approved
-deco set systems/auth tags[0] security
-
-# Append to arrays
-deco append systems/auth tags oauth
-
-# Remove fields
-deco unset systems/auth summary
-deco unset systems/auth tags[2]
-
-# Delete a node
-deco rm old-spec            # Fails if other nodes reference it
-deco rm old-spec --force    # Delete even with references
-
-# Batch operations (transactional)
-deco apply systems/auth patch.json
-deco apply systems/auth patch.json --dry-run
-```
-
-Patch file format:
-```json
-[
-  {"op": "set", "path": "title", "value": "New Title"},
-  {"op": "append", "path": "tags", "value": "new-tag"},
-  {"op": "unset", "path": "summary"}
-]
-```
-
-### Refactoring
+Edit YAML files directly in `.deco/nodes/`, then run sync to detect changes:
 
 ```bash
-# Rename a node (automatically updates all references)
-deco mv old-node-id new-node-id
-deco mv systems/auth systems/authentication
+deco sync                    # Detect edits, bump versions, track history
 ```
+
+The sync command:
+- Detects manual file edits
+- Auto-increments version numbers
+- Records changes in history
+- Normalizes YAML formatting (sorted keys, expanded arrays)
 
 ### Review Workflow
 
@@ -403,8 +373,11 @@ The engine — not the AI — is the source of truth.
 # Start a new documentation project
 deco init my-api && cd my-api
 
-# Create core systems
+# Create nodes by editing YAML files in .deco/nodes/
 # (manually or via AI-generated YAML)
+
+# Sync changes to track history
+deco sync
 
 # Validate as you go
 deco validate
@@ -414,12 +387,8 @@ deco list --kind system
 deco show systems/auth
 deco query "endpoint"
 
-# Make changes
-deco set systems/auth status approved
-deco append systems/auth tags reviewed
-
-# Refactor when needed
-deco mv components/db components/database
+# Edit YAML files directly, then sync
+deco sync
 
 # Review history
 deco history --node systems/auth
@@ -442,9 +411,7 @@ internal/
 ├── services/             # Business logic
 │   ├── graph/            # Dependency graph, cycle detection, reverse indexing
 │   ├── validator/        # Schema, reference, and constraint validation
-│   ├── patcher/          # Set/append/unset operations
-│   ├── query/            # Filtering and search
-│   └── refactor/         # Rename with reference updates
+│   └── query/            # Filtering and search
 └── cli/                  # Command implementations
 ```
 

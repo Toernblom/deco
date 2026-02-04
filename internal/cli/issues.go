@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 
+	"github.com/Toernblom/deco/internal/cli/style"
 	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/storage/config"
 	"github.com/Toernblom/deco/internal/storage/node"
@@ -179,19 +180,22 @@ func hasTag(tags []string, target string) bool {
 // outputIssuesHuman outputs issues in human-readable format
 func outputIssuesHuman(w io.Writer, results []IssueResult) error {
 	if len(results) == 0 {
-		fmt.Fprintln(w, "No open issues found.")
+		fmt.Fprintf(w, "%s No open issues found.\n", style.SuccessIcon())
 		return nil
 	}
 
-	fmt.Fprintf(w, "Found %d issue(s):\n\n", len(results))
+	fmt.Fprintf(w, "Found %s issue(s):\n\n", style.Warning.Sprint(len(results)))
 	for _, r := range results {
+		sevColor := style.SeverityColor(r.Issue.Severity)
+		severityTag := sevColor.Sprintf("[%s]", r.Issue.Severity)
+
 		status := ""
 		if r.Issue.Resolved {
-			status = " [RESOLVED]"
+			status = style.Muted.Sprint(" [RESOLVED]")
 		}
-		fmt.Fprintf(w, "[%s] %s%s\n", r.Issue.Severity, r.Issue.ID, status)
-		fmt.Fprintf(w, "  Node: %s\n", r.NodeID)
-		fmt.Fprintf(w, "  Location: %s\n", r.Issue.Location)
+		fmt.Fprintf(w, "%s %s%s\n", severityTag, r.Issue.ID, status)
+		fmt.Fprintf(w, "  %s %s\n", style.Muted.Sprint("Node:"), r.NodeID)
+		fmt.Fprintf(w, "  %s %s\n", style.Muted.Sprint("Location:"), r.Issue.Location)
 		fmt.Fprintf(w, "  %s\n\n", r.Issue.Description)
 	}
 
@@ -234,7 +238,7 @@ func outputIssuesQuiet(w io.Writer, results []IssueResult) error {
 // outputIssuesSummary outputs a per-node rollup
 func outputIssuesSummary(w io.Writer, results []IssueResult) error {
 	if len(results) == 0 {
-		fmt.Fprintln(w, "No issues found.")
+		fmt.Fprintf(w, "%s No issues found.\n", style.SuccessIcon())
 		return nil
 	}
 
@@ -251,29 +255,29 @@ func outputIssuesSummary(w io.Writer, results []IssueResult) error {
 	}
 	sort.Strings(nodeIDs)
 
-	fmt.Fprintf(w, "Issues by node (%d total across %d nodes):\n\n", len(results), len(nodeIDs))
+	fmt.Fprintf(w, "Issues by node (%s total across %d nodes):\n\n", style.Warning.Sprint(len(results)), len(nodeIDs))
 
 	for _, nodeID := range nodeIDs {
 		issues := byNode[nodeID]
 		counts := countBySeverity(issues)
 		kind := issues[0].NodeKind
 
-		fmt.Fprintf(w, "%s (%s): ", nodeID, kind)
+		fmt.Fprintf(w, "%s %s ", nodeID, style.Muted.Sprintf("(%s):", kind))
 		parts := []string{}
 		if counts["critical"] > 0 {
-			parts = append(parts, fmt.Sprintf("%d critical", counts["critical"]))
+			parts = append(parts, style.Critical.Sprintf("%d critical", counts["critical"]))
 		}
 		if counts["high"] > 0 {
-			parts = append(parts, fmt.Sprintf("%d high", counts["high"]))
+			parts = append(parts, style.High.Sprintf("%d high", counts["high"]))
 		}
 		if counts["medium"] > 0 {
-			parts = append(parts, fmt.Sprintf("%d medium", counts["medium"]))
+			parts = append(parts, style.Medium.Sprintf("%d medium", counts["medium"]))
 		}
 		if counts["low"] > 0 {
-			parts = append(parts, fmt.Sprintf("%d low", counts["low"]))
+			parts = append(parts, style.Low.Sprintf("%d low", counts["low"]))
 		}
 		if counts["resolved"] > 0 {
-			parts = append(parts, fmt.Sprintf("%d resolved", counts["resolved"]))
+			parts = append(parts, style.Muted.Sprintf("%d resolved", counts["resolved"]))
 		}
 		for i, p := range parts {
 			if i > 0 {

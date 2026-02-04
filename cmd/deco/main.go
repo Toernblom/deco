@@ -25,12 +25,13 @@ func main() {
 	root.AddCommand(cli.NewReviewCommand())
 	root.AddCommand(cli.NewSyncCommand())
 	root.AddCommand(cli.NewMigrateCommand())
+	root.AddCommand(cli.NewLLMHelpCommand())
 
 	if err := root.Execute(); err != nil {
 		// Check for ExitError with custom exit code
+		// ExitErrors have already displayed their output, so just exit with code
 		var exitErr *cli.ExitError
 		if errors.As(err, &exitErr) {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", exitErr.Message)
 			os.Exit(exitErr.Code)
 		}
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

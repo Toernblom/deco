@@ -57,7 +57,6 @@ Optional/extensible:
 ```
 # Project setup
 deco init [dir]              # Initialize project
-deco create <id>             # Create new node with scaffolding
 
 # Reading
 deco list                    # List all nodes (--kind, --status, --tag)
@@ -66,25 +65,20 @@ deco query [term]            # Search/filter nodes
 deco validate                # Check schema + refs + constraints
 deco stats                   # Project health overview
 deco issues                  # List all open TBDs
-deco graph                   # Output dependency graph (DOT/Mermaid)
+deco graph                   # Output dependency graph (DOT/Mermaid/ASCII)
 
-# Modifying
-deco set <id> <path> <value> # Set a field value
-deco append <id> <path> <val># Append to array field
-deco unset <id> <path>       # Remove a field
-deco rm <id>                 # Delete a node
-deco mv <old-id> <new-id>    # Rename with automatic ref updates
-deco apply <id> <patch-file> # Apply structured patch (for AI)
+# Modifying (edit YAML files directly, then sync)
+deco sync                    # Detect edits, bump versions, track history
 
 # Review workflow
 deco review submit <id>      # Submit for review
 deco review approve <id>     # Approve node
 deco review reject <id>      # Reject back to draft
+deco review status [<id>]    # Check review status
 
 # History
 deco history [--node <id>]   # Show audit log
 deco diff <id>               # Show before/after changes
-deco sync                    # Detect manual edits, fix metadata
 ```
 
 ## Design Principles

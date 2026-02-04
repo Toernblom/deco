@@ -170,11 +170,15 @@ func (bv *BlockValidator) validateTable(block *domain.Block, nodeID, sectionName
 
 // validateTableColumns checks that each column has required fields.
 // Required for each column: key
+// This function consolidates related errors: if an unknown field's suggestion
+// matches a missing required field (typo scenario), only one error is reported.
 func (bv *BlockValidator) validateTableColumns(columns interface{}, nodeID, sectionName string, blockIdx int, location *domain.Location, collector *errors.Collector) {
 	columnList, ok := columns.([]interface{})
 	if !ok {
 		return
 	}
+
+	allowed := allowedFieldList(allowedTableColumnFields)
 
 	for colIdx, col := range columnList {
 		colMap, ok := col.(map[string]interface{})
@@ -182,14 +186,12 @@ func (bv *BlockValidator) validateTableColumns(columns interface{}, nodeID, sect
 			continue
 		}
 
-		if _, hasKey := colMap["key"]; !hasKey {
-			collector.Add(domain.DecoError{
-				Code:     "E050",
-				Summary:  fmt.Sprintf("Table column %d missing required field: key", colIdx),
-				Detail:   bv.formatLocation(nodeID, sectionName, blockIdx),
-				Location: location,
-			})
+		// Collect unknown fields and their suggestions
+		type unknownField struct {
+			name       string
+			suggestion string
 		}
+		var unknownFields []unknownField
 
 		columnKeys := make([]string, 0, len(colMap))
 		for key := range colMap {
@@ -197,25 +199,135 @@ func (bv *BlockValidator) validateTableColumns(columns interface{}, nodeID, sect
 		}
 		sort.Strings(columnKeys)
 
-		allowed := allowedFieldList(allowedTableColumnFields)
 		for _, key := range columnKeys {
 			if !allowedTableColumnFields[key] {
-				err := domain.DecoError{
-					Code:     "E049",
-					Summary:  fmt.Sprintf("Unknown table column field %q in column %d", key, colIdx),
-					Detail:   bv.formatLocation(nodeID, sectionName, blockIdx),
-					Location: location,
-				}
-
+				uf := unknownField{name: key}
 				suggs := bv.suggester.Suggest(key, allowed)
 				if len(suggs) > 0 {
-					err.Suggestion = fmt.Sprintf("Did you mean %q?", suggs[0])
+					uf.suggestion = suggs[0]
 				}
+				unknownFields = append(unknownFields, uf)
+			}
+		}
 
+		// Check for missing "key" field
+		_, hasKey := colMap["key"]
+
+		// Check if any unknown field is a typo for "key"
+		typoForKey := ""
+		for _, uf := range unknownFields {
+			if uf.suggestion == "key" {
+				typoForKey = uf.name
+				break
+			}
+		}
+
+		// Build column contents string for context
+		colContents := bv.formatColumnContents(colMap)
+
+		// If missing "key" AND there's a typo for "key", consolidate into single error
+		if !hasKey && typoForKey != "" {
+			err := domain.DecoError{
+				Code:     "E049",
+				Summary:  fmt.Sprintf("Unknown field %q in table column %d (did you mean \"key\"?)", typoForKey, colIdx),
+				Detail:   bv.formatLocation(nodeID, sectionName, blockIdx),
+				Location: location,
+				Context: []string{
+					fmt.Sprintf("Column %d contains: %s", colIdx, colContents),
+					"This also causes: missing required field \"key\"",
+				},
+			}
+			collector.Add(err)
+
+			// Report other unknown fields (not the typo)
+			for _, uf := range unknownFields {
+				if uf.name == typoForKey {
+					continue
+				}
+				err := domain.DecoError{
+					Code:     "E049",
+					Summary:  fmt.Sprintf("Unknown table column field %q in column %d", uf.name, colIdx),
+					Detail:   bv.formatLocation(nodeID, sectionName, blockIdx),
+					Location: location,
+					Context:  []string{fmt.Sprintf("Column %d contains: %s", colIdx, colContents)},
+				}
+				if uf.suggestion != "" {
+					err.Suggestion = fmt.Sprintf("Did you mean %q?", uf.suggestion)
+				}
+				collector.Add(err)
+			}
+		} else {
+			// No consolidation - report errors separately
+			if !hasKey {
+				collector.Add(domain.DecoError{
+					Code:     "E050",
+					Summary:  fmt.Sprintf("Table column %d missing required field: key", colIdx),
+					Detail:   bv.formatLocation(nodeID, sectionName, blockIdx),
+					Location: location,
+					Context:  []string{fmt.Sprintf("Column %d contains: %s", colIdx, colContents)},
+				})
+			}
+
+			for _, uf := range unknownFields {
+				err := domain.DecoError{
+					Code:     "E049",
+					Summary:  fmt.Sprintf("Unknown table column field %q in column %d", uf.name, colIdx),
+					Detail:   bv.formatLocation(nodeID, sectionName, blockIdx),
+					Location: location,
+					Context:  []string{fmt.Sprintf("Column %d contains: %s", colIdx, colContents)},
+				}
+				if uf.suggestion != "" {
+					err.Suggestion = fmt.Sprintf("Did you mean %q?", uf.suggestion)
+				}
 				collector.Add(err)
 			}
 		}
 	}
+}
+
+// formatColumnContents creates a brief representation of a column's contents.
+func (bv *BlockValidator) formatColumnContents(colMap map[string]interface{}) string {
+	if len(colMap) == 0 {
+		return "{}"
+	}
+
+	// Sort keys for consistent output
+	keys := make([]string, 0, len(colMap))
+	for k := range colMap {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var parts []string
+	for _, k := range keys {
+		v := colMap[k]
+		// Format value - truncate long strings
+		var vStr string
+		switch val := v.(type) {
+		case string:
+			if len(val) > 20 {
+				vStr = fmt.Sprintf("%q...", val[:17])
+			} else {
+				vStr = fmt.Sprintf("%q", val)
+			}
+		default:
+			vStr = fmt.Sprintf("%v", val)
+		}
+		parts = append(parts, fmt.Sprintf("%s: %s", k, vStr))
+	}
+
+	return "{" + fmt.Sprintf("%s", joinStrings(parts, ", ")) + "}"
+}
+
+func joinStrings(parts []string, sep string) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	result := parts[0]
+	for i := 1; i < len(parts); i++ {
+		result += sep + parts[i]
+	}
+	return result
 }
 
 // validateParam checks that param blocks have required fields.

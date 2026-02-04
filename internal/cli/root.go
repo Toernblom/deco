@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 
+	"github.com/Toernblom/deco/internal/cli/style"
 	"github.com/spf13/cobra"
 )
 
@@ -14,6 +15,7 @@ type Config struct {
 	ConfigPath string
 	Verbose    bool
 	Quiet      bool
+	Color      string
 }
 
 var globalConfig Config
@@ -32,13 +34,20 @@ and dependency tracking for game design artifacts.`,
 			// Show help when no subcommand is provided
 			return cmd.Help()
 		},
-		SilenceUsage: true, // Don't show usage on errors
+		SilenceUsage:  true, // Don't show usage on errors
+		SilenceErrors: true, // main.go handles error output
 	}
 
 	// Global flags
 	cmd.PersistentFlags().StringVarP(&globalConfig.ConfigPath, "config", "c", ".deco", "Path to deco project directory")
 	cmd.PersistentFlags().BoolVar(&globalConfig.Verbose, "verbose", false, "Enable verbose output")
 	cmd.PersistentFlags().BoolVarP(&globalConfig.Quiet, "quiet", "q", false, "Suppress non-error output")
+	cmd.PersistentFlags().StringVar(&globalConfig.Color, "color", "auto", "Color output: auto, always, never")
+
+	// Initialize style system based on color flag
+	cobra.OnInitialize(func() {
+		style.SetMode(style.ParseColorMode(globalConfig.Color))
+	})
 
 	// Custom version template
 	cmd.SetVersionTemplate(fmt.Sprintf("deco version %s\n", version))

@@ -1,7 +1,4 @@
 {
   "enabledPlugins": {
-    "beads@beads-marketplace": true,
-    "superpowers@superpowers-marketplace": true,
-    "superpowers@claude-plugins-official": true
   }
 }

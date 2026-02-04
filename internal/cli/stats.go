@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Toernblom/deco/internal/cli/style"
 	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/services/validator"
 	"github.com/Toernblom/deco/internal/storage/config"
@@ -142,60 +143,61 @@ func gatherStats(nodes []domain.Node, targetDir string) projectStats {
 }
 
 func printStats(stats projectStats) {
-	fmt.Println("PROJECT STATISTICS")
-	fmt.Println(strings.Repeat("=", 50))
+	fmt.Println(style.Header.Sprint("PROJECT STATISTICS"))
+	fmt.Println(style.Muted.Sprint(strings.Repeat("═", 50)))
 
 	// Total nodes
-	fmt.Printf("\nTotal nodes: %d\n", stats.totalNodes)
+	fmt.Printf("\n%s %d\n", style.Muted.Sprint("Total nodes:"), stats.totalNodes)
 
 	// Nodes by kind
-	fmt.Println("\nNODES BY KIND")
-	fmt.Println(strings.Repeat("-", 30))
+	fmt.Printf("\n%s\n", style.Header.Sprint("NODES BY KIND"))
+	fmt.Println(style.Muted.Sprint(strings.Repeat("─", 30)))
 	printSortedMap(stats.nodesByKind)
 
 	// Nodes by status
-	fmt.Println("\nNODES BY STATUS")
-	fmt.Println(strings.Repeat("-", 30))
-	printSortedMap(stats.nodesByStatus)
+	fmt.Printf("\n%s\n", style.Header.Sprint("NODES BY STATUS"))
+	fmt.Println(style.Muted.Sprint(strings.Repeat("─", 30)))
+	printSortedMapWithStatus(stats.nodesByStatus)
 
 	// Open issues by severity
-	fmt.Println("\nOPEN ISSUES BY SEVERITY")
-	fmt.Println(strings.Repeat("-", 30))
+	fmt.Printf("\n%s\n", style.Header.Sprint("OPEN ISSUES BY SEVERITY"))
+	fmt.Println(style.Muted.Sprint(strings.Repeat("─", 30)))
 	if stats.totalOpenIssues == 0 {
-		fmt.Println("  No open issues")
+		fmt.Printf("  %s\n", style.Success.Sprint("No open issues"))
 	} else {
 		// Print in severity order
 		severityOrder := []string{"critical", "high", "medium", "low"}
 		for _, sev := range severityOrder {
 			if count, ok := stats.openIssuesBySev[sev]; ok && count > 0 {
-				fmt.Printf("  %-12s %d\n", sev, count)
+				sevColor := style.SeverityColor(sev)
+				fmt.Printf("  %s %d\n", sevColor.Sprintf("%-12s", sev), count)
 			}
 		}
-		fmt.Printf("  %-12s %d\n", "Total", stats.totalOpenIssues)
+		fmt.Printf("  %-12s %d\n", style.Muted.Sprint("Total"), stats.totalOpenIssues)
 	}
 
 	// Reference health
-	fmt.Println("\nREFERENCE HEALTH")
-	fmt.Println(strings.Repeat("-", 30))
+	fmt.Printf("\n%s\n", style.Header.Sprint("REFERENCE HEALTH"))
+	fmt.Println(style.Muted.Sprint(strings.Repeat("─", 30)))
 	if stats.danglingRefs == 0 {
-		fmt.Println("  All references valid")
+		fmt.Printf("  %s\n", style.Success.Sprint("All references valid"))
 	} else {
-		fmt.Printf("  Dangling references: %d\n", stats.danglingRefs)
+		fmt.Printf("  %s %d\n", style.Warning.Sprint("Dangling references:"), stats.danglingRefs)
 	}
 
 	// Constraint violations
-	fmt.Println("\nCONSTRAINT VIOLATIONS")
-	fmt.Println(strings.Repeat("-", 30))
+	fmt.Printf("\n%s\n", style.Header.Sprint("CONSTRAINT VIOLATIONS"))
+	fmt.Println(style.Muted.Sprint(strings.Repeat("─", 30)))
 	if stats.constraintViolations == 0 {
-		fmt.Println("  No violations")
+		fmt.Printf("  %s\n", style.Success.Sprint("No violations"))
 	} else {
-		fmt.Printf("  Violations: %d\n", stats.constraintViolations)
+		fmt.Printf("  %s %d\n", style.Error.Sprint("Violations:"), stats.constraintViolations)
 	}
 }
 
 func printSortedMap(m map[string]int) {
 	if len(m) == 0 {
-		fmt.Println("  (none)")
+		fmt.Printf("  %s\n", style.Muted.Sprint("(none)"))
 		return
 	}
 
@@ -208,5 +210,27 @@ func printSortedMap(m map[string]int) {
 
 	for _, k := range keys {
 		fmt.Printf("  %-12s %d\n", k, m[k])
+	}
+}
+
+func printSortedMapWithStatus(m map[string]int) {
+	if len(m) == 0 {
+		fmt.Printf("  %s\n", style.Muted.Sprint("(none)"))
+		return
+	}
+
+	// Sort keys alphabetically
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		label := fmt.Sprintf("%-12s", k)
+		if c := style.StatusColor(k); c != nil {
+			label = c.Sprint(label)
+		}
+		fmt.Printf("  %s %d\n", label, m[k])
 	}
 }

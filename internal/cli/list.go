@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Toernblom/deco/internal/cli/style"
 	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/services/query"
 	"github.com/Toernblom/deco/internal/storage/config"
@@ -124,17 +125,17 @@ func printNodesTable(nodes []domain.Node) {
 		maxTitleLen = 50
 	}
 
-	// Print header
+	// Print header with styling
 	header := fmt.Sprintf("%-*s  %-*s  %-*s  %-*s",
 		maxIDLen, "ID",
 		maxKindLen, "KIND",
 		maxStatusLen, "STATUS",
 		maxTitleLen, "TITLE")
-	fmt.Println(header)
+	fmt.Println(style.Header.Sprint(header))
 
 	// Print separator
-	separator := strings.Repeat("-", len(header))
-	fmt.Println(separator)
+	separator := strings.Repeat("─", len(header))
+	fmt.Println(style.Muted.Sprint(separator))
 
 	// Print rows
 	for _, node := range nodes {
@@ -143,13 +144,19 @@ func printNodesTable(nodes []domain.Node) {
 			title = title[:maxTitleLen-3] + "..."
 		}
 
-		fmt.Printf("%-*s  %-*s  %-*s  %-*s\n",
+		// Color the status based on its value
+		statusStr := fmt.Sprintf("%-*s", maxStatusLen, node.Status)
+		if c := style.StatusColor(node.Status); c != nil {
+			statusStr = c.Sprint(statusStr)
+		}
+
+		fmt.Printf("%-*s  %-*s  %s  %-*s\n",
 			maxIDLen, node.ID,
-			maxKindLen, node.Kind,
-			maxStatusLen, node.Status,
+			maxKindLen, style.Muted.Sprint(node.Kind),
+			statusStr,
 			maxTitleLen, title)
 	}
 
 	// Print summary
-	fmt.Printf("\nTotal: %d node(s)\n", len(nodes))
+	fmt.Printf("\n%s %d node(s)\n", style.Muted.Sprint("Total:"), len(nodes))
 }

@@ -1215,3 +1215,214 @@ func TestBlockValidator_CustomType_ExtendsBuiltIn_BothRequired(t *testing.T) {
 		t.Errorf("expected 2 errors (text from built-in, priority from custom), got %d", len(errs))
 	}
 }
+
+// Test error consolidation for table column typos
+
+func TestBlockValidator_TableColumnTypo_Consolidates(t *testing.T) {
+	// When a typo causes both "unknown field" and "missing required field" errors,
+	// they should be consolidated into a single error
+	validator := NewBlockValidator()
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Data",
+					Blocks: []domain.Block{
+						{
+							Type: "table",
+							Data: map[string]interface{}{
+								"id": "test_table",
+								"columns": []interface{}{
+									map[string]interface{}{
+										"ke":      "name", // typo for "key"
+										"type":    "string",
+										"display": "Name",
+									},
+								},
+								"rows": []interface{}{
+									map[string]interface{}{"name": "Test"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for table column typo")
+	}
+
+	errs := collector.Errors()
+	// Should be exactly 1 error (consolidated), not 2
+	if len(errs) != 1 {
+		t.Errorf("expected 1 consolidated error, got %d", len(errs))
+		for i, err := range errs {
+			t.Logf("  error %d: [%s] %s", i, err.Code, err.Summary)
+		}
+	}
+
+	// The error should be E049 with consolidated message
+	if errs[0].Code != "E049" {
+		t.Errorf("expected E049, got %s", errs[0].Code)
+	}
+
+	// Should have context explaining the consolidation
+	if len(errs[0].Context) < 2 {
+		t.Errorf("expected at least 2 context items, got %d", len(errs[0].Context))
+	}
+
+	// First context should show column contents
+	foundContents := false
+	foundAlsoCauses := false
+	for _, ctx := range errs[0].Context {
+		if len(ctx) > 0 && ctx[0:6] == "Column" {
+			foundContents = true
+		}
+		if len(ctx) > 10 && ctx[0:9] == "This also" {
+			foundAlsoCauses = true
+		}
+	}
+	if !foundContents {
+		t.Error("expected context to include column contents")
+	}
+	if !foundAlsoCauses {
+		t.Error("expected context to include 'also causes' note")
+	}
+}
+
+func TestBlockValidator_TableColumnTypo_NoConsolidationWhenUnrelated(t *testing.T) {
+	// When unknown field doesn't suggest the missing field, no consolidation
+	validator := NewBlockValidator()
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Data",
+					Blocks: []domain.Block{
+						{
+							Type: "table",
+							Data: map[string]interface{}{
+								"id": "test_table",
+								"columns": []interface{}{
+									map[string]interface{}{
+										"xyz":     "name", // not a typo for "key"
+										"type":    "string",
+										"display": "Name",
+									},
+								},
+								"rows": []interface{}{
+									map[string]interface{}{"name": "Test"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected errors for table column issues")
+	}
+
+	errs := collector.Errors()
+	// Should be 2 errors (not consolidated since "xyz" doesn't suggest "key")
+	if len(errs) != 2 {
+		t.Errorf("expected 2 separate errors, got %d", len(errs))
+	}
+
+	// Should have one E050 (missing key) and one E049 (unknown field)
+	hasE050 := false
+	hasE049 := false
+	for _, err := range errs {
+		if err.Code == "E050" {
+			hasE050 = true
+		}
+		if err.Code == "E049" {
+			hasE049 = true
+		}
+	}
+	if !hasE050 {
+		t.Error("expected E050 for missing key")
+	}
+	if !hasE049 {
+		t.Error("expected E049 for unknown field")
+	}
+}
+
+func TestBlockValidator_TableColumnShowsContents(t *testing.T) {
+	// Verify that column contents are shown in error context
+	validator := NewBlockValidator()
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Data",
+					Blocks: []domain.Block{
+						{
+							Type: "table",
+							Data: map[string]interface{}{
+								"id": "test_table",
+								"columns": []interface{}{
+									map[string]interface{}{
+										"type":    "string",
+										"display": "Name",
+										// missing "key"
+									},
+								},
+								"rows": []interface{}{
+									map[string]interface{}{"name": "Test"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for missing key")
+	}
+
+	errs := collector.Errors()
+	if len(errs[0].Context) == 0 {
+		t.Fatal("expected context with column contents")
+	}
+
+	// Context should mention the column contents
+	foundContents := false
+	for _, ctx := range errs[0].Context {
+		if len(ctx) > 6 && ctx[0:6] == "Column" {
+			foundContents = true
+			// Should contain the actual field values
+			if !contains(ctx, "display") || !contains(ctx, "type") {
+				t.Errorf("expected context to show field values, got: %s", ctx)
+			}
+		}
+	}
+	if !foundContents {
+		t.Error("expected context to include column contents")
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && (s[0:len(substr)] == substr || contains(s[1:], substr)))
+}
