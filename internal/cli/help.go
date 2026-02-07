@@ -104,7 +104,7 @@ Required fields:
   id: systems/example      # Must match file path (systems/example.yaml)
   kind: system             # system, component, feature, item, etc.
   version: 1               # Auto-incremented by sync
-  status: draft            # draft, review, approved, published, deprecated
+  status: draft            # draft, review, approved, deprecated, archived
   title: Example System
 
 Optional fields:

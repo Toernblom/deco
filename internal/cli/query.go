@@ -29,6 +29,7 @@ type queryFlags struct {
 	kind       string
 	status     string
 	tag        string
+	quiet      bool
 	targetDir  string
 	searchTerm string
 	blockType  string
@@ -48,7 +49,7 @@ func NewQueryCommand() *cobra.Command {
 The search term is optional and searches title and summary (case-insensitive).
 Filters can be combined with search to narrow down results:
   --kind:       Filter by node type (item, character, quest, etc.)
-  --status:     Filter by status (draft, published, etc.)
+  --status:     Filter by status (draft, review, approved, etc.)
   --tag:        Filter by tag (must have this tag)
   --block-type: Filter by custom block type within content
   --field:      Filter by block field value (key=value, repeatable)
@@ -91,6 +92,7 @@ Examples:
 	cmd.Flags().StringVarP(&flags.kind, "kind", "k", "", "Filter by node kind")
 	cmd.Flags().StringVarP(&flags.status, "status", "s", "", "Filter by status")
 	cmd.Flags().StringVarP(&flags.tag, "tag", "t", "", "Filter by tag")
+	cmd.Flags().BoolVarP(&flags.quiet, "quiet", "q", false, "Output node IDs only, one per line")
 	cmd.Flags().StringVarP(&flags.blockType, "block-type", "b", "", "Filter by block type within content")
 	cmd.Flags().StringArrayVarP(&flags.fields, "field", "f", nil, "Filter by block field (key=value, repeatable)")
 	cmd.Flags().StringVar(&flags.follow, "follow", "", "Follow field refs to related blocks (field or field:blocktype.field)")
@@ -130,6 +132,19 @@ func runQuery(flags *queryFlags) error {
 	nodes, err := nodeRepo.LoadAll()
 	if err != nil {
 		return fmt.Errorf("failed to load nodes: %w", err)
+	}
+
+	// Validate filter values
+	if err := validateStatus(flags.status); err != nil {
+		return err
+	}
+	if err := validateKind(flags.kind, nodes); err != nil {
+		return err
+	}
+	for _, f := range flags.fields {
+		if err := validateFieldFilter(f); err != nil {
+			return err
+		}
 	}
 
 	// Build filter criteria
@@ -198,8 +213,18 @@ func runQuery(flags *queryFlags) error {
 	}
 
 	// Display results
+	quiet := flags.quiet || globalConfig.Quiet
 	if len(results) == 0 {
-		fmt.Println("No nodes found")
+		if !quiet {
+			fmt.Println("No nodes found")
+		}
+		return nil
+	}
+
+	if quiet {
+		for _, n := range results {
+			fmt.Println(n.ID)
+		}
 		return nil
 	}
 

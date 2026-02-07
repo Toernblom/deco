@@ -263,7 +263,7 @@ tags:
 			`id: hero-001
 kind: character
 version: 1
-status: published
+status: approved
 title: Hero Character
 summary: The main protagonist
 tags:

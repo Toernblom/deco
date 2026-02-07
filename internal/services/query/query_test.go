@@ -59,12 +59,12 @@ func TestQueryEngine_FilterByStatus(t *testing.T) {
 
 	nodes := []domain.Node{
 		{ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Draft Node"},
-		{ID: "node2", Kind: "system", Version: 1, Status: "published", Title: "Published Node"},
+		{ID: "node2", Kind: "system", Version: 1, Status: "approved", Title: "Approved Node"},
 		{ID: "node3", Kind: "system", Version: 1, Status: "draft", Title: "Another Draft"},
 	}
 
 	criteria := query.FilterCriteria{
-		Status: strPtr("published"),
+		Status: strPtr("approved"),
 	}
 
 	results := qe.Filter(nodes, criteria)
@@ -73,8 +73,8 @@ func TestQueryEngine_FilterByStatus(t *testing.T) {
 		t.Fatalf("expected 1 result, got %d", len(results))
 	}
 
-	if results[0].Status != "published" {
-		t.Errorf("expected status 'published', got %q", results[0].Status)
+	if results[0].Status != "approved" {
+		t.Errorf("expected status 'approved', got %q", results[0].Status)
 	}
 }
 
@@ -155,14 +155,14 @@ func TestQueryEngine_FilterCombinedKindAndStatus(t *testing.T) {
 
 	nodes := []domain.Node{
 		{ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "System Draft"},
-		{ID: "node2", Kind: "feature", Version: 1, Status: "published", Title: "Feature Published"},
-		{ID: "node3", Kind: "system", Version: 1, Status: "published", Title: "System Published"},
+		{ID: "node2", Kind: "feature", Version: 1, Status: "approved", Title: "Feature Approved"},
+		{ID: "node3", Kind: "system", Version: 1, Status: "approved", Title: "System Approved"},
 		{ID: "node4", Kind: "system", Version: 1, Status: "draft", Title: "System Draft 2"},
 	}
 
 	criteria := query.FilterCriteria{
 		Kind:   strPtr("system"),
-		Status: strPtr("published"),
+		Status: strPtr("approved"),
 	}
 
 	results := qe.Filter(nodes, criteria)
@@ -182,14 +182,14 @@ func TestQueryEngine_FilterCombinedAll(t *testing.T) {
 
 	nodes := []domain.Node{
 		{ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Node 1", Tags: []string{"gameplay", "combat"}},
-		{ID: "node2", Kind: "feature", Version: 1, Status: "published", Title: "Node 2", Tags: []string{"gameplay", "combat"}},
-		{ID: "node3", Kind: "system", Version: 1, Status: "published", Title: "Node 3", Tags: []string{"gameplay", "combat"}},
-		{ID: "node4", Kind: "system", Version: 1, Status: "published", Title: "Node 4", Tags: []string{"gameplay"}},
+		{ID: "node2", Kind: "feature", Version: 1, Status: "approved", Title: "Node 2", Tags: []string{"gameplay", "combat"}},
+		{ID: "node3", Kind: "system", Version: 1, Status: "approved", Title: "Node 3", Tags: []string{"gameplay", "combat"}},
+		{ID: "node4", Kind: "system", Version: 1, Status: "approved", Title: "Node 4", Tags: []string{"gameplay"}},
 	}
 
 	criteria := query.FilterCriteria{
 		Kind:   strPtr("system"),
-		Status: strPtr("published"),
+		Status: strPtr("approved"),
 		Tags:   []string{"gameplay", "combat"},
 	}
 
@@ -214,7 +214,7 @@ func TestQueryEngine_FilterNoMatches(t *testing.T) {
 	}
 
 	criteria := query.FilterCriteria{
-		Status: strPtr("published"),
+		Status: strPtr("approved"),
 	}
 
 	results := qe.Filter(nodes, criteria)
@@ -230,7 +230,7 @@ func TestQueryEngine_FilterEmptyCriteria(t *testing.T) {
 
 	nodes := []domain.Node{
 		{ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Node 1"},
-		{ID: "node2", Kind: "feature", Version: 1, Status: "published", Title: "Node 2"},
+		{ID: "node2", Kind: "feature", Version: 1, Status: "approved", Title: "Node 2"},
 	}
 
 	criteria := query.FilterCriteria{}

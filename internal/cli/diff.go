@@ -24,6 +24,7 @@ import (
 	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/storage/config"
 	"github.com/Toernblom/deco/internal/storage/history"
+	"github.com/Toernblom/deco/internal/storage/node"
 	"github.com/spf13/cobra"
 )
 
@@ -74,6 +75,12 @@ func runDiff(nodeID string, flags *diffFlags) error {
 	cfg, err := configRepo.Load()
 	if err != nil {
 		return fmt.Errorf(".deco directory not found or invalid: %w", err)
+	}
+
+	// Verify node exists
+	nodeRepo := node.NewYAMLRepository(config.ResolveNodesPath(cfg, flags.targetDir))
+	if _, err := nodeRepo.Load(nodeID); err != nil {
+		return fmt.Errorf("node %q not found", nodeID)
 	}
 
 	// Build filter

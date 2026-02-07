@@ -2542,15 +2542,15 @@ func TestContentValidator_ApprovedWithoutContent(t *testing.T) {
 	}
 }
 
-// Test published node without content (should fail)
-func TestContentValidator_PublishedWithoutContent(t *testing.T) {
+// Test approved node without content via different status value (should fail)
+func TestContentValidator_ApprovedWithoutContent2(t *testing.T) {
 	cv := validator.NewContentValidator()
 
 	node := domain.Node{
 		ID:      "test-node",
 		Kind:    "system",
 		Version: 1,
-		Status:  "published",
+		Status:  "approved",
 		Title:   "Test Node",
 		// No content
 	}
@@ -2559,7 +2559,7 @@ func TestContentValidator_PublishedWithoutContent(t *testing.T) {
 	cv.Validate(&node, collector)
 
 	if !collector.HasErrors() {
-		t.Fatal("expected error for published node without content")
+		t.Fatal("expected error for approved node without content")
 	}
 
 	errs := collector.Errors()
@@ -2626,15 +2626,15 @@ func TestContentValidator_ApprovedWithContent(t *testing.T) {
 	}
 }
 
-// Test published node with content (should pass)
-func TestContentValidator_PublishedWithContent(t *testing.T) {
+// Test approved node with content (should pass)
+func TestContentValidator_ApprovedWithContent2(t *testing.T) {
 	cv := validator.NewContentValidator()
 
 	node := domain.Node{
 		ID:      "test-node",
 		Kind:    "system",
 		Version: 1,
-		Status:  "published",
+		Status:  "approved",
 		Title:   "Test Node",
 		Content: &domain.Content{
 			Sections: []domain.Section{
@@ -2652,11 +2652,11 @@ func TestContentValidator_PublishedWithContent(t *testing.T) {
 	cv.Validate(&node, collector)
 
 	if collector.HasErrors() {
-		t.Errorf("expected no errors for published node with content, got %d: %v", collector.Count(), collector.Errors())
+		t.Errorf("expected no errors for approved node with content, got %d: %v", collector.Count(), collector.Errors())
 	}
 }
 
-// Test deprecated node without content (should pass - not approved/published)
+// Test deprecated node without content (should pass - not approved)
 func TestContentValidator_DeprecatedWithoutContent(t *testing.T) {
 	cv := validator.NewContentValidator()
 
@@ -2951,22 +2951,22 @@ func TestOrchestrator_ValidateNode(t *testing.T) {
 		}
 	})
 
-	t.Run("detects published without content", func(t *testing.T) {
+	t.Run("detects approved without content", func(t *testing.T) {
 		orch := validator.NewOrchestrator()
 
 		node := &domain.Node{
 			ID:      "test-node",
 			Kind:    "mechanic",
 			Version: 1,
-			Status:  "published",
-			Title:   "Published Node",
+			Status:  "approved",
+			Title:   "Approved Node",
 			// No content
 		}
 
 		collector := orch.ValidateNode(node)
 
 		if !collector.HasErrors() {
-			t.Error("Expected error for published node without content")
+			t.Error("Expected error for approved node without content")
 		}
 
 		hasE046 := false
@@ -2977,7 +2977,7 @@ func TestOrchestrator_ValidateNode(t *testing.T) {
 			}
 		}
 		if !hasE046 {
-			t.Error("Expected E046 error for published without content")
+			t.Error("Expected E046 error for approved without content")
 		}
 	})
 

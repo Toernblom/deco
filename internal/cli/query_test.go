@@ -157,7 +157,7 @@ func TestQueryCommand_StatusFilter(t *testing.T) {
 		setupProjectForQuery(t, tmpDir)
 
 		cmd := NewQueryCommand()
-		cmd.SetArgs([]string{"-s", "published", tmpDir})
+		cmd.SetArgs([]string{"-s", "approved", tmpDir})
 		err := cmd.Execute()
 		if err != nil {
 			t.Fatalf("Expected no error with -s, got %v", err)
@@ -220,7 +220,7 @@ func TestQueryCommand_CombinedSearchAndFilters(t *testing.T) {
 		setupProjectForQuery(t, tmpDir)
 
 		cmd := NewQueryCommand()
-		cmd.SetArgs([]string{"hero", "--status", "published", tmpDir})
+		cmd.SetArgs([]string{"hero", "--status", "approved", tmpDir})
 		err := cmd.Execute()
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
@@ -391,7 +391,7 @@ tags:
 			`id: hero-001
 kind: character
 version: 1
-status: published
+status: approved
 title: Hero Character
 summary: The main protagonist of the story
 tags:
@@ -404,7 +404,7 @@ tags:
 			`id: potion-001
 kind: item
 version: 1
-status: published
+status: approved
 title: Health Potion
 summary: Restores health when consumed
 tags:

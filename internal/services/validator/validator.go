@@ -185,7 +185,7 @@ func (srv *SchemaRulesValidator) Validate(node *domain.Node, collector *errors.C
 	}
 }
 
-// ContentValidator validates that approved/published nodes have content.
+// ContentValidator validates that approved nodes have content.
 // Draft nodes are allowed to be content-free.
 type ContentValidator struct{}
 
@@ -194,14 +194,14 @@ func NewContentValidator() *ContentValidator {
 	return &ContentValidator{}
 }
 
-// Validate checks that approved/published nodes have content with at least one section.
+// Validate checks that approved nodes have content with at least one section.
 func (cv *ContentValidator) Validate(node *domain.Node, collector *errors.Collector) {
 	if node == nil {
 		return
 	}
 
-	// Only require content for approved or published nodes
-	if node.Status != "approved" && node.Status != "published" {
+	// Only require content for approved nodes
+	if node.Status != "approved" {
 		return
 	}
 
@@ -216,7 +216,7 @@ func (cv *ContentValidator) Validate(node *domain.Node, collector *errors.Collec
 		collector.Add(domain.DecoError{
 			Code:       "E046",
 			Summary:    fmt.Sprintf("Node %q with status %q requires content", node.ID, node.Status),
-			Detail:     "Approved and published nodes must have content with at least one section. Draft nodes may omit content.",
+			Detail:     "Approved nodes must have content with at least one section. Draft nodes may omit content.",
 			Suggestion: "Add a content section with at least one block, or change status to 'draft' while content is being developed.",
 			Location:   location,
 		})
@@ -1107,7 +1107,7 @@ func (o *Orchestrator) ValidateAll(nodes []domain.Node) *errors.Collector {
 		}
 	}
 
-	// Run content validation on each node (approved/published require content)
+	// Run content validation on each node (approved nodes require content)
 	for _, node := range nodes {
 		o.contentValidator.Validate(&node, collector)
 	}
@@ -1186,7 +1186,7 @@ func (o *Orchestrator) ValidateNode(node *domain.Node) *errors.Collector {
 		o.schemaRulesValidator.Validate(node, collector)
 	}
 
-	// Run content validation (approved/published require content)
+	// Run content validation (approved nodes require content)
 	o.contentValidator.Validate(node, collector)
 
 	// Run block validation

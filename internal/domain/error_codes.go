@@ -83,7 +83,7 @@ func NewErrorCodeRegistry() *ErrorCodeRegistry {
 	registry.register("E043", "validation", "Invalid value")
 	registry.register("E044", "validation", "Value out of range")
 	registry.register("E045", "validation", "Type constraint violation")
-	registry.register("E046", "validation", "Content required for approved/published status")
+	registry.register("E046", "validation", "Content required for approved status")
 	registry.register("E047", "validation", "Missing required block field")
 	registry.register("E048", "validation", "Unknown block type")
 	registry.register("E049", "validation", "Unknown block field")

@@ -52,9 +52,10 @@ var (
 	Low      = color.New(color.FgBlue)
 
 	// Status colors
-	StatusDraft     = color.New(color.FgYellow)
-	StatusPublished = color.New(color.FgGreen)
-	StatusArchived  = color.New(color.FgHiBlack)
+	StatusDraft    = color.New(color.FgYellow)
+	StatusReview   = color.New(color.FgCyan)
+	StatusApproved = color.New(color.FgGreen)
+	StatusArchived = color.New(color.FgHiBlack)
 )
 
 // SetMode sets the global color mode
@@ -159,8 +160,12 @@ func StatusColor(status string) *color.Color {
 	switch status {
 	case "draft":
 		return StatusDraft
-	case "published":
-		return StatusPublished
+	case "review":
+		return StatusReview
+	case "approved":
+		return StatusApproved
+	case "deprecated":
+		return StatusArchived // same muted style
 	case "archived":
 		return StatusArchived
 	default:

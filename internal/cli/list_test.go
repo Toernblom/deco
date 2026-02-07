@@ -133,7 +133,7 @@ func TestListCommand_StatusFilter(t *testing.T) {
 		setupProjectWithMultipleNodes(t, tmpDir)
 
 		cmd := NewListCommand()
-		cmd.SetArgs([]string{"-s", "published", tmpDir})
+		cmd.SetArgs([]string{"-s", "approved", tmpDir})
 		err := cmd.Execute()
 		if err != nil {
 			t.Fatalf("Expected no error with -s, got %v", err)
@@ -301,7 +301,7 @@ tags:
 			`id: hero-001
 kind: character
 version: 1
-status: published
+status: approved
 title: Hero Character
 tags:
   - protagonist
@@ -313,7 +313,7 @@ tags:
 			`id: potion-001
 kind: item
 version: 1
-status: published
+status: approved
 title: Health Potion
 tags:
   - consumable

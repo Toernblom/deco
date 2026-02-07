@@ -31,6 +31,7 @@ type listFlags struct {
 	kind      string
 	status    string
 	tag       string
+	quiet     bool
 	targetDir string
 }
 
@@ -45,14 +46,14 @@ func NewListCommand() *cobra.Command {
 
 Filters can be combined to narrow down results:
   --kind:   Filter by node type (item, character, quest, etc.)
-  --status: Filter by status (draft, published, etc.)
+  --status: Filter by status (draft, review, approved, etc.)
   --tag:    Filter by tag (must have this tag)
 
 Examples:
   deco list
   deco list --kind item
   deco list --status draft
-  deco list --kind item --status published
+  deco list --kind item --status approved
   deco list --tag combat`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -68,6 +69,7 @@ Examples:
 	cmd.Flags().StringVarP(&flags.kind, "kind", "k", "", "Filter by node kind")
 	cmd.Flags().StringVarP(&flags.status, "status", "s", "", "Filter by status")
 	cmd.Flags().StringVarP(&flags.tag, "tag", "t", "", "Filter by tag")
+	cmd.Flags().BoolVarP(&flags.quiet, "quiet", "q", false, "Output node IDs only, one per line")
 
 	return cmd
 }
@@ -87,6 +89,14 @@ func runList(flags *listFlags) error {
 		return fmt.Errorf("failed to load nodes: %w", err)
 	}
 
+	// Validate filter values
+	if err := validateStatus(flags.status); err != nil {
+		return err
+	}
+	if err := validateKind(flags.kind, nodes); err != nil {
+		return err
+	}
+
 	// Build filter criteria
 	criteria := query.FilterCriteria{}
 	if flags.kind != "" {
@@ -104,8 +114,18 @@ func runList(flags *listFlags) error {
 	filtered := qe.Filter(nodes, criteria)
 
 	// Display results
+	quiet := flags.quiet || globalConfig.Quiet
 	if len(filtered) == 0 {
-		fmt.Println("No nodes found")
+		if !quiet {
+			fmt.Println("No nodes found")
+		}
+		return nil
+	}
+
+	if quiet {
+		for _, n := range filtered {
+			fmt.Println(n.ID)
+		}
 		return nil
 	}
 

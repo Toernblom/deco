@@ -114,6 +114,14 @@ func runIssues(w io.Writer, flags *issuesFlags) error {
 		return fmt.Errorf("failed to load nodes: %w", err)
 	}
 
+	// Validate filter values
+	if err := validateSeverity(flags.severity); err != nil {
+		return err
+	}
+	if err := validateKind(flags.kind, nodes); err != nil {
+		return err
+	}
+
 	// Collect issues with filtering
 	var results []IssueResult
 	for _, n := range nodes {

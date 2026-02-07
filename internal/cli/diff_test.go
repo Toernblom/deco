@@ -70,15 +70,15 @@ func TestDiffCommand_ShowsNodeHistory(t *testing.T) {
 		}
 	})
 
-	t.Run("handles node with no history", func(t *testing.T) {
+	t.Run("errors for non-existent node", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		setupProjectWithDetailedHistory(t, tmpDir)
 
 		cmd := NewDiffCommand()
 		cmd.SetArgs([]string{"nonexistent-001", tmpDir})
 		err := cmd.Execute()
-		if err != nil {
-			t.Errorf("Expected no error for node with no history, got %v", err)
+		if err == nil {
+			t.Error("Expected error for non-existent node")
 		}
 	})
 }
@@ -324,6 +324,27 @@ history_path: .deco/history.jsonl
 	configPath := filepath.Join(decoDir, "config.yaml")
 	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
 		t.Fatalf("Failed to create config.yaml: %v", err)
+	}
+
+	// Create node files so diff can verify node existence
+	swordYAML := `id: sword-001
+kind: item
+version: 1
+status: draft
+title: Iron Sword
+`
+	if err := os.WriteFile(filepath.Join(nodesDir, "sword-001.yaml"), []byte(swordYAML), 0644); err != nil {
+		t.Fatalf("Failed to create sword node: %v", err)
+	}
+
+	heroYAML := `id: hero-001
+kind: character
+version: 1
+status: draft
+title: Brave Hero
+`
+	if err := os.WriteFile(filepath.Join(nodesDir, "hero-001.yaml"), []byte(heroYAML), 0644); err != nil {
+		t.Fatalf("Failed to create hero node: %v", err)
 	}
 
 	// Create history.jsonl with detailed before/after data

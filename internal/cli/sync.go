@@ -135,6 +135,9 @@ func runSync(flags *syncFlags) (int, error) {
 	}
 
 	if len(nodePaths) == 0 {
+		if !flags.quiet {
+			fmt.Println("No nodes found, nothing to sync.")
+		}
 		return syncExitClean, nil
 	}
 
@@ -410,6 +413,9 @@ func runSync(flags *syncFlags) (int, error) {
 		return syncExitModified, nil
 	}
 
+	if !flags.quiet {
+		fmt.Printf("All %d node(s) clean, no changes.\n", len(allNodes))
+	}
 	return syncExitClean, nil
 }
 

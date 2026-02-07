@@ -84,7 +84,7 @@ func runStats(flags *statsFlags) error {
 	}
 
 	// Gather statistics
-	stats := gatherStats(nodes, flags.targetDir)
+	stats := gatherStats(nodes, cfg)
 
 	// Print statistics
 	printStats(stats)
@@ -93,21 +93,23 @@ func runStats(flags *statsFlags) error {
 }
 
 type projectStats struct {
-	totalNodes          int
-	nodesByKind         map[string]int
-	nodesByStatus       map[string]int
-	openIssuesBySev     map[string]int
-	totalOpenIssues     int
-	danglingRefs        int
-	constraintViolations int
+	totalNodes            int
+	nodesByKind           map[string]int
+	nodesByStatus         map[string]int
+	openIssuesBySev       map[string]int
+	totalOpenIssues       int
+	danglingRefs          int
+	totalValidationErrors int
+	validationByCategory  map[string]int
 }
 
-func gatherStats(nodes []domain.Node, targetDir string) projectStats {
+func gatherStats(nodes []domain.Node, cfg config.Config) projectStats {
 	stats := projectStats{
-		totalNodes:      len(nodes),
-		nodesByKind:    make(map[string]int),
-		nodesByStatus:  make(map[string]int),
-		openIssuesBySev: make(map[string]int),
+		totalNodes:           len(nodes),
+		nodesByKind:          make(map[string]int),
+		nodesByStatus:        make(map[string]int),
+		openIssuesBySev:      make(map[string]int),
+		validationByCategory: make(map[string]int),
 	}
 
 	// Build set of existing node IDs for reference checking
@@ -145,12 +147,20 @@ func gatherStats(nodes []domain.Node, targetDir string) projectStats {
 		}
 	}
 
-	// Run validator to count constraint violations
-	orchestrator := validator.NewOrchestrator()
+	// Run full validation to count all errors
+	orchestrator := validator.NewOrchestratorWithFullConfig(
+		cfg.RequiredApprovals,
+		cfg.CustomBlockTypes,
+		cfg.SchemaRules,
+	)
 	collector := orchestrator.ValidateAll(nodes)
+	registry := domain.NewErrorCodeRegistry()
 	for _, err := range collector.Errors() {
-		if err.Code == "E041" {
-			stats.constraintViolations++
+		stats.totalValidationErrors++
+		if ec, ok := registry.Lookup(err.Code); ok {
+			stats.validationByCategory[ec.Category]++
+		} else {
+			stats.validationByCategory["other"]++
 		}
 	}
 
@@ -200,13 +210,25 @@ func printStats(stats projectStats) {
 		fmt.Printf("  %s %d\n", style.Warning.Sprint("Dangling references:"), stats.danglingRefs)
 	}
 
-	// Constraint violations
-	fmt.Printf("\n%s\n", style.Header.Sprint("CONSTRAINT VIOLATIONS"))
+	// Validation health
+	fmt.Printf("\n%s\n", style.Header.Sprint("VALIDATION HEALTH"))
 	fmt.Println(style.Muted.Sprint(strings.Repeat("─", 30)))
-	if stats.constraintViolations == 0 {
-		fmt.Printf("  %s\n", style.Success.Sprint("No violations"))
+	if stats.totalValidationErrors == 0 {
+		fmt.Printf("  %s\n", style.Success.Sprint("No errors"))
 	} else {
-		fmt.Printf("  %s %d\n", style.Error.Sprint("Violations:"), stats.constraintViolations)
+		fmt.Printf("  %s %d\n", style.Error.Sprint("Errors:"), stats.totalValidationErrors)
+		categoryOrder := []string{"schema", "refs", "validation"}
+		for _, cat := range categoryOrder {
+			if count, ok := stats.validationByCategory[cat]; ok && count > 0 {
+				fmt.Printf("    %-12s %d\n", cat+":", count)
+			}
+		}
+		// Print any extra categories not in the standard order
+		for cat, count := range stats.validationByCategory {
+			if cat != "schema" && cat != "refs" && cat != "validation" && count > 0 {
+				fmt.Printf("    %-12s %d\n", cat+":", count)
+			}
+		}
 	}
 }
 

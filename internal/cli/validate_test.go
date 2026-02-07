@@ -422,8 +422,8 @@ title: Test Item
 tags:
   - test
 constraints:
-  - expr: "status == 'published'"
-    message: "Item must be published"
+  - expr: "status == 'approved'"
+    message: "Item must be approved"
 `
 	nodePath := filepath.Join(nodesDir, "test-item-001.yaml")
 	if err := os.WriteFile(nodePath, []byte(nodeYAML), 0644); err != nil {
