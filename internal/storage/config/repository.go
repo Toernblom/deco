@@ -1,6 +1,9 @@
 package config
 
-import "path/filepath"
+import (
+	"fmt"
+	"path/filepath"
+)
 
 // RefConstraint declares that a field references values from another block type.
 type RefConstraint struct {
@@ -10,10 +13,77 @@ type RefConstraint struct {
 
 // FieldDef defines a field with type, required, and constraint information.
 type FieldDef struct {
-	Type     string         `yaml:"type" json:"type"`                       // string, number, list, bool
-	Required bool           `yaml:"required" json:"required"`               // whether the field must be present
-	Enum     []string       `yaml:"enum,omitempty" json:"enum,omitempty"`   // allowed values (for string fields)
-	Ref      *RefConstraint `yaml:"ref,omitempty" json:"ref,omitempty"`     // cross-reference constraint
+	Type     string          `yaml:"type" json:"type"`                       // string, number, list, bool
+	Required bool            `yaml:"required" json:"required"`               // whether the field must be present
+	Enum     []string        `yaml:"enum,omitempty" json:"enum,omitempty"`   // allowed values (for string fields)
+	Refs     []RefConstraint `yaml:"refs,omitempty" json:"refs,omitempty"`   // cross-reference constraints (OR logic)
+}
+
+// UnmarshalYAML implements custom unmarshaling for FieldDef.
+// Supports both the old single-object "ref:" syntax and the new array "ref:" syntax,
+// normalizing both into the Refs slice.
+func (fd *FieldDef) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// Use a raw struct to avoid infinite recursion
+	var raw struct {
+		Type     string      `yaml:"type"`
+		Required bool        `yaml:"required"`
+		Enum     []string    `yaml:"enum,omitempty"`
+		Ref      interface{} `yaml:"ref,omitempty"`
+	}
+	if err := unmarshal(&raw); err != nil {
+		return err
+	}
+
+	fd.Type = raw.Type
+	fd.Required = raw.Required
+	fd.Enum = raw.Enum
+
+	if raw.Ref == nil {
+		return nil
+	}
+
+	// Determine if ref is a single object or an array
+	switch v := raw.Ref.(type) {
+	case map[string]interface{}:
+		// Single ref object: ref: {block_type: x, field: y}
+		rc, err := mapToRefConstraint(v)
+		if err != nil {
+			return fmt.Errorf("invalid ref constraint: %w", err)
+		}
+		fd.Refs = []RefConstraint{rc}
+	case []interface{}:
+		// Array of ref objects: ref: [{block_type: x, field: y}, ...]
+		for i, item := range v {
+			m, ok := item.(map[string]interface{})
+			if !ok {
+				return fmt.Errorf("ref[%d]: expected object, got %T", i, item)
+			}
+			rc, err := mapToRefConstraint(m)
+			if err != nil {
+				return fmt.Errorf("ref[%d]: %w", i, err)
+			}
+			fd.Refs = append(fd.Refs, rc)
+		}
+	default:
+		return fmt.Errorf("ref: expected object or array, got %T", raw.Ref)
+	}
+
+	return nil
+}
+
+// mapToRefConstraint converts a raw map to a RefConstraint.
+func mapToRefConstraint(m map[string]interface{}) (RefConstraint, error) {
+	rc := RefConstraint{}
+	if bt, ok := m["block_type"]; ok {
+		rc.BlockType = fmt.Sprintf("%v", bt)
+	}
+	if f, ok := m["field"]; ok {
+		rc.Field = fmt.Sprintf("%v", f)
+	}
+	if rc.BlockType == "" || rc.Field == "" {
+		return rc, fmt.Errorf("ref constraint requires both block_type and field")
+	}
+	return rc, nil
 }
 
 // BlockTypeConfig defines validation rules for a custom block type.

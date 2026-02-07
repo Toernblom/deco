@@ -70,10 +70,18 @@ Node-level (default): filters and searches across nodes.
 Block-level: filters blocks within node content. Activated by --block-type.
   deco query --block-type building                         # All building blocks
   deco query --block-type building --field age=bronze      # Filter by field value
+  deco query --block-type building --field materials=Planks # List membership (contains)
   deco query --block-type recipe --field output=Bronze     # Multiple --field uses AND logic
   deco query --kind system --block-type building           # Combine node + block filters
 
+Follow mode: traverses ref constraints to find related blocks.
+  deco query --block-type building --follow materials                # Auto from ref config
+  deco query --block-type building --field age=bronze --follow materials  # Filter + follow
+  deco query --block-type recipe --follow inputs                    # Reverse: what resources?
+  deco query --block-type building --follow materials:recipe.output # Explicit target
+
 Returns block data with context: [node_id > section_name] type + all fields.
+Follow mode groups results by value with reference counts.
 
 ## Node Structure (YAML)
 
@@ -213,7 +221,11 @@ Advanced syntax (typed fields with constraints and cross-references):
         name: {type: string, required: true}
         age: {type: string, required: true, enum: [stone, bronze, iron]}
         category: {type: string, enum: [production, military, residential]}
-        materials: {type: list, ref: {block_type: resource, field: name}}
+        materials:
+          type: list
+          ref:
+            - {block_type: resource, field: name}
+            - {block_type: recipe, field: output}
     resource:
       fields:
         name: {type: string, required: true}
@@ -227,7 +239,8 @@ Field definition options:
   type:      string, number, list, bool (validated at E052)
   required:  true/false - field must be present (validated at E047)
   enum:      [val1, val2] - restrict to allowed values (validated at E053, suggests typo fixes)
-  ref:       {block_type: X, field: Y} - value must exist in another block type (validated at E054)
+  ref:       {block_type: X, field: Y} - single ref target (validated at E054)
+  ref:       [{block_type: X, field: Y}, ...] - union refs, OR logic (validated at E054)
 
 Usage in nodes:
   - type: building
@@ -241,7 +254,8 @@ Usage in nodes:
 
 Cross-references are validated across ALL nodes. If materials references
 resource.name, then every value in materials must match a name field in some
-resource block somewhere in the project.
+resource block somewhere in the project. Union refs (array form) validate
+against ANY of the listed targets using OR logic.
 
 ## Schema Rules
 
@@ -283,11 +297,15 @@ Key errors you'll encounter:
 2. Always read before edit: Use 'deco show <id>' or read the YAML file
 3. Validate after changes: Run 'deco validate' to catch errors early
 4. Use block-level queries: 'deco query --block-type X --field k=v' to find specific data
+   - List fields support membership: '--field materials=Planks' matches if Planks is in the list
 5. Define typed blocks: Use advanced custom_block_types with type/enum/ref for data integrity
 6. Cross-reference blocks: Use ref constraints to link block types (e.g., recipe -> resource)
-7. Use doc references: Put prose in .md files, reference with docs or doc blocks
-8. Use issues for TBDs: Don't leave unresolved questions in content
-9. Reference other nodes: Use refs.uses for dependencies between nodes
-10. Keep nodes focused: One concept per node, link related concepts
-11. Match id to path: systems/auth.yaml must have id: systems/auth
+   - Union refs: ref as array allows OR validation across multiple block types
+7. Follow refs across types: 'deco query --block-type building --follow materials' traces supply chains
+   - Use explicit targets for ad-hoc joins: '--follow materials:recipe.output'
+8. Use doc references: Put prose in .md files, reference with docs or doc blocks
+9. Use issues for TBDs: Don't leave unresolved questions in content
+10. Reference other nodes: Use refs.uses for dependencies between nodes
+11. Keep nodes focused: One concept per node, link related concepts
+12. Match id to path: systems/auth.yaml must have id: systems/auth
 `

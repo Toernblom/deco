@@ -2,6 +2,7 @@ package validator
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/errors"
@@ -94,7 +95,7 @@ func (cv *CrossRefValidator) validateBlockRefs(block domain.Block, nodeID, secti
 	}
 
 	for fieldName, fieldDef := range blockCfg.Fields {
-		if fieldDef.Ref == nil {
+		if len(fieldDef.Refs) == 0 {
 			continue
 		}
 
@@ -103,37 +104,52 @@ func (cv *CrossRefValidator) validateBlockRefs(block domain.Block, nodeID, secti
 			continue // missing field is handled by required field validation
 		}
 
-		refKey := fieldDef.Ref.BlockType + "." + fieldDef.Ref.Field
-		validValues := refSets[refKey]
+		// Build union of valid values across all ref targets (OR logic)
+		unionValues := make(map[string]bool)
+		var targetDescs []string
+		for _, ref := range fieldDef.Refs {
+			refKey := ref.BlockType + "." + ref.Field
+			targetDescs = append(targetDescs, refKey)
+			for v := range refSets[refKey] {
+				unionValues[v] = true
+			}
+		}
 
 		// Collect valid values as a list for suggestions
 		var validList []string
-		for v := range validValues {
+		for v := range unionValues {
 			validList = append(validList, v)
 		}
 
 		switch v := val.(type) {
 		case string:
-			cv.validateSingleRef(v, block.Type, fieldName, nodeID, sectionName, blockIdx, location, validValues, validList, collector)
+			cv.validateSingleRef(v, block.Type, fieldName, nodeID, sectionName, blockIdx, location, unionValues, validList, targetDescs, collector)
 		case []interface{}:
 			for _, item := range v {
 				if strItem, ok := item.(string); ok {
-					cv.validateSingleRef(strItem, block.Type, fieldName, nodeID, sectionName, blockIdx, location, validValues, validList, collector)
+					cv.validateSingleRef(strItem, block.Type, fieldName, nodeID, sectionName, blockIdx, location, unionValues, validList, targetDescs, collector)
 				}
 			}
 		}
 	}
 }
 
-// validateSingleRef checks a single value against the reference set.
-func (cv *CrossRefValidator) validateSingleRef(value, blockType, fieldName, nodeID, sectionName string, blockIdx int, location *domain.Location, validValues map[string]bool, validList []string, collector *errors.Collector) {
-	if validValues != nil && validValues[value] {
+// validateSingleRef checks a single value against the union of valid values from all ref targets.
+func (cv *CrossRefValidator) validateSingleRef(value, blockType, fieldName, nodeID, sectionName string, blockIdx int, location *domain.Location, validValues map[string]bool, validList, targetDescs []string, collector *errors.Collector) {
+	if len(validValues) > 0 && validValues[value] {
 		return
+	}
+
+	targetInfo := ""
+	if len(targetDescs) == 1 {
+		targetInfo = fmt.Sprintf(" (checked %s)", targetDescs[0])
+	} else if len(targetDescs) > 1 {
+		targetInfo = fmt.Sprintf(" (checked %s)", strings.Join(targetDescs, ", "))
 	}
 
 	err := domain.DecoError{
 		Code:     "E054",
-		Summary:  fmt.Sprintf("Cross-reference not found: %s block field %q contains %q which is not a known value", blockType, fieldName, value),
+		Summary:  fmt.Sprintf("Cross-reference not found: %s block field %q contains %q which is not a known value%s", blockType, fieldName, value, targetInfo),
 		Detail:   fmt.Sprintf("in node %q, section %q, block %d", nodeID, sectionName, blockIdx),
 		Location: location,
 	}

@@ -317,3 +317,120 @@ version: 1
 		}
 	})
 }
+
+func TestConfig_RefSingleObject(t *testing.T) {
+	// Old single-object ref syntax should parse into Refs slice
+	tmpDir := t.TempDir()
+	decoDir := filepath.Join(tmpDir, ".deco")
+	os.MkdirAll(decoDir, 0755)
+
+	configContent := `project_name: TestProject
+nodes_path: .deco/nodes
+history_path: .deco/history.jsonl
+version: 1
+custom_block_types:
+  building:
+    fields:
+      name:
+        type: string
+        required: true
+      material:
+        type: string
+        ref:
+          block_type: resource
+          field: name
+`
+	os.WriteFile(filepath.Join(decoDir, "config.yaml"), []byte(configContent), 0644)
+
+	repo := config.NewYAMLRepository(tmpDir)
+	cfg, err := repo.Load()
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	building := cfg.CustomBlockTypes["building"]
+	materialDef := building.Fields["material"]
+	if len(materialDef.Refs) != 1 {
+		t.Fatalf("Expected 1 ref, got %d", len(materialDef.Refs))
+	}
+	if materialDef.Refs[0].BlockType != "resource" {
+		t.Errorf("Expected block_type 'resource', got %q", materialDef.Refs[0].BlockType)
+	}
+	if materialDef.Refs[0].Field != "name" {
+		t.Errorf("Expected field 'name', got %q", materialDef.Refs[0].Field)
+	}
+}
+
+func TestConfig_RefArray(t *testing.T) {
+	// New array ref syntax
+	tmpDir := t.TempDir()
+	decoDir := filepath.Join(tmpDir, ".deco")
+	os.MkdirAll(decoDir, 0755)
+
+	configContent := `project_name: TestProject
+nodes_path: .deco/nodes
+history_path: .deco/history.jsonl
+version: 1
+custom_block_types:
+  building:
+    fields:
+      materials:
+        type: list
+        ref:
+          - block_type: resource
+            field: name
+          - block_type: recipe
+            field: output
+`
+	os.WriteFile(filepath.Join(decoDir, "config.yaml"), []byte(configContent), 0644)
+
+	repo := config.NewYAMLRepository(tmpDir)
+	cfg, err := repo.Load()
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	building := cfg.CustomBlockTypes["building"]
+	materialsDef := building.Fields["materials"]
+	if len(materialsDef.Refs) != 2 {
+		t.Fatalf("Expected 2 refs, got %d", len(materialsDef.Refs))
+	}
+	if materialsDef.Refs[0].BlockType != "resource" || materialsDef.Refs[0].Field != "name" {
+		t.Errorf("Expected first ref resource.name, got %s.%s", materialsDef.Refs[0].BlockType, materialsDef.Refs[0].Field)
+	}
+	if materialsDef.Refs[1].BlockType != "recipe" || materialsDef.Refs[1].Field != "output" {
+		t.Errorf("Expected second ref recipe.output, got %s.%s", materialsDef.Refs[1].BlockType, materialsDef.Refs[1].Field)
+	}
+}
+
+func TestConfig_RefNoRef(t *testing.T) {
+	// Field without ref should have empty Refs slice
+	tmpDir := t.TempDir()
+	decoDir := filepath.Join(tmpDir, ".deco")
+	os.MkdirAll(decoDir, 0755)
+
+	configContent := `project_name: TestProject
+nodes_path: .deco/nodes
+history_path: .deco/history.jsonl
+version: 1
+custom_block_types:
+  building:
+    fields:
+      name:
+        type: string
+        required: true
+`
+	os.WriteFile(filepath.Join(decoDir, "config.yaml"), []byte(configContent), 0644)
+
+	repo := config.NewYAMLRepository(tmpDir)
+	cfg, err := repo.Load()
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	building := cfg.CustomBlockTypes["building"]
+	nameDef := building.Fields["name"]
+	if len(nameDef.Refs) != 0 {
+		t.Errorf("Expected 0 refs for field without ref, got %d", len(nameDef.Refs))
+	}
+}

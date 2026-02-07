@@ -13,7 +13,7 @@ func TestCrossRef_SingleField_Valid(t *testing.T) {
 		"building": {
 			Fields: map[string]config.FieldDef{
 				"name":     {Type: "string", Required: true},
-				"material": {Type: "string", Ref: &config.RefConstraint{BlockType: "resource", Field: "name"}},
+				"material": {Type: "string", Refs: []config.RefConstraint{{BlockType: "resource", Field: "name"}}},
 			},
 		},
 		"resource": {
@@ -68,7 +68,7 @@ func TestCrossRef_SingleField_Invalid(t *testing.T) {
 		"building": {
 			Fields: map[string]config.FieldDef{
 				"name":     {Type: "string", Required: true},
-				"material": {Type: "string", Ref: &config.RefConstraint{BlockType: "resource", Field: "name"}},
+				"material": {Type: "string", Refs: []config.RefConstraint{{BlockType: "resource", Field: "name"}}},
 			},
 		},
 		"resource": {
@@ -136,7 +136,7 @@ func TestCrossRef_ListField_Valid(t *testing.T) {
 		"building": {
 			Fields: map[string]config.FieldDef{
 				"name":      {Type: "string", Required: true},
-				"materials": {Type: "list", Ref: &config.RefConstraint{BlockType: "resource", Field: "name"}},
+				"materials": {Type: "list", Refs: []config.RefConstraint{{BlockType: "resource", Field: "name"}}},
 			},
 		},
 		"resource": {
@@ -195,7 +195,7 @@ func TestCrossRef_ListField_PartialInvalid(t *testing.T) {
 		"building": {
 			Fields: map[string]config.FieldDef{
 				"name":      {Type: "string", Required: true},
-				"materials": {Type: "list", Ref: &config.RefConstraint{BlockType: "resource", Field: "name"}},
+				"materials": {Type: "list", Refs: []config.RefConstraint{{BlockType: "resource", Field: "name"}}},
 			},
 		},
 		"resource": {
@@ -261,7 +261,7 @@ func TestCrossRef_NoInstances_NoError(t *testing.T) {
 	customTypes := map[string]config.BlockTypeConfig{
 		"recipe": {
 			Fields: map[string]config.FieldDef{
-				"building": {Type: "string", Ref: &config.RefConstraint{BlockType: "building", Field: "name"}},
+				"building": {Type: "string", Refs: []config.RefConstraint{{BlockType: "building", Field: "name"}}},
 			},
 		},
 		"building": {
@@ -305,7 +305,7 @@ func TestCrossRef_SelfReferencing(t *testing.T) {
 		"resource": {
 			Fields: map[string]config.FieldDef{
 				"name":    {Type: "string", Required: true},
-				"refined": {Type: "string", Ref: &config.RefConstraint{BlockType: "resource", Field: "name"}},
+				"refined": {Type: "string", Refs: []config.RefConstraint{{BlockType: "resource", Field: "name"}}},
 			},
 		},
 	}
@@ -342,9 +342,9 @@ func TestCrossRef_AcrossMultipleNodes(t *testing.T) {
 	customTypes := map[string]config.BlockTypeConfig{
 		"recipe": {
 			Fields: map[string]config.FieldDef{
-				"output":   {Type: "string", Required: true, Ref: &config.RefConstraint{BlockType: "resource", Field: "name"}},
-				"building": {Type: "string", Required: true, Ref: &config.RefConstraint{BlockType: "building", Field: "name"}},
-				"inputs":   {Type: "list", Ref: &config.RefConstraint{BlockType: "resource", Field: "name"}},
+				"output":   {Type: "string", Required: true, Refs: []config.RefConstraint{{BlockType: "resource", Field: "name"}}},
+				"building": {Type: "string", Required: true, Refs: []config.RefConstraint{{BlockType: "building", Field: "name"}}},
+				"inputs":   {Type: "list", Refs: []config.RefConstraint{{BlockType: "resource", Field: "name"}}},
 			},
 		},
 		"resource": {
@@ -462,5 +462,234 @@ func TestCrossRef_NoFieldsConfig(t *testing.T) {
 
 	if collector.HasErrors() {
 		t.Error("expected no errors for config without Fields")
+	}
+}
+
+// ===== UNION REF TESTS =====
+
+func TestCrossRef_UnionRef_Valid(t *testing.T) {
+	// building.materials refs both resource.name and recipe.output (OR logic)
+	customTypes := map[string]config.BlockTypeConfig{
+		"building": {
+			Fields: map[string]config.FieldDef{
+				"name": {Type: "string", Required: true},
+				"materials": {Type: "list", Refs: []config.RefConstraint{
+					{BlockType: "resource", Field: "name"},
+					{BlockType: "recipe", Field: "output"},
+				}},
+			},
+		},
+		"resource": {
+			Fields: map[string]config.FieldDef{
+				"name": {Type: "string", Required: true},
+			},
+		},
+		"recipe": {
+			Fields: map[string]config.FieldDef{
+				"output": {Type: "string", Required: true},
+			},
+		},
+	}
+
+	validator := NewCrossRefValidator(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	nodes := []domain.Node{
+		{
+			ID: "buildings", Kind: "system", Version: 1, Status: "draft", Title: "Buildings",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Structures",
+						Blocks: []domain.Block{
+							{Type: "building", Data: map[string]interface{}{
+								"name":      "Smithy",
+								"materials": []interface{}{"Stone", "Planks"}, // Stone=resource, Planks=recipe output
+							}},
+						},
+					},
+				},
+			},
+		},
+		{
+			ID: "resources", Kind: "system", Version: 1, Status: "draft", Title: "Resources",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{Name: "Raw", Blocks: []domain.Block{
+						{Type: "resource", Data: map[string]interface{}{"name": "Stone"}},
+					}},
+				},
+			},
+		},
+		{
+			ID: "recipes", Kind: "system", Version: 1, Status: "draft", Title: "Recipes",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{Name: "Crafting", Blocks: []domain.Block{
+						{Type: "recipe", Data: map[string]interface{}{"output": "Planks"}},
+					}},
+				},
+			},
+		},
+	}
+
+	validator.Validate(nodes, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for valid union refs, got: %v", collector.Errors())
+	}
+}
+
+func TestCrossRef_UnionRef_Invalid(t *testing.T) {
+	// "Plonks" exists in neither resource.name nor recipe.output
+	customTypes := map[string]config.BlockTypeConfig{
+		"building": {
+			Fields: map[string]config.FieldDef{
+				"name": {Type: "string", Required: true},
+				"materials": {Type: "list", Refs: []config.RefConstraint{
+					{BlockType: "resource", Field: "name"},
+					{BlockType: "recipe", Field: "output"},
+				}},
+			},
+		},
+		"resource": {
+			Fields: map[string]config.FieldDef{
+				"name": {Type: "string", Required: true},
+			},
+		},
+		"recipe": {
+			Fields: map[string]config.FieldDef{
+				"output": {Type: "string", Required: true},
+			},
+		},
+	}
+
+	validator := NewCrossRefValidator(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	nodes := []domain.Node{
+		{
+			ID: "buildings", Kind: "system", Version: 1, Status: "draft", Title: "Buildings",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Structures",
+						Blocks: []domain.Block{
+							{Type: "building", Data: map[string]interface{}{
+								"name":      "Smithy",
+								"materials": []interface{}{"Stone", "Plonks"}, // Plonks is a typo
+							}},
+						},
+					},
+				},
+			},
+		},
+		{
+			ID: "resources", Kind: "system", Version: 1, Status: "draft", Title: "Resources",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{Name: "Raw", Blocks: []domain.Block{
+						{Type: "resource", Data: map[string]interface{}{"name": "Stone"}},
+					}},
+				},
+			},
+		},
+		{
+			ID: "recipes", Kind: "system", Version: 1, Status: "draft", Title: "Recipes",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{Name: "Crafting", Blocks: []domain.Block{
+						{Type: "recipe", Data: map[string]interface{}{"output": "Planks"}},
+					}},
+				},
+			},
+		},
+	}
+
+	validator.Validate(nodes, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for invalid union ref value 'Plonks'")
+	}
+	errs := collector.Errors()
+	if len(errs) != 1 {
+		t.Errorf("expected exactly 1 error, got %d", len(errs))
+	}
+	if errs[0].Code != "E054" {
+		t.Errorf("expected E054, got %s", errs[0].Code)
+	}
+	// Error should mention checked targets
+	if errs[0].Suggestion == "" {
+		t.Error("expected did-you-mean suggestion for 'Plonks' -> 'Planks'")
+	}
+}
+
+func TestCrossRef_UnionRef_OverlappingValues(t *testing.T) {
+	// "Stone" exists in both resource.name and recipe.output — should validate fine
+	customTypes := map[string]config.BlockTypeConfig{
+		"building": {
+			Fields: map[string]config.FieldDef{
+				"name": {Type: "string", Required: true},
+				"materials": {Type: "list", Refs: []config.RefConstraint{
+					{BlockType: "resource", Field: "name"},
+					{BlockType: "recipe", Field: "output"},
+				}},
+			},
+		},
+		"resource": {
+			Fields: map[string]config.FieldDef{
+				"name": {Type: "string", Required: true},
+			},
+		},
+		"recipe": {
+			Fields: map[string]config.FieldDef{
+				"output": {Type: "string", Required: true},
+			},
+		},
+	}
+
+	validator := NewCrossRefValidator(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	nodes := []domain.Node{
+		{
+			ID: "buildings", Kind: "system", Version: 1, Status: "draft", Title: "Buildings",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{Name: "Structures", Blocks: []domain.Block{
+						{Type: "building", Data: map[string]interface{}{
+							"name":      "Quarry",
+							"materials": []interface{}{"Stone"},
+						}},
+					}},
+				},
+			},
+		},
+		{
+			ID: "resources", Kind: "system", Version: 1, Status: "draft", Title: "Resources",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{Name: "Raw", Blocks: []domain.Block{
+						{Type: "resource", Data: map[string]interface{}{"name": "Stone"}},
+					}},
+				},
+			},
+		},
+		{
+			ID: "recipes", Kind: "system", Version: 1, Status: "draft", Title: "Recipes",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{Name: "Crafting", Blocks: []domain.Block{
+						{Type: "recipe", Data: map[string]interface{}{"output": "Stone"}}, // Also outputs Stone
+					}},
+				},
+			},
+		},
+	}
+
+	validator.Validate(nodes, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for overlapping union ref values, got: %v", collector.Errors())
 	}
 }

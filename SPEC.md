@@ -159,7 +159,11 @@ custom_block_types:
       size: {type: string, required: true}
       age: {type: string, required: true, enum: [stone, bronze, iron]}
       category: {type: string, required: true, enum: [production, military]}
-      materials: {type: list, ref: {block_type: resource, field: name}}
+      materials:
+        type: list
+        ref:
+          - {block_type: resource, field: name}
+          - {block_type: recipe, field: output}
   resource:
     fields:
       name: {type: string, required: true}
@@ -190,11 +194,14 @@ Custom block types extend the built-in types (rule, table, param, mechanic, list
 - **Type checking**: `type` can be `string`, `number`, `list`, or `bool` (error E052)
 - **Enum validation**: `enum` constrains string values with did-you-mean suggestions (error E053)
 - **Cross-references**: `ref: {block_type, field}` validates values exist in another block type (error E054)
+- **Union references**: `ref:` as array of targets validates with OR logic — value must exist in any target
 - **Required enforcement**: `required: true` ensures the field is present (error E047)
 
 Both syntaxes can coexist. Block fields are strictly validated: unknown block fields produce validation errors with suggestions (E049).
 
-**Block-level queries**: `deco query --block-type building --field age=bronze` filters blocks across all nodes.
+**Block-level queries**: `deco query --block-type building --field age=bronze` filters blocks across all nodes. Field filters support list membership: `--field materials=Planks` matches blocks where the `materials` list contains `Planks`.
+
+**Follow queries**: `deco query --block-type building --follow materials` traverses ref constraints to find related blocks, grouped by value with reference counts. Supports explicit targets for ad-hoc joins: `--follow materials:recipe.output`.
 
 Schema rules enforce required custom fields per node kind. The `required_fields` must be present in the node's `custom:` section. Nodes with kinds not listed in schema_rules are not constrained.
 

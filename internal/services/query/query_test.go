@@ -1,10 +1,12 @@
 package query_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/Toernblom/deco/internal/domain"
 	"github.com/Toernblom/deco/internal/services/query"
+	"github.com/Toernblom/deco/internal/storage/config"
 )
 
 // ===== FILTER OPERATION TESTS =====
@@ -723,6 +725,539 @@ func TestQueryEngine_FilterBlocks_NodesWithoutContent(t *testing.T) {
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+}
+
+// ===== LIST MEMBERSHIP QUERY TESTS =====
+
+func TestQueryEngine_FilterBlocks_ListFieldMembership(t *testing.T) {
+	qe := query.New()
+
+	nodes := []domain.Node{
+		{
+			ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Buildings",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Structures",
+						Blocks: []domain.Block{
+							{Type: "building", Data: map[string]interface{}{
+								"name":      "Smithy",
+								"materials": []interface{}{"Stone", "Planks", "Bronze Ingots"},
+							}},
+							{Type: "building", Data: map[string]interface{}{
+								"name":      "Farm",
+								"materials": []interface{}{"Wood", "Stone"},
+							}},
+							{Type: "building", Data: map[string]interface{}{
+								"name":      "Barracks",
+								"materials": []interface{}{"Iron", "Stone"},
+							}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	blockType := "building"
+	criteria := query.FilterCriteria{
+		BlockType:    &blockType,
+		FieldFilters: map[string]string{"materials": "Planks"},
+	}
+	results := qe.FilterBlocks(nodes, criteria)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 building with Planks, got %d", len(results))
+	}
+	if results[0].Block.Data["name"] != "Smithy" {
+		t.Errorf("expected Smithy, got %v", results[0].Block.Data["name"])
+	}
+}
+
+func TestQueryEngine_FilterBlocks_ListFieldMembershipMultipleMatches(t *testing.T) {
+	qe := query.New()
+
+	nodes := []domain.Node{
+		{
+			ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Buildings",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Structures",
+						Blocks: []domain.Block{
+							{Type: "building", Data: map[string]interface{}{
+								"name":      "Smithy",
+								"materials": []interface{}{"Stone", "Planks"},
+							}},
+							{Type: "building", Data: map[string]interface{}{
+								"name":      "Farm",
+								"materials": []interface{}{"Wood", "Stone"},
+							}},
+							{Type: "building", Data: map[string]interface{}{
+								"name":      "Quarry",
+								"materials": []interface{}{"Stone"},
+							}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	blockType := "building"
+	criteria := query.FilterCriteria{
+		BlockType:    &blockType,
+		FieldFilters: map[string]string{"materials": "Stone"},
+	}
+	results := qe.FilterBlocks(nodes, criteria)
+
+	if len(results) != 3 {
+		t.Fatalf("expected 3 buildings with Stone, got %d", len(results))
+	}
+}
+
+func TestQueryEngine_FilterBlocks_ListFieldNoMatch(t *testing.T) {
+	qe := query.New()
+
+	nodes := []domain.Node{
+		{
+			ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Buildings",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Structures",
+						Blocks: []domain.Block{
+							{Type: "building", Data: map[string]interface{}{
+								"name":      "Smithy",
+								"materials": []interface{}{"Stone", "Planks"},
+							}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	blockType := "building"
+	criteria := query.FilterCriteria{
+		BlockType:    &blockType,
+		FieldFilters: map[string]string{"materials": "Gold"},
+	}
+	results := qe.FilterBlocks(nodes, criteria)
+
+	if len(results) != 0 {
+		t.Errorf("expected 0 results for Gold, got %d", len(results))
+	}
+}
+
+func TestQueryEngine_FilterBlocks_ListFieldCombinedWithScalarFilter(t *testing.T) {
+	qe := query.New()
+
+	nodes := []domain.Node{
+		{
+			ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Buildings",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Structures",
+						Blocks: []domain.Block{
+							{Type: "building", Data: map[string]interface{}{
+								"name":      "Smithy",
+								"age":       "bronze",
+								"materials": []interface{}{"Stone", "Planks"},
+							}},
+							{Type: "building", Data: map[string]interface{}{
+								"name":      "Farm",
+								"age":       "stone",
+								"materials": []interface{}{"Stone", "Wood"},
+							}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	blockType := "building"
+	criteria := query.FilterCriteria{
+		BlockType:    &blockType,
+		FieldFilters: map[string]string{"materials": "Stone", "age": "bronze"},
+	}
+	results := qe.FilterBlocks(nodes, criteria)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 bronze building with Stone, got %d", len(results))
+	}
+	if results[0].Block.Data["name"] != "Smithy" {
+		t.Errorf("expected Smithy, got %v", results[0].Block.Data["name"])
+	}
+}
+
+// ===== FOLLOW QUERY TESTS =====
+
+func buildFollowTestData() ([]domain.Node, map[string]config.BlockTypeConfig) {
+	nodes := []domain.Node{
+		{
+			ID: "buildings", Kind: "system", Version: 1, Status: "draft", Title: "Buildings",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Bronze Age",
+						Blocks: []domain.Block{
+							{Type: "building", Data: map[string]interface{}{
+								"name":      "Smithy",
+								"age":       "bronze",
+								"materials": []interface{}{"Stone", "Planks", "Bronze Ingots"},
+							}},
+							{Type: "building", Data: map[string]interface{}{
+								"name":      "Carpenter",
+								"age":       "bronze",
+								"materials": []interface{}{"Wood", "Planks"},
+							}},
+						},
+					},
+					{
+						Name: "Stone Age",
+						Blocks: []domain.Block{
+							{Type: "building", Data: map[string]interface{}{
+								"name":      "Hut",
+								"age":       "stone",
+								"materials": []interface{}{"Stone", "Wood"},
+							}},
+						},
+					},
+				},
+			},
+		},
+		{
+			ID: "resources", Kind: "system", Version: 1, Status: "draft", Title: "Resources",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Raw",
+						Blocks: []domain.Block{
+							{Type: "resource", Data: map[string]interface{}{"name": "Stone", "tier": 0}},
+							{Type: "resource", Data: map[string]interface{}{"name": "Wood", "tier": 0}},
+						},
+					},
+				},
+			},
+		},
+		{
+			ID: "recipes", Kind: "system", Version: 1, Status: "draft", Title: "Recipes",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Crafting",
+						Blocks: []domain.Block{
+							{Type: "recipe", Data: map[string]interface{}{
+								"name":   "Plank Making",
+								"output": "Planks",
+								"inputs": []interface{}{"Wood"},
+							}},
+							{Type: "recipe", Data: map[string]interface{}{
+								"name":   "Bronze Smelting",
+								"output": "Bronze Ingots",
+								"inputs": []interface{}{"Copper", "Tin"},
+							}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	blockTypes := map[string]config.BlockTypeConfig{
+		"building": {
+			Fields: map[string]config.FieldDef{
+				"name": {Type: "string", Required: true},
+				"age":  {Type: "string", Required: true},
+				"materials": {Type: "list", Refs: []config.RefConstraint{
+					{BlockType: "resource", Field: "name"},
+					{BlockType: "recipe", Field: "output"},
+				}},
+			},
+		},
+		"resource": {
+			Fields: map[string]config.FieldDef{
+				"name": {Type: "string", Required: true},
+				"tier": {Type: "number"},
+			},
+		},
+		"recipe": {
+			Fields: map[string]config.FieldDef{
+				"name":   {Type: "string", Required: true},
+				"output": {Type: "string", Required: true},
+				"inputs": {Type: "list", Refs: []config.RefConstraint{
+					{BlockType: "resource", Field: "name"},
+				}},
+			},
+		},
+	}
+
+	return nodes, blockTypes
+}
+
+func TestQueryEngine_FollowBlocks_AutoFromRefConfig(t *testing.T) {
+	qe := query.New()
+	nodes, blockTypes := buildFollowTestData()
+
+	// Query bronze-age buildings, follow materials
+	blockType := "building"
+	criteria := query.FilterCriteria{
+		BlockType:    &blockType,
+		FieldFilters: map[string]string{"age": "bronze"},
+	}
+	sourceMatches := qe.FilterBlocks(nodes, criteria)
+
+	results, err := qe.FollowBlocks(sourceMatches, "materials", nil, nodes, blockTypes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should find: Bronze Ingots, Planks, Stone, Wood
+	if len(results) != 4 {
+		t.Fatalf("expected 4 followed values, got %d", len(results))
+	}
+
+	// Results are sorted alphabetically
+	expectedValues := []string{"Bronze Ingots", "Planks", "Stone", "Wood"}
+	for i, expected := range expectedValues {
+		if results[i].Value != expected {
+			t.Errorf("result[%d]: expected value %q, got %q", i, expected, results[i].Value)
+		}
+	}
+
+	// Bronze Ingots: referenced by 1 building (Smithy), matched by recipe
+	if results[0].RefCount != 1 {
+		t.Errorf("Bronze Ingots: expected refcount 1, got %d", results[0].RefCount)
+	}
+	if len(results[0].Matches) != 1 {
+		t.Errorf("Bronze Ingots: expected 1 match (recipe), got %d", len(results[0].Matches))
+	}
+
+	// Planks: referenced by 2 buildings (Smithy, Carpenter), matched by recipe
+	if results[1].RefCount != 2 {
+		t.Errorf("Planks: expected refcount 2, got %d", results[1].RefCount)
+	}
+	if len(results[1].Matches) != 1 {
+		t.Errorf("Planks: expected 1 match (recipe), got %d", len(results[1].Matches))
+	}
+
+	// Stone: referenced by 1 building (Smithy), matched by resource
+	if results[2].RefCount != 1 {
+		t.Errorf("Stone: expected refcount 1, got %d", results[2].RefCount)
+	}
+	if len(results[2].Matches) != 1 {
+		t.Errorf("Stone: expected 1 match (resource), got %d", len(results[2].Matches))
+	}
+}
+
+func TestQueryEngine_FollowBlocks_ExplicitTarget(t *testing.T) {
+	qe := query.New()
+	nodes, blockTypes := buildFollowTestData()
+
+	// Query all buildings, follow materials with explicit target recipe.output only
+	blockType := "building"
+	criteria := query.FilterCriteria{
+		BlockType: &blockType,
+	}
+	sourceMatches := qe.FilterBlocks(nodes, criteria)
+
+	targets := []query.FollowTarget{{BlockType: "recipe", Field: "output"}}
+	results, err := qe.FollowBlocks(sourceMatches, "materials", targets, nodes, blockTypes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should find values but only match against recipes, not resources
+	// Stone and Wood should have 0 matches (they're resources, not recipe outputs)
+	for _, r := range results {
+		if r.Value == "Stone" || r.Value == "Wood" {
+			if len(r.Matches) != 0 {
+				t.Errorf("%s: expected 0 matches when following only recipe.output, got %d", r.Value, len(r.Matches))
+			}
+		}
+		if r.Value == "Planks" {
+			if len(r.Matches) != 1 {
+				t.Errorf("Planks: expected 1 match, got %d", len(r.Matches))
+			}
+		}
+	}
+}
+
+func TestQueryEngine_FollowBlocks_ReverseDirection(t *testing.T) {
+	qe := query.New()
+	nodes, blockTypes := buildFollowTestData()
+
+	// Query recipes where output=Planks, follow inputs
+	blockType := "recipe"
+	criteria := query.FilterCriteria{
+		BlockType:    &blockType,
+		FieldFilters: map[string]string{"output": "Planks"},
+	}
+	sourceMatches := qe.FilterBlocks(nodes, criteria)
+
+	if len(sourceMatches) != 1 {
+		t.Fatalf("expected 1 Planks recipe, got %d", len(sourceMatches))
+	}
+
+	results, err := qe.FollowBlocks(sourceMatches, "inputs", nil, nodes, blockTypes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Planks recipe inputs: [Wood] -> should find Wood resource
+	if len(results) != 1 {
+		t.Fatalf("expected 1 followed value (Wood), got %d", len(results))
+	}
+	if results[0].Value != "Wood" {
+		t.Errorf("expected value 'Wood', got %q", results[0].Value)
+	}
+	if len(results[0].Matches) != 1 {
+		t.Errorf("expected 1 match for Wood, got %d", len(results[0].Matches))
+	}
+	if results[0].Matches[0].Block.Type != "resource" {
+		t.Errorf("expected resource block, got %s", results[0].Matches[0].Block.Type)
+	}
+}
+
+func TestQueryEngine_FollowBlocks_FieldNotFound(t *testing.T) {
+	qe := query.New()
+	nodes, blockTypes := buildFollowTestData()
+
+	blockType := "building"
+	criteria := query.FilterCriteria{
+		BlockType: &blockType,
+	}
+	sourceMatches := qe.FilterBlocks(nodes, criteria)
+
+	_, err := qe.FollowBlocks(sourceMatches, "nonexistent", nil, nodes, blockTypes)
+	if err == nil {
+		t.Fatal("expected error for nonexistent field")
+	}
+}
+
+func TestQueryEngine_FollowBlocks_NoRefConfig(t *testing.T) {
+	qe := query.New()
+	nodes, _ := buildFollowTestData()
+
+	// Use block types without ref config
+	noRefTypes := map[string]config.BlockTypeConfig{
+		"building": {
+			Fields: map[string]config.FieldDef{
+				"name":      {Type: "string", Required: true},
+				"materials": {Type: "list"}, // No refs
+			},
+		},
+	}
+
+	blockType := "building"
+	criteria := query.FilterCriteria{
+		BlockType: &blockType,
+	}
+	sourceMatches := qe.FilterBlocks(nodes, criteria)
+
+	_, err := qe.FollowBlocks(sourceMatches, "materials", nil, nodes, noRefTypes)
+	if err == nil {
+		t.Fatal("expected error when field has no ref config")
+	}
+	if !strings.Contains(err.Error(), "no ref constraint") {
+		t.Errorf("expected 'no ref constraint' in error, got: %s", err.Error())
+	}
+}
+
+func TestQueryEngine_FollowBlocks_ValueNotFound(t *testing.T) {
+	qe := query.New()
+
+	// Building uses "Diamond" which no recipe/resource produces
+	nodes := []domain.Node{
+		{
+			ID: "buildings", Kind: "system", Version: 1, Status: "draft", Title: "Buildings",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Special",
+						Blocks: []domain.Block{
+							{Type: "building", Data: map[string]interface{}{
+								"name":      "Palace",
+								"materials": []interface{}{"Diamond"},
+							}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	blockTypes := map[string]config.BlockTypeConfig{
+		"building": {
+			Fields: map[string]config.FieldDef{
+				"name":      {Type: "string", Required: true},
+				"materials": {Type: "list", Refs: []config.RefConstraint{{BlockType: "resource", Field: "name"}}},
+			},
+		},
+	}
+
+	blockType := "building"
+	criteria := query.FilterCriteria{BlockType: &blockType}
+	sourceMatches := qe.FilterBlocks(nodes, criteria)
+
+	results, err := qe.FollowBlocks(sourceMatches, "materials", nil, nodes, blockTypes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should still return the value, just with 0 matches
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result (Diamond), got %d", len(results))
+	}
+	if results[0].Value != "Diamond" {
+		t.Errorf("expected value 'Diamond', got %q", results[0].Value)
+	}
+	if len(results[0].Matches) != 0 {
+		t.Errorf("expected 0 matches for Diamond, got %d", len(results[0].Matches))
+	}
+}
+
+func TestQueryEngine_FollowBlocks_DeduplicatesGrouping(t *testing.T) {
+	qe := query.New()
+	nodes, blockTypes := buildFollowTestData()
+
+	// Query all buildings (not just bronze) — Stone is used by Smithy, Hut
+	blockType := "building"
+	criteria := query.FilterCriteria{
+		BlockType: &blockType,
+	}
+	sourceMatches := qe.FilterBlocks(nodes, criteria)
+
+	results, err := qe.FollowBlocks(sourceMatches, "materials", nil, nodes, blockTypes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Find Stone in results
+	var stoneResult *query.FollowResult
+	for i := range results {
+		if results[i].Value == "Stone" {
+			stoneResult = &results[i]
+			break
+		}
+	}
+
+	if stoneResult == nil {
+		t.Fatal("expected Stone in results")
+	}
+
+	// Stone is used by Smithy and Hut = 2 source refs
+	if stoneResult.RefCount != 2 {
+		t.Errorf("Stone: expected refcount 2, got %d", stoneResult.RefCount)
+	}
+
+	// But only 1 resource block matches (deduplicated)
+	if len(stoneResult.Matches) != 1 {
+		t.Errorf("Stone: expected 1 deduplicated match, got %d", len(stoneResult.Matches))
 	}
 }
 

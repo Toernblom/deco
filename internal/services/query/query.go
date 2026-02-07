@@ -2,9 +2,11 @@ package query
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/Toernblom/deco/internal/domain"
+	"github.com/Toernblom/deco/internal/storage/config"
 )
 
 // FilterCriteria defines the criteria for filtering nodes and blocks.
@@ -95,12 +97,31 @@ func (qe *QueryEngine) matchesBlockCriteria(block domain.Block, criteria FilterC
 		if !ok {
 			return false
 		}
-		if fmt.Sprintf("%v", fieldVal) != value {
+		if !matchesFieldValue(fieldVal, value) {
 			return false
 		}
 	}
 
 	return true
+}
+
+// matchesFieldValue checks if a field value matches the filter value.
+// For lists, it checks if any element matches (contains semantics).
+// For scalars, it does exact string comparison.
+func matchesFieldValue(fieldVal interface{}, filterVal string) bool {
+	switch v := fieldVal.(type) {
+	case string:
+		return v == filterVal
+	case []interface{}:
+		for _, item := range v {
+			if fmt.Sprintf("%v", item) == filterVal {
+				return true
+			}
+		}
+		return false
+	default:
+		return fmt.Sprintf("%v", fieldVal) == filterVal
+	}
 }
 
 // matchesNodeCriteria checks if a node matches node-level filter criteria (Kind, Status, Tags).
@@ -194,4 +215,156 @@ func (qe *QueryEngine) matchesSearchTerm(node domain.Node, lowerTerm string) boo
 	}
 
 	return false
+}
+
+// FollowTarget specifies a block type and field to follow into.
+type FollowTarget struct {
+	BlockType string
+	Field     string
+}
+
+// FollowResult groups followed blocks by their source value.
+type FollowResult struct {
+	Value    string       // The followed value (e.g., "Planks")
+	RefCount int          // How many source blocks reference this value
+	Matches  []BlockMatch // Blocks in target types that provide this value
+}
+
+// FollowBlocks takes matched source blocks, extracts values from the follow field,
+// and finds blocks in target types that provide those values.
+// If targets is nil, it looks up the ref config for the source block type.
+// Returns results grouped by followed value, sorted alphabetically.
+func (qe *QueryEngine) FollowBlocks(sourceMatches []BlockMatch, followField string, targets []FollowTarget, allNodes []domain.Node, blockTypes map[string]config.BlockTypeConfig) ([]FollowResult, error) {
+	if len(sourceMatches) == 0 {
+		return nil, nil
+	}
+
+	// Resolve targets from ref config if not explicitly provided
+	if len(targets) == 0 {
+		sourceBlockType := sourceMatches[0].Block.Type
+		resolved, err := qe.resolveFollowTargets(sourceBlockType, followField, blockTypes)
+		if err != nil {
+			return nil, err
+		}
+		targets = resolved
+	}
+
+	// Extract all values from the follow field across source blocks
+	// Track which values come from which source blocks for ref counting
+	valueRefCount := make(map[string]int)
+	fieldFound := false
+	for _, match := range sourceMatches {
+		val, ok := match.Block.Data[followField]
+		if !ok {
+			continue
+		}
+		fieldFound = true
+		for _, v := range extractStringValues(val) {
+			valueRefCount[v]++
+		}
+	}
+
+	if !fieldFound {
+		return nil, fmt.Errorf("field %q not found in matched blocks", followField)
+	}
+
+	// For each target, find blocks that match any of the extracted values
+	// Group results by value
+	resultMap := make(map[string]*FollowResult)
+	for value, count := range valueRefCount {
+		resultMap[value] = &FollowResult{
+			Value:    value,
+			RefCount: count,
+		}
+	}
+
+	for _, target := range targets {
+		targetBlockType := target.BlockType
+		targetField := target.Field
+
+		for _, node := range allNodes {
+			if node.Content == nil {
+				continue
+			}
+			for _, section := range node.Content.Sections {
+				for blockIdx, block := range section.Blocks {
+					if block.Type != targetBlockType {
+						continue
+					}
+					blockValues := extractStringValues(block.Data[targetField])
+					for _, bv := range blockValues {
+						if result, ok := resultMap[bv]; ok {
+							result.Matches = append(result.Matches, BlockMatch{
+								NodeID:      node.ID,
+								NodeTitle:   node.Title,
+								SectionName: section.Name,
+								BlockIndex:  blockIdx,
+								Block:       block,
+							})
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Convert map to sorted slice
+	var results []FollowResult
+	for _, r := range resultMap {
+		results = append(results, *r)
+	}
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Value < results[j].Value
+	})
+
+	return results, nil
+}
+
+// resolveFollowTargets looks up the ref config for a block type's field
+// and returns the follow targets.
+func (qe *QueryEngine) resolveFollowTargets(blockType, fieldName string, blockTypes map[string]config.BlockTypeConfig) ([]FollowTarget, error) {
+	if blockTypes == nil {
+		return nil, fmt.Errorf("field %q has no ref constraint; use --follow %s:<block_type>.<field>", fieldName, fieldName)
+	}
+
+	btConfig, ok := blockTypes[blockType]
+	if !ok || btConfig.Fields == nil {
+		return nil, fmt.Errorf("field %q has no ref constraint; use --follow %s:<block_type>.<field>", fieldName, fieldName)
+	}
+
+	fieldDef, ok := btConfig.Fields[fieldName]
+	if !ok || len(fieldDef.Refs) == 0 {
+		return nil, fmt.Errorf("field %q has no ref constraint; use --follow %s:<block_type>.<field>", fieldName, fieldName)
+	}
+
+	var targets []FollowTarget
+	for _, ref := range fieldDef.Refs {
+		targets = append(targets, FollowTarget{
+			BlockType: ref.BlockType,
+			Field:     ref.Field,
+		})
+	}
+	return targets, nil
+}
+
+// extractStringValues extracts string values from a field value.
+// For strings, returns a single-element slice. For lists, returns all string elements.
+func extractStringValues(val interface{}) []string {
+	if val == nil {
+		return nil
+	}
+	switch v := val.(type) {
+	case string:
+		return []string{v}
+	case []interface{}:
+		var result []string
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				result = append(result, s)
+			}
+		}
+		return result
+	default:
+		return []string{fmt.Sprintf("%v", v)}
+	}
 }

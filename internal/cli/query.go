@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Toernblom/deco/internal/services/query"
 	"github.com/Toernblom/deco/internal/storage/config"
@@ -17,6 +18,7 @@ type queryFlags struct {
 	searchTerm string
 	blockType  string
 	fields     []string // key=value pairs
+	follow     string   // field name, or field:blocktype.field
 }
 
 // NewQueryCommand creates the query subcommand
@@ -35,6 +37,7 @@ Filters can be combined with search to narrow down results:
   --tag:        Filter by tag (must have this tag)
   --block-type: Filter by custom block type within content
   --field:      Filter by block field value (key=value, repeatable)
+  --follow:     Follow a field's refs to find related blocks
 
 All filters and search are combined with AND logic.
 
@@ -44,7 +47,9 @@ Examples:
   deco query sword --kind item                  # Search "sword" in items only
   deco query --status draft --tag combat
   deco query --block-type building              # List all building blocks
-  deco query --block-type building --field age=bronze  # Bronze age buildings`,
+  deco query --block-type building --field age=bronze  # Bronze age buildings
+  deco query --block-type building --field age=bronze --follow materials  # Follow refs
+  deco query --block-type building --follow materials:recipe.output      # Explicit target`,
 		Args: cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Parse arguments: [search-term] [directory]
@@ -73,6 +78,7 @@ Examples:
 	cmd.Flags().StringVarP(&flags.tag, "tag", "t", "", "Filter by tag")
 	cmd.Flags().StringVarP(&flags.blockType, "block-type", "b", "", "Filter by block type within content")
 	cmd.Flags().StringArrayVarP(&flags.fields, "field", "f", nil, "Filter by block field (key=value, repeatable)")
+	cmd.Flags().StringVar(&flags.follow, "follow", "", "Follow field refs to related blocks (field or field:blocktype.field)")
 
 	return cmd
 }
@@ -131,9 +137,37 @@ func runQuery(flags *queryFlags) error {
 
 	qe := query.New()
 
+	// Validate --follow requires --block-type
+	if flags.follow != "" && criteria.BlockType == nil {
+		return fmt.Errorf("--follow requires --block-type")
+	}
+
 	// Block-level query mode
 	if criteria.BlockType != nil {
 		blockResults := qe.FilterBlocks(nodes, criteria)
+
+		// Follow mode
+		if flags.follow != "" {
+			if len(blockResults) == 0 {
+				fmt.Println("No blocks found to follow")
+				return nil
+			}
+			followField, targets, err := parseFollowFlag(flags.follow)
+			if err != nil {
+				return err
+			}
+			followResults, err := qe.FollowBlocks(blockResults, followField, targets, nodes, cfg.CustomBlockTypes)
+			if err != nil {
+				return err
+			}
+			if len(followResults) == 0 {
+				fmt.Println("No followed values found")
+				return nil
+			}
+			printFollowResults(followResults)
+			return nil
+		}
+
 		if len(blockResults) == 0 {
 			fmt.Println("No blocks found")
 			return nil
@@ -178,6 +212,60 @@ func splitFirst(s string, sep byte) []string {
 		}
 	}
 	return []string{s}
+}
+
+// parseFollowFlag parses the --follow flag value.
+// Supports: "fieldname" (auto from ref config) or "fieldname:blocktype.field" (explicit).
+func parseFollowFlag(follow string) (string, []query.FollowTarget, error) {
+	// Check for explicit target: field:blocktype.field
+	colonIdx := strings.IndexByte(follow, ':')
+	if colonIdx == -1 {
+		// Auto mode: just the field name
+		return follow, nil, nil
+	}
+
+	fieldName := follow[:colonIdx]
+	targetSpec := follow[colonIdx+1:]
+
+	// Parse blocktype.field
+	dotIdx := strings.IndexByte(targetSpec, '.')
+	if dotIdx == -1 {
+		return "", nil, fmt.Errorf("invalid --follow target %q: expected blocktype.field", targetSpec)
+	}
+
+	target := query.FollowTarget{
+		BlockType: targetSpec[:dotIdx],
+		Field:     targetSpec[dotIdx+1:],
+	}
+
+	if target.BlockType == "" || target.Field == "" {
+		return "", nil, fmt.Errorf("invalid --follow target %q: block type and field required", targetSpec)
+	}
+
+	return fieldName, []query.FollowTarget{target}, nil
+}
+
+// printFollowResults displays follow query results grouped by value.
+func printFollowResults(results []query.FollowResult) {
+	for i, r := range results {
+		// Header: value (referenced by N block(s))
+		fmt.Printf("%s (referenced by %d block(s))\n", r.Value, r.RefCount)
+
+		if len(r.Matches) == 0 {
+			fmt.Println("  (no matches found)")
+		} else {
+			for _, m := range r.Matches {
+				fmt.Printf("  %s in %s > %s > block %d\n", m.Block.Type, m.NodeID, m.SectionName, m.BlockIndex)
+				for k, v := range m.Block.Data {
+					fmt.Printf("    %s: %v\n", k, v)
+				}
+			}
+		}
+
+		if i < len(results)-1 {
+			fmt.Println()
+		}
+	}
 }
 
 // printBlocksTable displays block query results.
