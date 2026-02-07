@@ -27,10 +27,12 @@ import (
 	"github.com/Toernblom/deco/internal/storage/config"
 	"github.com/Toernblom/deco/internal/storage/node"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 type showFlags struct {
 	jsonOutput bool
+	full       bool
 	targetDir  string
 }
 
@@ -67,6 +69,7 @@ Examples:
 	}
 
 	cmd.Flags().BoolVarP(&flags.jsonOutput, "json", "j", false, "Output as JSON")
+	cmd.Flags().BoolVar(&flags.full, "full", false, "Expand content blocks inline")
 
 	return cmd
 }
@@ -115,11 +118,11 @@ func runShow(nodeID string, flags *showFlags) error {
 		return outputJSON(targetNode, reverseIndex[nodeID])
 	}
 
-	outputHuman(targetNode, reverseIndex[nodeID])
+	outputHuman(targetNode, reverseIndex[nodeID], flags.full)
 	return nil
 }
 
-func outputHuman(node *domain.Node, referencedBy []string) {
+func outputHuman(node *domain.Node, referencedBy []string, full bool) {
 	fmt.Printf("%s %s\n", style.Header.Sprint("Node:"), node.ID)
 	fmt.Println(style.Muted.Sprint(strings.Repeat("═", len("Node: "+node.ID))))
 	fmt.Println()
@@ -167,9 +170,11 @@ func outputHuman(node *domain.Node, referencedBy []string) {
 		fmt.Println(style.Header.Sprint("Content:"))
 		for _, section := range node.Content.Sections {
 			fmt.Printf("  %s\n", style.Info.Sprintf("[%s]", section.Name))
-			// For now, just note that it has blocks
-			// Full rendering would require block type-specific formatting
-			if len(section.Blocks) > 0 {
+			if full {
+				for _, block := range section.Blocks {
+					renderBlock(block)
+				}
+			} else if len(section.Blocks) > 0 {
 				fmt.Printf("    %s\n", style.Muted.Sprintf("(%d block(s))", len(section.Blocks)))
 			}
 		}
@@ -233,6 +238,420 @@ func outputHuman(node *domain.Node, referencedBy []string) {
 			fmt.Printf("  %s: %v\n", style.Muted.Sprint(key), value)
 		}
 	}
+}
+
+// renderBlock renders a single content block based on its type.
+func renderBlock(block domain.Block) {
+	switch block.Type {
+	case "table":
+		renderTableBlock(block)
+	case "rule":
+		renderRuleBlock(block)
+	case "param":
+		renderParamBlock(block)
+	case "list":
+		renderListBlock(block)
+	case "text", "note", "description":
+		renderTextBlock(block)
+	case "mechanic":
+		renderMechanicBlock(block)
+	default:
+		renderFallbackBlock(block)
+	}
+}
+
+func renderTableBlock(block domain.Block) {
+	id := getBlockString(block, "id")
+	if id != "" {
+		fmt.Printf("    %s %s\n", style.Muted.Sprint("table:"), id)
+	}
+
+	columns, ok := block.Data["columns"].([]interface{})
+	if !ok || len(columns) == 0 {
+		return
+	}
+	rows, ok := block.Data["rows"].([]interface{})
+	if !ok {
+		return
+	}
+
+	// Extract column keys and display names
+	type colInfo struct {
+		key     string
+		display string
+	}
+	var cols []colInfo
+	for _, c := range columns {
+		cm, ok := c.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		key, _ := cm["key"].(string)
+		display, _ := cm["display"].(string)
+		if display == "" {
+			display = key
+		}
+		cols = append(cols, colInfo{key: key, display: display})
+	}
+
+	if len(cols) == 0 {
+		return
+	}
+
+	// Compute column widths
+	widths := make([]int, len(cols))
+	for i, col := range cols {
+		widths[i] = len(col.display)
+	}
+	for _, row := range rows {
+		rm, ok := row.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		for i, col := range cols {
+			val := fmt.Sprintf("%v", rm[col.key])
+			if len(val) > widths[i] {
+				widths[i] = len(val)
+			}
+		}
+	}
+
+	// Print header
+	var header, separator []string
+	for i, col := range cols {
+		header = append(header, padRight(col.display, widths[i]))
+		separator = append(separator, strings.Repeat("-", widths[i]))
+	}
+	fmt.Printf("    | %s |\n", strings.Join(header, " | "))
+	fmt.Printf("    | %s |\n", strings.Join(separator, " | "))
+
+	// Print rows
+	for _, row := range rows {
+		rm, ok := row.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		var vals []string
+		for i, col := range cols {
+			val := fmt.Sprintf("%v", rm[col.key])
+			vals = append(vals, padRight(val, widths[i]))
+		}
+		fmt.Printf("    | %s |\n", strings.Join(vals, " | "))
+	}
+	fmt.Println()
+}
+
+func renderRuleBlock(block domain.Block) {
+	text := getBlockString(block, "text")
+	if text != "" {
+		fmt.Printf("    %s %s\n", style.Muted.Sprint(">"), text)
+	}
+}
+
+func renderParamBlock(block domain.Block) {
+	name := getBlockString(block, "name")
+	datatype := getBlockString(block, "datatype")
+	if name == "" {
+		name = getBlockString(block, "id")
+	}
+
+	parts := []string{name + ":"}
+	if datatype != "" {
+		parts = append(parts, datatype)
+	}
+
+	// Build constraints string
+	var constraints []string
+	if min, ok := block.Data["min"]; ok {
+		constraints = append(constraints, fmt.Sprintf("min=%v", min))
+	}
+	if max, ok := block.Data["max"]; ok {
+		constraints = append(constraints, fmt.Sprintf("max=%v", max))
+	}
+	if def, ok := block.Data["default"]; ok {
+		constraints = append(constraints, fmt.Sprintf("default=%v", def))
+	}
+	if unit := getBlockString(block, "unit"); unit != "" {
+		constraints = append(constraints, unit)
+	}
+	if len(constraints) > 0 {
+		parts = append(parts, "["+strings.Join(constraints, ", ")+"]")
+	}
+
+	desc := getBlockString(block, "description")
+	if desc != "" {
+		parts = append(parts, style.Muted.Sprintf("- %s", desc))
+	}
+
+	fmt.Printf("    %s\n", strings.Join(parts, " "))
+}
+
+func renderListBlock(block domain.Block) {
+	id := getBlockString(block, "id")
+	if id != "" {
+		fmt.Printf("    %s\n", style.Muted.Sprint(id+":"))
+	}
+	items, ok := block.Data["items"].([]interface{})
+	if !ok {
+		return
+	}
+	for _, item := range items {
+		fmt.Printf("      %s %v\n", style.SymbolBullet, item)
+	}
+}
+
+func renderTextBlock(block domain.Block) {
+	text := getBlockString(block, "text")
+	if text == "" {
+		text = getBlockString(block, "content")
+	}
+	if text != "" {
+		fmt.Printf("    %s\n", text)
+	}
+}
+
+func renderMechanicBlock(block domain.Block) {
+	name := getBlockString(block, "name")
+	desc := getBlockString(block, "description")
+
+	fmt.Printf("    %s", style.Header.Sprint(name))
+	if desc != "" {
+		fmt.Printf(" - %s", desc)
+	}
+	fmt.Println()
+
+	if conditions, ok := block.Data["conditions"].([]interface{}); ok && len(conditions) > 0 {
+		fmt.Printf("      %s\n", style.Muted.Sprint("Conditions:"))
+		for _, c := range conditions {
+			fmt.Printf("        %s %v\n", style.SymbolBullet, c)
+		}
+	}
+	if inputs, ok := block.Data["inputs"].([]interface{}); ok && len(inputs) > 0 {
+		fmt.Printf("      %s\n", style.Muted.Sprint("Inputs:"))
+		for _, inp := range inputs {
+			fmt.Printf("        %s %v\n", style.SymbolBullet, inp)
+		}
+	}
+	if outputs, ok := block.Data["outputs"].([]interface{}); ok && len(outputs) > 0 {
+		fmt.Printf("      %s\n", style.Muted.Sprint("Outputs:"))
+		for _, o := range outputs {
+			fmt.Printf("        %s %v\n", style.SymbolBullet, o)
+		}
+	}
+}
+
+func renderFallbackBlock(block domain.Block) {
+	fmt.Printf("    %s %s\n", style.Muted.Sprint("type:"), block.Type)
+	data, err := yaml.Marshal(block.Data)
+	if err != nil {
+		return
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		fmt.Printf("      %s\n", line)
+	}
+}
+
+func getBlockString(block domain.Block, key string) string {
+	v, ok := block.Data[key]
+	if !ok {
+		return ""
+	}
+	s, ok := v.(string)
+	if !ok {
+		return fmt.Sprintf("%v", v)
+	}
+	return s
+}
+
+func padRight(s string, width int) string {
+	if len(s) >= width {
+		return s
+	}
+	return s + strings.Repeat(" ", width-len(s))
+}
+
+// RenderBlockMarkdown renders a single content block as markdown.
+// Used by both show --full (terminal) and export (markdown) commands.
+func RenderBlockMarkdown(block domain.Block) string {
+	switch block.Type {
+	case "table":
+		return renderTableBlockMarkdown(block)
+	case "rule":
+		return renderRuleBlockMarkdown(block)
+	case "param":
+		return renderParamBlockMarkdown(block)
+	case "list":
+		return renderListBlockMarkdown(block)
+	case "text", "note", "description":
+		return renderTextBlockMarkdown(block)
+	case "mechanic":
+		return renderMechanicBlockMarkdown(block)
+	default:
+		return renderFallbackBlockMarkdown(block)
+	}
+}
+
+func renderTableBlockMarkdown(block domain.Block) string {
+	columns, ok := block.Data["columns"].([]interface{})
+	if !ok || len(columns) == 0 {
+		return ""
+	}
+	rows, ok := block.Data["rows"].([]interface{})
+	if !ok {
+		return ""
+	}
+
+	type colInfo struct {
+		key     string
+		display string
+	}
+	var cols []colInfo
+	for _, c := range columns {
+		cm, ok := c.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		key, _ := cm["key"].(string)
+		display, _ := cm["display"].(string)
+		if display == "" {
+			display = key
+		}
+		cols = append(cols, colInfo{key: key, display: display})
+	}
+
+	var sb strings.Builder
+	// Header
+	var headers, seps []string
+	for _, col := range cols {
+		headers = append(headers, col.display)
+		seps = append(seps, "---")
+	}
+	sb.WriteString("| " + strings.Join(headers, " | ") + " |\n")
+	sb.WriteString("| " + strings.Join(seps, " | ") + " |\n")
+
+	for _, row := range rows {
+		rm, ok := row.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		var vals []string
+		for _, col := range cols {
+			vals = append(vals, fmt.Sprintf("%v", rm[col.key]))
+		}
+		sb.WriteString("| " + strings.Join(vals, " | ") + " |\n")
+	}
+	return sb.String()
+}
+
+func renderRuleBlockMarkdown(block domain.Block) string {
+	text := getBlockString(block, "text")
+	if text == "" {
+		return ""
+	}
+	return "> " + text + "\n"
+}
+
+func renderParamBlockMarkdown(block domain.Block) string {
+	name := getBlockString(block, "name")
+	datatype := getBlockString(block, "datatype")
+	if name == "" {
+		name = getBlockString(block, "id")
+	}
+
+	parts := []string{"**" + name + "**:"}
+	if datatype != "" {
+		parts = append(parts, "`"+datatype+"`")
+	}
+
+	var constraints []string
+	if min, ok := block.Data["min"]; ok {
+		constraints = append(constraints, fmt.Sprintf("min=%v", min))
+	}
+	if max, ok := block.Data["max"]; ok {
+		constraints = append(constraints, fmt.Sprintf("max=%v", max))
+	}
+	if def, ok := block.Data["default"]; ok {
+		constraints = append(constraints, fmt.Sprintf("default=%v", def))
+	}
+	if unit := getBlockString(block, "unit"); unit != "" {
+		constraints = append(constraints, unit)
+	}
+	if len(constraints) > 0 {
+		parts = append(parts, "["+strings.Join(constraints, ", ")+"]")
+	}
+
+	desc := getBlockString(block, "description")
+	if desc != "" {
+		parts = append(parts, "- "+desc)
+	}
+
+	return "- " + strings.Join(parts, " ") + "\n"
+}
+
+func renderListBlockMarkdown(block domain.Block) string {
+	items, ok := block.Data["items"].([]interface{})
+	if !ok {
+		return ""
+	}
+	var sb strings.Builder
+	for _, item := range items {
+		sb.WriteString(fmt.Sprintf("- %v\n", item))
+	}
+	return sb.String()
+}
+
+func renderTextBlockMarkdown(block domain.Block) string {
+	text := getBlockString(block, "text")
+	if text == "" {
+		text = getBlockString(block, "content")
+	}
+	if text == "" {
+		return ""
+	}
+	return text + "\n"
+}
+
+func renderMechanicBlockMarkdown(block domain.Block) string {
+	name := getBlockString(block, "name")
+	desc := getBlockString(block, "description")
+
+	var sb strings.Builder
+	sb.WriteString("**" + name + "**")
+	if desc != "" {
+		sb.WriteString(": " + desc)
+	}
+	sb.WriteString("\n\n")
+
+	if conditions, ok := block.Data["conditions"].([]interface{}); ok && len(conditions) > 0 {
+		sb.WriteString("*Conditions:*\n")
+		for _, c := range conditions {
+			sb.WriteString(fmt.Sprintf("- %v\n", c))
+		}
+		sb.WriteString("\n")
+	}
+	if inputs, ok := block.Data["inputs"].([]interface{}); ok && len(inputs) > 0 {
+		sb.WriteString("*Inputs:*\n")
+		for _, inp := range inputs {
+			sb.WriteString(fmt.Sprintf("- %v\n", inp))
+		}
+		sb.WriteString("\n")
+	}
+	if outputs, ok := block.Data["outputs"].([]interface{}); ok && len(outputs) > 0 {
+		sb.WriteString("*Outputs:*\n")
+		for _, o := range outputs {
+			sb.WriteString(fmt.Sprintf("- %v\n", o))
+		}
+		sb.WriteString("\n")
+	}
+	return sb.String()
+}
+
+func renderFallbackBlockMarkdown(block domain.Block) string {
+	data, err := yaml.Marshal(block.Data)
+	if err != nil {
+		return ""
+	}
+	return "```yaml\ntype: " + block.Type + "\n" + string(data) + "```\n"
 }
 
 func outputJSON(node *domain.Node, referencedBy []string) error {

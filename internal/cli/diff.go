@@ -224,7 +224,7 @@ func printBefore(before map[string]interface{}) {
 }
 
 func printBeforeAfter(before, after map[string]interface{}) {
-	// Collect all keys that changed
+	// Collect all keys
 	allKeys := make(map[string]bool)
 	for k := range before {
 		allKeys[k] = true
@@ -240,24 +240,32 @@ func printBeforeAfter(before, after map[string]interface{}) {
 	}
 	sort.Strings(keys)
 
+	printed := false
 	for _, key := range keys {
 		beforeVal, hasBefore := before[key]
 		afterVal, hasAfter := after[key]
 
+		if hasBefore && hasAfter && formatValue(beforeVal) == formatValue(afterVal) {
+			// Skip no-op: old == new
+			continue
+		}
+
 		if hasBefore && hasAfter {
-			// Value changed
 			fmt.Printf("  %s:\n", key)
 			fmt.Printf("    - %v\n", formatValue(beforeVal))
 			fmt.Printf("    + %v\n", formatValue(afterVal))
 		} else if hasBefore {
-			// Value removed
 			fmt.Printf("  %s:\n", key)
 			fmt.Printf("    - %v\n", formatValue(beforeVal))
 		} else {
-			// Value added
 			fmt.Printf("  %s:\n", key)
 			fmt.Printf("    + %v\n", formatValue(afterVal))
 		}
+		printed = true
+	}
+
+	if !printed {
+		fmt.Println("  (no changes)")
 	}
 }
 

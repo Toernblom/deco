@@ -41,6 +41,7 @@ func main() {
 	root.AddCommand(cli.NewSyncCommand())
 	root.AddCommand(cli.NewMigrateCommand())
 	root.AddCommand(cli.NewLLMHelpCommand())
+	root.AddCommand(cli.NewNewCommand())
 
 	if err := root.Execute(); err != nil {
 		// Check for ExitError with custom exit code
