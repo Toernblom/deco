@@ -1,0 +1,40 @@
+id: schemas/auth
+kind: schema
+version: 1
+status: draft
+title: "Authentication Schema"
+tags: [auth, security]
+summary: "Authentication and authorization data structures."
+
+content:
+  sections:
+    - name: Parameters
+      blocks:
+        - type: param
+          id: token_expiry
+          name: "Token Expiry"
+          datatype: int
+          default: 3600
+          unit: "seconds"
+          description: "JWT token expiration time"
+
+        - type: param
+          id: refresh_window
+          name: "Refresh Window"
+          datatype: int
+          default: 86400
+          unit: "seconds"
+          description: "Refresh token validity period"
+
+    - name: Rules
+      blocks:
+        - type: rule
+          id: auth_required
+          text: "All endpoints except /health and /auth/login require a valid Bearer token"
+
+        - type: list
+          id: scopes
+          items:
+            - "users:read"
+            - "users:write"
+            - "admin"

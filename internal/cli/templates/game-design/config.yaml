@@ -1,0 +1,12 @@
+version: 1
+project_name: {{PROJECT_NAME}}
+nodes_path: .deco/nodes
+history_path: .deco/history.jsonl
+required_approvals: 1
+custom_block_types:
+  building:
+    required_fields: [id, name]
+    optional_fields: [description, cost, build_time]
+  unit:
+    required_fields: [id, name]
+    optional_fields: [description, health, damage, speed]

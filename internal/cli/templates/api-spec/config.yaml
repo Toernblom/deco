@@ -1,0 +1,12 @@
+version: 1
+project_name: {{PROJECT_NAME}}
+nodes_path: .deco/nodes
+history_path: .deco/history.jsonl
+required_approvals: 1
+custom_block_types:
+  endpoint:
+    required_fields: [id, method, path]
+    optional_fields: [description, request_body, response, status_codes]
+  schema:
+    required_fields: [id, name]
+    optional_fields: [description, fields]

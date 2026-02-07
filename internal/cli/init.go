@@ -17,9 +17,12 @@ package cli
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/Toernblom/deco/internal/migrations"
 	"github.com/Toernblom/deco/internal/storage/config"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -27,6 +30,7 @@ import (
 
 type initFlags struct {
 	force     bool
+	template  string
 	targetDir string
 }
 
@@ -41,7 +45,11 @@ func NewInitCommand() *cobra.Command {
 
 Creates the .deco directory structure with:
   - config.yaml: Project configuration
-  - nodes/: Directory for design document YAML files`,
+  - nodes/: Directory for design document YAML files
+
+Use --template to start with pre-built content:
+  - game-design: Game design document with combat mechanics and controls
+  - api-spec: API specification with endpoints and auth schemas`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
@@ -54,6 +62,7 @@ Creates the .deco directory structure with:
 	}
 
 	cmd.Flags().BoolVarP(&flags.force, "force", "f", false, "Reinitialize existing project")
+	cmd.Flags().StringVar(&flags.template, "template", "", "Project template (game-design, api-spec)")
 
 	return cmd
 }
@@ -83,13 +92,103 @@ func runInit(flags *initFlags) error {
 		return fmt.Errorf("failed to create nodes directory: %w", err)
 	}
 
-	// Create default config.yaml
-	if err := createDefaultConfig(decoDir, flags.targetDir); err != nil {
-		return fmt.Errorf("failed to create config.yaml: %w", err)
+	if flags.template != "" {
+		// Validate template name
+		valid := false
+		for _, t := range availableTemplates {
+			if t == flags.template {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return fmt.Errorf("unknown template %q (available: %s)", flags.template, strings.Join(availableTemplates, ", "))
+		}
+
+		if err := applyTemplate(flags.template, decoDir, flags.targetDir); err != nil {
+			return fmt.Errorf("failed to apply template: %w", err)
+		}
+
+		// Compute and set schema version so validate passes out of the box
+		if err := setSchemaVersion(decoDir); err != nil {
+			// Non-fatal: template still works, user can run deco migrate
+			fmt.Printf("Warning: could not set schema version: %v\n", err)
+		}
+	} else {
+		// Create default config.yaml
+		if err := createDefaultConfig(decoDir, flags.targetDir); err != nil {
+			return fmt.Errorf("failed to create config.yaml: %w", err)
+		}
 	}
 
 	fmt.Printf("Initialized deco project in %s\n", decoDir)
+	if flags.template != "" {
+		fmt.Printf("Template: %s\n", flags.template)
+	}
 	return nil
+}
+
+func applyTemplate(templateName, decoDir, targetDir string) error {
+	templateRoot := "templates/" + templateName
+
+	// Get project name
+	absTarget, err := filepath.Abs(targetDir)
+	if err != nil {
+		absTarget = targetDir
+	}
+	projectName := filepath.Base(absTarget)
+
+	return fs.WalkDir(embeddedTemplates, templateRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Compute relative path from template root
+		relPath, err := filepath.Rel(templateRoot, path)
+		if err != nil {
+			return err
+		}
+
+		destPath := filepath.Join(decoDir, relPath)
+
+		if d.IsDir() {
+			return os.MkdirAll(destPath, 0755)
+		}
+
+		data, err := embeddedTemplates.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("failed to read template file %s: %w", path, err)
+		}
+
+		// Replace template variables
+		content := strings.ReplaceAll(string(data), "{{PROJECT_NAME}}", projectName)
+
+		// Create parent directories
+		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+			return err
+		}
+
+		return os.WriteFile(destPath, []byte(content), 0644)
+	})
+}
+
+func setSchemaVersion(decoDir string) error {
+	// Load the config that the template just wrote
+	// decoDir is the .deco directory, parent is the project root
+	projectRoot := filepath.Dir(decoDir)
+	configRepo := config.NewYAMLRepository(projectRoot)
+	cfg, err := configRepo.Load()
+	if err != nil {
+		return err
+	}
+
+	hash := migrations.ComputeSchemaHash(cfg)
+	if hash == "" {
+		return nil // No schema constraints, no version needed
+	}
+
+	cfg.SchemaVersion = hash
+	return configRepo.Save(cfg)
 }
 
 func createDefaultConfig(decoDir, targetDir string) error {

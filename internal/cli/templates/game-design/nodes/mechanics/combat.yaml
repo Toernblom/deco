@@ -1,0 +1,41 @@
+id: mechanics/combat
+kind: mechanic
+version: 1
+status: draft
+title: "Combat System"
+tags: [core, combat]
+summary: "How combat works in the game."
+
+content:
+  sections:
+    - name: Parameters
+      blocks:
+        - type: param
+          id: base_damage
+          name: "Base Damage"
+          datatype: int
+          default: 10
+          description: "Default damage per hit"
+
+        - type: param
+          id: attack_speed
+          name: "Attack Speed"
+          datatype: float
+          default: 1.0
+          unit: "attacks/sec"
+          description: "Base attack frequency"
+
+    - name: Rules
+      blocks:
+        - type: rule
+          id: damage_calc
+          text: "Final damage = base_damage * weapon_modifier * buff_modifier"
+
+        - type: mechanic
+          id: critical_hit
+          name: "Critical Hit"
+          description: "Chance to deal extra damage"
+          conditions:
+            - "Random roll succeeds (default 10% chance)"
+          outputs:
+            - "Damage multiplied by 2x"

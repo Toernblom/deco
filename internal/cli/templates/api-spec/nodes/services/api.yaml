@@ -1,0 +1,32 @@
+id: services/api
+kind: service
+version: 1
+status: draft
+title: "API Service"
+tags: [api, core]
+summary: "Main API service definition."
+
+refs:
+  uses:
+    - target: schemas/auth
+      context: "Authentication schema"
+
+content:
+  sections:
+    - name: Endpoints
+      blocks:
+        - type: endpoint
+          id: health_check
+          method: GET
+          path: /health
+          description: "Health check endpoint"
+
+    - name: Rules
+      blocks:
+        - type: rule
+          id: versioning
+          text: "All endpoints are prefixed with /api/v1"
+
+        - type: rule
+          id: content_type
+          text: "All responses use application/json content type"

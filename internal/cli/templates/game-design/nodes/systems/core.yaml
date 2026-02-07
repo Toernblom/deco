@@ -1,0 +1,33 @@
+id: systems/core
+kind: system
+version: 1
+status: draft
+title: "Core Gameplay"
+tags: [core]
+summary: "The main gameplay loop and core mechanics."
+
+refs:
+  uses:
+    - target: mechanics/combat
+      context: "Primary gameplay mechanic"
+
+content:
+  sections:
+    - name: Overview
+      blocks:
+        - type: rule
+          id: game_loop
+          text: "Describe the main game loop here."
+
+    - name: Controls
+      blocks:
+        - type: table
+          id: controls
+          columns:
+            - { key: input, type: string, display: "Input" }
+            - { key: action, type: string, display: "Action" }
+          rows:
+            - input: "WASD"
+              action: "Movement"
+            - input: "Space"
+              action: "Primary action"

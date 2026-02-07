@@ -336,22 +336,75 @@ func newStatusCommand() *cobra.Command {
 	flags := &statusFlags{}
 
 	cmd := &cobra.Command{
-		Use:   "status <node-id> [directory]",
-		Short: "Show review status of a node",
-		Long:  `Show review status of a node including current status, approvals, and requirements.`,
-		Args:  cobra.RangeArgs(1, 2),
+		Use:   "status [node-id] [directory]",
+		Short: "Show review status of a node or list all nodes in review",
+		Long: `Show review status of a node including current status, approvals, and requirements.
+
+When called without a node ID, lists all nodes currently in review status.`,
+		Args: cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			flags.nodeID = args[0]
-			if len(args) > 1 {
+			if len(args) >= 1 {
+				flags.nodeID = args[0]
+			}
+			if len(args) >= 2 {
 				flags.targetDir = args[1]
 			} else {
 				flags.targetDir = "."
+			}
+			if flags.nodeID == "" {
+				return runStatusAll(cmd, flags)
 			}
 			return runStatus(cmd, flags)
 		},
 	}
 
 	return cmd
+}
+
+func runStatusAll(cmd *cobra.Command, flags *statusFlags) error {
+	configRepo := config.NewYAMLRepository(flags.targetDir)
+	cfg, err := configRepo.Load()
+	if err != nil {
+		return fmt.Errorf(".deco directory not found or invalid: %w", err)
+	}
+
+	nodeRepo := node.NewYAMLRepository(config.ResolveNodesPath(cfg, flags.targetDir))
+	nodes, err := nodeRepo.LoadAll()
+	if err != nil {
+		return fmt.Errorf("failed to load nodes: %w", err)
+	}
+
+	out := cmd.OutOrStdout()
+	var reviewNodes []domain.Node
+	for _, n := range nodes {
+		if n.Status == "review" {
+			reviewNodes = append(reviewNodes, n)
+		}
+	}
+
+	if len(reviewNodes) == 0 {
+		fmt.Fprintln(out, "No nodes in review.")
+		return nil
+	}
+
+	fmt.Fprintln(out, "Nodes in review:")
+	for _, n := range reviewNodes {
+		// Count current-version approvals
+		approvals := 0
+		submitter := ""
+		for _, r := range n.Reviewers {
+			if r.Version == n.Version {
+				approvals++
+			}
+		}
+		// Check history for submitter (best effort: use last reviewer or "unknown")
+		if submitter == "" {
+			submitter = "unknown"
+		}
+		fmt.Fprintf(out, "  %-25s v%d  %d approval(s)\n", n.ID, n.Version, approvals)
+	}
+
+	return nil
 }
 
 func runStatus(cmd *cobra.Command, flags *statusFlags) error {
