@@ -180,4 +180,3 @@ func levenshtein(a, b string) int {
 	}
 	return prev[len(b)]
 }
-

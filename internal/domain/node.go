@@ -173,10 +173,10 @@ type Contract struct {
 
 // Reviewer represents an approval record for a node version.
 type Reviewer struct {
-	Name      string    `json:"name" yaml:"name"`                         // reviewer email/username
-	Timestamp time.Time `json:"timestamp" yaml:"timestamp"`               // when approved
-	Version   int       `json:"version" yaml:"version"`                   // version that was approved
-	Note      string    `json:"note,omitempty" yaml:"note,omitempty"`     // optional comment
+	Name      string    `json:"name" yaml:"name"`                     // reviewer email/username
+	Timestamp time.Time `json:"timestamp" yaml:"timestamp"`           // when approved
+	Version   int       `json:"version" yaml:"version"`               // version that was approved
+	Note      string    `json:"note,omitempty" yaml:"note,omitempty"` // optional comment
 }
 
 // Validate checks that all required fields are present and valid.

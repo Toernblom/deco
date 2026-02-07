@@ -1,7 +1,7 @@
 id: entities/aliens
 kind: entity
 version: 1
-status: approved
+status: draft
 title: "Alien Enemies"
 tags: [enemy, npc]
 summary: |

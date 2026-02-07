@@ -30,10 +30,10 @@ import (
 )
 
 type syncFlags struct {
-	dryRun    bool
-	quiet     bool
+	dryRun     bool
+	quiet      bool
 	noRefactor bool
-	targetDir string
+	targetDir  string
 }
 
 // Exit codes for sync command

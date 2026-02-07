@@ -23,7 +23,7 @@ content:
             - type: table
               columns:
                 - display: Environment
-                  ke: environment
+                  key: environment
                   type: string
                 - display: Base URL
                   key: url

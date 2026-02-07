@@ -1,7 +1,7 @@
 id: entities/player
 kind: entity
 version: 1
-status: approved
+status: draft
 title: "Player Ship"
 tags: [player, ship]
 summary: |

@@ -820,12 +820,12 @@ func TestConstraintValidator_NoConstraints(t *testing.T) {
 
 func TestConstraintValidator_ScopeMatching(t *testing.T) {
 	tests := []struct {
-		name          string
-		nodeID        string
-		nodeKind      string
-		scope         string
-		shouldApply   bool
-		expectedErrs  int // 0 if scope doesn't match, 1 if it does and constraint fails
+		name         string
+		nodeID       string
+		nodeKind     string
+		scope        string
+		shouldApply  bool
+		expectedErrs int // 0 if scope doesn't match, 1 if it does and constraint fails
 	}{
 		{
 			name:         "all scope matches any node",
@@ -1690,8 +1690,8 @@ func TestUnknownFieldValidator_NestedRefLinkTypo(t *testing.T) {
 		"refs": map[string]interface{}{
 			"uses": []interface{}{
 				map[string]interface{}{
-					"target":  "systems/foo",
-					"conext":  "This is a typo", // Should be "context"
+					"target": "systems/foo",
+					"conext": "This is a typo", // Should be "context"
 				},
 			},
 		},
@@ -1758,9 +1758,9 @@ func TestUnknownFieldValidator_NestedConstraintTypo(t *testing.T) {
 	rawMap := map[string]interface{}{
 		"constraints": []interface{}{
 			map[string]interface{}{
-				"expr":    "node.status != 'invalid'",
-				"mesage":  "Invalid status", // Should be "message"
-				"scope":   "all",
+				"expr":   "node.status != 'invalid'",
+				"mesage": "Invalid status", // Should be "message"
+				"scope":  "all",
 			},
 		},
 	}

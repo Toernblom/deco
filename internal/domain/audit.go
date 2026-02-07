@@ -53,13 +53,13 @@ func (a *AuditEntry) Validate() error {
 		"append":   true,
 		"unset":    true,
 		"move":     true,
-		"submit":   true,    // draft -> review
-		"approve":  true,    // add approval
-		"reject":   true,    // review -> draft
-		"sync":     true,    // auto-fix unversioned edits
-		"baseline": true,    // record current state without modification
-		"migrate":  true,    // schema migration
-		"rewrite":  true,    // full node replacement
+		"submit":   true, // draft -> review
+		"approve":  true, // add approval
+		"reject":   true, // review -> draft
+		"sync":     true, // auto-fix unversioned edits
+		"baseline": true, // record current state without modification
+		"migrate":  true, // schema migration
+		"rewrite":  true, // full node replacement
 	}
 	if !validOperations[a.Operation] {
 		return fmt.Errorf("audit entry Operation must be one of: create, update, delete, set, append, unset, move, submit, approve, reject, sync, baseline, migrate, rewrite")

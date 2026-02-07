@@ -442,9 +442,9 @@ func (bv *BlockValidator) validateFieldType(block *domain.Block, fieldName strin
 
 	if !valid {
 		collector.Add(domain.DecoError{
-			Code:    "E052",
-			Summary: fmt.Sprintf("Field %q in %s block has wrong type: expected %s, got %T", fieldName, block.Type, fieldDef.Type, val),
-			Detail:  bv.formatLocation(nodeID, sectionName, blockIdx),
+			Code:     "E052",
+			Summary:  fmt.Sprintf("Field %q in %s block has wrong type: expected %s, got %T", fieldName, block.Type, fieldDef.Type, val),
+			Detail:   bv.formatLocation(nodeID, sectionName, blockIdx),
 			Location: location,
 		})
 	}
@@ -468,9 +468,9 @@ func (bv *BlockValidator) validateFieldEnum(block *domain.Block, fieldName strin
 	}
 
 	err := domain.DecoError{
-		Code:    "E053",
-		Summary: fmt.Sprintf("Field %q in %s block has invalid value %q", fieldName, block.Type, strVal),
-		Detail:  bv.formatLocation(nodeID, sectionName, blockIdx),
+		Code:     "E053",
+		Summary:  fmt.Sprintf("Field %q in %s block has invalid value %q", fieldName, block.Type, strVal),
+		Detail:   bv.formatLocation(nodeID, sectionName, blockIdx),
 		Location: location,
 	}
 

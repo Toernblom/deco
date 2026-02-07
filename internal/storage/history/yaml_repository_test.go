@@ -721,10 +721,10 @@ func TestYAMLRepository_QueryLatestHashes(t *testing.T) {
 				ContentHash: "hash-a-1",
 			},
 			{
-				Timestamp:   time.Now().Add(time.Second),
-				NodeID:      "node-a",
-				Operation:   "set", // No content hash
-				User:        "alice",
+				Timestamp: time.Now().Add(time.Second),
+				NodeID:    "node-a",
+				Operation: "set", // No content hash
+				User:      "alice",
 			},
 		}
 

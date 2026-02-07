@@ -70,10 +70,9 @@ jobs:
       - name: Build deco
         run: go build -o deco ./cmd/deco
 
-      - name: Create and validate example project
+      - name: Validate example projects
         run: |
-          mkdir -p testproject
-          cd testproject
-          ../deco init
-          cp ../example.yaml ../example-large.yaml .deco/
-          ../deco validate
+          for dir in examples/snake examples/space-invaders examples/api-spec; do
+            echo "Validating $dir..."
+            ./deco validate "$dir"
+          done

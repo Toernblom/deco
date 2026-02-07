@@ -1,7 +1,7 @@
 id: systems/core
 kind: system
 version: 1
-status: approved
+status: draft
 title: "Core Gameplay"
 tags: [core, shooting]
 summary: |

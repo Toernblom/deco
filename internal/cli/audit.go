@@ -32,18 +32,18 @@ import (
 // Reviewers (workflow), SourceFile (internal).
 // Uses SortedStringMap and SortedInterfaceMap for deterministic hashing.
 type contentFields struct {
-	Kind        string                   `yaml:"kind"`
-	Title       string                   `yaml:"title"`
-	Summary     string                   `yaml:"summary"`
-	Tags        []string                 `yaml:"tags,omitempty"`
-	Refs        domain.Ref               `yaml:"refs,omitempty"`
-	Docs        []domain.DocRef          `yaml:"docs,omitempty"`
-	Issues      []domain.Issue           `yaml:"issues,omitempty"`
-	Content     *domain.Content          `yaml:"content,omitempty"`
-	Glossary    domain.SortedStringMap   `yaml:"glossary,omitempty"`
-	Contracts   []domain.Contract        `yaml:"contracts,omitempty"`
-	LLMContext  string                   `yaml:"llm_context,omitempty"`
-	Constraints []domain.Constraint      `yaml:"constraints,omitempty"`
+	Kind        string                    `yaml:"kind"`
+	Title       string                    `yaml:"title"`
+	Summary     string                    `yaml:"summary"`
+	Tags        []string                  `yaml:"tags,omitempty"`
+	Refs        domain.Ref                `yaml:"refs,omitempty"`
+	Docs        []domain.DocRef           `yaml:"docs,omitempty"`
+	Issues      []domain.Issue            `yaml:"issues,omitempty"`
+	Content     *domain.Content           `yaml:"content,omitempty"`
+	Glossary    domain.SortedStringMap    `yaml:"glossary,omitempty"`
+	Contracts   []domain.Contract         `yaml:"contracts,omitempty"`
+	LLMContext  string                    `yaml:"llm_context,omitempty"`
+	Constraints []domain.Constraint       `yaml:"constraints,omitempty"`
 	Custom      domain.SortedInterfaceMap `yaml:"custom,omitempty"`
 }
 

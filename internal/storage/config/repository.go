@@ -28,10 +28,10 @@ type RefConstraint struct {
 
 // FieldDef defines a field with type, required, and constraint information.
 type FieldDef struct {
-	Type     string          `yaml:"type" json:"type"`                       // string, number, list, bool
-	Required bool            `yaml:"required" json:"required"`               // whether the field must be present
-	Enum     []string        `yaml:"enum,omitempty" json:"enum,omitempty"`   // allowed values (for string fields)
-	Refs     []RefConstraint `yaml:"refs,omitempty" json:"refs,omitempty"`   // cross-reference constraints (OR logic)
+	Type     string          `yaml:"type" json:"type"`                     // string, number, list, bool
+	Required bool            `yaml:"required" json:"required"`             // whether the field must be present
+	Enum     []string        `yaml:"enum,omitempty" json:"enum,omitempty"` // allowed values (for string fields)
+	Refs     []RefConstraint `yaml:"refs,omitempty" json:"refs,omitempty"` // cross-reference constraints (OR logic)
 }
 
 // UnmarshalYAML implements custom unmarshaling for FieldDef.

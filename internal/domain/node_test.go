@@ -457,7 +457,7 @@ func TestNode_MarshalYAML_Deterministic(t *testing.T) {
 			"middle": "between",
 		},
 		Custom: map[string]interface{}{
-			"zoo":    "end",
+			"zoo":      "end",
 			"aardvark": "start",
 			"nested": map[string]interface{}{
 				"z": 1,

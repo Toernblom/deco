@@ -335,11 +335,11 @@ func countBySeverity(issues []IssueResult) map[string]int {
 
 // IssuesJSONOutput is the structure for JSON output
 type IssuesJSONOutput struct {
-	Total   int                    `json:"total"`
-	Open    int                    `json:"open"`
-	Counts  map[string]int         `json:"counts"`
-	Issues  []IssueResult          `json:"issues,omitempty"`
-	ByNode  map[string]NodeSummary `json:"by_node,omitempty"`
+	Total  int                    `json:"total"`
+	Open   int                    `json:"open"`
+	Counts map[string]int         `json:"counts"`
+	Issues []IssueResult          `json:"issues,omitempty"`
+	ByNode map[string]NodeSummary `json:"by_node,omitempty"`
 }
 
 // NodeSummary is a per-node issue summary

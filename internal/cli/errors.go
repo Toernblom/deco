@@ -39,7 +39,7 @@ func NewExitErrorf(code int, format string, args ...interface{}) *ExitError {
 
 // Exit code constants for CLI commands.
 const (
-	ExitCodeSuccess         = 0
-	ExitCodeError           = 1
-	ExitCodeSchemaMismatch  = 2 // Schema version mismatch, migration needed
+	ExitCodeSuccess        = 0
+	ExitCodeError          = 1
+	ExitCodeSchemaMismatch = 2 // Schema version mismatch, migration needed
 )
