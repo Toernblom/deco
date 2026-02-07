@@ -445,7 +445,7 @@ go install github.com/anthropics/deco/cmd/deco@latest
 
 ## Documentation
 
-- [SPEC.md](SPEC.md) — Full specification and design decisions
+- [docs/SPEC.md](docs/SPEC.md) — Full specification and design decisions
 
 ## License
 

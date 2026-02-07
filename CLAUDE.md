@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Deco is a Go CLI for managing game design documents as structured, validated YAML. See [SPEC.md](SPEC.md) for full specification.
+Deco is a Go CLI for managing game design documents as structured, validated YAML. See [docs/SPEC.md](docs/SPEC.md) for full specification.
 
 This project uses **bd** (beads) for issue tracking.
 
