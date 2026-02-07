@@ -141,6 +141,9 @@ func runQuery(flags *queryFlags) error {
 	if err := validateKind(flags.kind, nodes); err != nil {
 		return err
 	}
+	if err := validateBlockType(flags.blockType, cfg.CustomBlockTypes); err != nil {
+		return err
+	}
 	for _, f := range flags.fields {
 		if err := validateFieldFilter(f); err != nil {
 			return err

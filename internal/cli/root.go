@@ -23,7 +23,7 @@ import (
 )
 
 // version can be overridden at build time with -ldflags
-var version = "0.1.0"
+var version = "0.9.0"
 
 // Config holds global CLI configuration
 type Config struct {

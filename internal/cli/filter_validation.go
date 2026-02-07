@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/Toernblom/deco/internal/domain"
+	"github.com/Toernblom/deco/internal/storage/config"
 )
 
 // ValidStatuses is the canonical set of valid node status values.
@@ -67,6 +68,38 @@ func validateKind(kind string, nodes []domain.Node) error {
 		}
 	}
 	return newFilterError("kind", kind, validKinds)
+}
+
+// validBuiltInBlockTypes is the canonical set of built-in block types.
+var validBuiltInBlockTypes = []string{"doc", "list", "mechanic", "param", "rule", "table"}
+
+// validateBlockType checks if the given block type is valid (built-in or custom).
+func validateBlockType(blockType string, customBlockTypes map[string]config.BlockTypeConfig) error {
+	if blockType == "" {
+		return nil
+	}
+	// Check built-in types
+	for _, bt := range validBuiltInBlockTypes {
+		if blockType == bt {
+			return nil
+		}
+	}
+	// Check custom types
+	if customBlockTypes != nil {
+		if _, ok := customBlockTypes[blockType]; ok {
+			return nil
+		}
+	}
+	// Build full list for error message
+	all := make([]string, len(validBuiltInBlockTypes))
+	copy(all, validBuiltInBlockTypes)
+	if customBlockTypes != nil {
+		for name := range customBlockTypes {
+			all = append(all, name)
+		}
+		sort.Strings(all)
+	}
+	return newFilterError("block-type", blockType, all)
 }
 
 // validateFieldFilter checks that a field filter has key=value format.

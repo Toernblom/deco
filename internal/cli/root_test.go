@@ -68,6 +68,24 @@ func TestVersionFlag(t *testing.T) {
 		}
 	})
 
+	t.Run("reports correct version", func(t *testing.T) {
+		cmd := NewRootCommand()
+		buf := new(bytes.Buffer)
+		cmd.SetOut(buf)
+		cmd.SetErr(buf)
+		cmd.SetArgs([]string{"--version"})
+
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		output := buf.String()
+		if !strings.Contains(output, "0.9.0") {
+			t.Errorf("Expected version output to contain '0.9.0', got %q", output)
+		}
+	})
+
 	t.Run("shows version with -v", func(t *testing.T) {
 		cmd := NewRootCommand()
 		buf := new(bytes.Buffer)

@@ -264,6 +264,36 @@ func TestQueryCommand_CombinedSearchAndFilters(t *testing.T) {
 	})
 }
 
+func TestQueryCommand_InvalidBlockType(t *testing.T) {
+	t.Run("rejects unknown block type", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectForQuery(t, tmpDir)
+
+		cmd := NewQueryCommand()
+		cmd.SetArgs([]string{"--block-type", "not_a_real_type", tmpDir})
+		err := cmd.Execute()
+		if err == nil {
+			t.Fatal("Expected error for invalid block type, got nil")
+		}
+		errMsg := err.Error()
+		if !strings.Contains(errMsg, "unknown block-type") {
+			t.Errorf("Expected 'unknown block-type' error, got %q", errMsg)
+		}
+	})
+
+	t.Run("accepts built-in block type", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectForQuery(t, tmpDir)
+
+		cmd := NewQueryCommand()
+		cmd.SetArgs([]string{"--block-type", "table", tmpDir})
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error for valid block type, got %v", err)
+		}
+	})
+}
+
 func TestQueryCommand_NoProject(t *testing.T) {
 	t.Run("errors on missing .deco directory", func(t *testing.T) {
 		tmpDir := t.TempDir()

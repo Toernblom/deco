@@ -129,6 +129,41 @@ func TestStatsCommand_WithConstraints(t *testing.T) {
 	})
 }
 
+func TestStatsCommand_QuietMode(t *testing.T) {
+	t.Run("quiet mode prints compact output", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupProjectWithMultipleNodes(t, tmpDir)
+
+		// Set global quiet flag
+		oldQuiet := globalConfig.Quiet
+		globalConfig.Quiet = true
+		defer func() { globalConfig.Quiet = oldQuiet }()
+
+		cmd := NewStatsCommand()
+		cmd.SetArgs([]string{tmpDir})
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+	})
+
+	t.Run("quiet mode on empty project suppresses output", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		setupEmptyProject(t, tmpDir)
+
+		oldQuiet := globalConfig.Quiet
+		globalConfig.Quiet = true
+		defer func() { globalConfig.Quiet = oldQuiet }()
+
+		cmd := NewStatsCommand()
+		cmd.SetArgs([]string{tmpDir})
+		err := cmd.Execute()
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+	})
+}
+
 func TestStatsCommand_WithRootCommand(t *testing.T) {
 	t.Run("integrates with root command", func(t *testing.T) {
 		tmpDir := t.TempDir()

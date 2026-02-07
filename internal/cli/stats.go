@@ -79,7 +79,9 @@ func runStats(flags *statsFlags) error {
 	}
 
 	if len(nodes) == 0 {
-		fmt.Println("No nodes found in project")
+		if !globalConfig.Quiet {
+			fmt.Println("No nodes found in project")
+		}
 		return nil
 	}
 
@@ -87,7 +89,11 @@ func runStats(flags *statsFlags) error {
 	stats := gatherStats(nodes, cfg)
 
 	// Print statistics
-	printStats(stats)
+	if globalConfig.Quiet {
+		printStatsQuiet(stats)
+	} else {
+		printStats(stats)
+	}
 
 	return nil
 }
@@ -230,6 +236,11 @@ func printStats(stats projectStats) {
 			}
 		}
 	}
+}
+
+func printStatsQuiet(stats projectStats) {
+	fmt.Printf("nodes=%d issues=%d dangling_refs=%d errors=%d\n",
+		stats.totalNodes, stats.totalOpenIssues, stats.danglingRefs, stats.totalValidationErrors)
 }
 
 func printSortedMap(m map[string]int) {
