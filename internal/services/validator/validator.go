@@ -1011,6 +1011,7 @@ type Orchestrator struct {
 	contractValidator     *ContractValidator
 	blockValidator        *BlockValidator
 	approvalValidator     *ApprovalValidator
+	crossRefValidator     *CrossRefValidator
 }
 
 // NewOrchestratorWithConfig creates a validator orchestrator with config-based settings.
@@ -1042,6 +1043,7 @@ func NewOrchestratorWithFullConfig(requiredApprovals int, customBlockTypes map[s
 		contractValidator:     NewContractValidator(),
 		blockValidator:        NewBlockValidatorWithConfig(customBlockTypes),
 		approvalValidator:     NewApprovalValidator(requiredApprovals),
+		crossRefValidator:     NewCrossRefValidator(customBlockTypes),
 	}
 }
 
@@ -1085,6 +1087,11 @@ func (o *Orchestrator) ValidateAll(nodes []domain.Node) *errors.Collector {
 	// Run constraint validation on each node
 	for _, node := range nodes {
 		o.constraintValidator.Validate(&node, nodes, collector)
+	}
+
+	// Run cross-reference validation on all nodes
+	if o.crossRefValidator != nil {
+		o.crossRefValidator.Validate(nodes, collector)
 	}
 
 	// Run contract validation on all nodes

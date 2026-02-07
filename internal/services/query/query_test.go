@@ -410,6 +410,322 @@ func TestQueryEngine_SearchEmptyNodes(t *testing.T) {
 	}
 }
 
+// ===== BLOCK-LEVEL QUERY TESTS =====
+
+func TestQueryEngine_FilterBlocks_ByBlockType(t *testing.T) {
+	qe := query.New()
+
+	nodes := []domain.Node{
+		{
+			ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Buildings",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Structures",
+						Blocks: []domain.Block{
+							{Type: "building", Data: map[string]interface{}{"name": "Smithy", "age": "bronze"}},
+							{Type: "building", Data: map[string]interface{}{"name": "Barracks", "age": "iron"}},
+							{Type: "resource", Data: map[string]interface{}{"name": "Iron Ore", "tier": 2}},
+						},
+					},
+				},
+			},
+		},
+		{
+			ID: "node2", Kind: "system", Version: 1, Status: "draft", Title: "Combat",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Gear",
+						Blocks: []domain.Block{
+							{Type: "gear", Data: map[string]interface{}{"name": "Bronze Sword"}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	blockType := "building"
+	criteria := query.FilterCriteria{
+		BlockType: &blockType,
+	}
+	results := qe.FilterBlocks(nodes, criteria)
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 building blocks, got %d", len(results))
+	}
+	for _, r := range results {
+		if r.Block.Type != "building" {
+			t.Errorf("expected block type 'building', got %q", r.Block.Type)
+		}
+	}
+}
+
+func TestQueryEngine_FilterBlocks_ByBlockTypeWithFieldFilter(t *testing.T) {
+	qe := query.New()
+
+	nodes := []domain.Node{
+		{
+			ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Buildings",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Structures",
+						Blocks: []domain.Block{
+							{Type: "building", Data: map[string]interface{}{"name": "Smithy", "age": "bronze"}},
+							{Type: "building", Data: map[string]interface{}{"name": "Barracks", "age": "iron"}},
+							{Type: "building", Data: map[string]interface{}{"name": "Farm", "age": "bronze"}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	blockType := "building"
+	criteria := query.FilterCriteria{
+		BlockType:    &blockType,
+		FieldFilters: map[string]string{"age": "bronze"},
+	}
+	results := qe.FilterBlocks(nodes, criteria)
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 bronze buildings, got %d", len(results))
+	}
+	for _, r := range results {
+		if r.Block.Data["age"] != "bronze" {
+			t.Errorf("expected age 'bronze', got %v", r.Block.Data["age"])
+		}
+	}
+}
+
+func TestQueryEngine_FilterBlocks_MultipleFieldFilters(t *testing.T) {
+	qe := query.New()
+
+	nodes := []domain.Node{
+		{
+			ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Buildings",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Structures",
+						Blocks: []domain.Block{
+							{Type: "building", Data: map[string]interface{}{"name": "Smithy", "age": "bronze", "category": "production"}},
+							{Type: "building", Data: map[string]interface{}{"name": "Barracks", "age": "bronze", "category": "military"}},
+							{Type: "building", Data: map[string]interface{}{"name": "Farm", "age": "iron", "category": "production"}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	blockType := "building"
+	criteria := query.FilterCriteria{
+		BlockType:    &blockType,
+		FieldFilters: map[string]string{"age": "bronze", "category": "production"},
+	}
+	results := qe.FilterBlocks(nodes, criteria)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 bronze production building, got %d", len(results))
+	}
+	if results[0].Block.Data["name"] != "Smithy" {
+		t.Errorf("expected Smithy, got %v", results[0].Block.Data["name"])
+	}
+}
+
+func TestQueryEngine_FilterBlocks_NoMatches(t *testing.T) {
+	qe := query.New()
+
+	nodes := []domain.Node{
+		{
+			ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Buildings",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Structures",
+						Blocks: []domain.Block{
+							{Type: "building", Data: map[string]interface{}{"name": "Smithy", "age": "bronze"}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	blockType := "vehicle"
+	criteria := query.FilterCriteria{
+		BlockType: &blockType,
+	}
+	results := qe.FilterBlocks(nodes, criteria)
+
+	if len(results) != 0 {
+		t.Errorf("expected 0 results, got %d", len(results))
+	}
+}
+
+func TestQueryEngine_FilterBlocks_CombinedNodeAndBlockFilters(t *testing.T) {
+	qe := query.New()
+
+	nodes := []domain.Node{
+		{
+			ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Buildings",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Structures",
+						Blocks: []domain.Block{
+							{Type: "building", Data: map[string]interface{}{"name": "Smithy", "age": "bronze"}},
+						},
+					},
+				},
+			},
+		},
+		{
+			ID: "node2", Kind: "feature", Version: 1, Status: "draft", Title: "More Buildings",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Structures",
+						Blocks: []domain.Block{
+							{Type: "building", Data: map[string]interface{}{"name": "Castle", "age": "medieval"}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	blockType := "building"
+	kind := "system"
+	criteria := query.FilterCriteria{
+		Kind:      &kind,
+		BlockType: &blockType,
+	}
+	results := qe.FilterBlocks(nodes, criteria)
+
+	// Should only find buildings in "system" nodes
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].NodeID != "node1" {
+		t.Errorf("expected node1, got %s", results[0].NodeID)
+	}
+}
+
+func TestQueryEngine_FilterBlocks_ResultContainsContext(t *testing.T) {
+	qe := query.New()
+
+	nodes := []domain.Node{
+		{
+			ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Buildings",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Bronze Age",
+						Blocks: []domain.Block{
+							{Type: "building", Data: map[string]interface{}{"name": "Smithy"}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	blockType := "building"
+	criteria := query.FilterCriteria{
+		BlockType: &blockType,
+	}
+	results := qe.FilterBlocks(nodes, criteria)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+
+	r := results[0]
+	if r.NodeID != "node1" {
+		t.Errorf("expected NodeID 'node1', got %q", r.NodeID)
+	}
+	if r.NodeTitle != "Buildings" {
+		t.Errorf("expected NodeTitle 'Buildings', got %q", r.NodeTitle)
+	}
+	if r.SectionName != "Bronze Age" {
+		t.Errorf("expected SectionName 'Bronze Age', got %q", r.SectionName)
+	}
+	if r.BlockIndex != 0 {
+		t.Errorf("expected BlockIndex 0, got %d", r.BlockIndex)
+	}
+}
+
+func TestQueryEngine_FilterBlocks_FieldFilterStringCoercion(t *testing.T) {
+	// Field filters should match numeric values via string comparison
+	qe := query.New()
+
+	nodes := []domain.Node{
+		{
+			ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Resources",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Materials",
+						Blocks: []domain.Block{
+							{Type: "resource", Data: map[string]interface{}{"name": "Iron", "tier": 3}},
+							{Type: "resource", Data: map[string]interface{}{"name": "Stone", "tier": 1}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	blockType := "resource"
+	criteria := query.FilterCriteria{
+		BlockType:    &blockType,
+		FieldFilters: map[string]string{"tier": "3"},
+	}
+	results := qe.FilterBlocks(nodes, criteria)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for tier=3, got %d", len(results))
+	}
+	if results[0].Block.Data["name"] != "Iron" {
+		t.Errorf("expected Iron, got %v", results[0].Block.Data["name"])
+	}
+}
+
+func TestQueryEngine_FilterBlocks_NodesWithoutContent(t *testing.T) {
+	qe := query.New()
+
+	nodes := []domain.Node{
+		{ID: "node1", Kind: "system", Version: 1, Status: "draft", Title: "Empty Node", Content: nil},
+		{
+			ID: "node2", Kind: "system", Version: 1, Status: "draft", Title: "Has Blocks",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Stuff",
+						Blocks: []domain.Block{
+							{Type: "building", Data: map[string]interface{}{"name": "Smithy"}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	blockType := "building"
+	criteria := query.FilterCriteria{
+		BlockType: &blockType,
+	}
+	results := qe.FilterBlocks(nodes, criteria)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+}
+
 // Helper function to create string pointers
 func strPtr(s string) *string {
 	return &s

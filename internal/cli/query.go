@@ -15,6 +15,8 @@ type queryFlags struct {
 	tag        string
 	targetDir  string
 	searchTerm string
+	blockType  string
+	fields     []string // key=value pairs
 }
 
 // NewQueryCommand creates the query subcommand
@@ -28,18 +30,21 @@ func NewQueryCommand() *cobra.Command {
 
 The search term is optional and searches title and summary (case-insensitive).
 Filters can be combined with search to narrow down results:
-  --kind:   Filter by node type (item, character, quest, etc.)
-  --status: Filter by status (draft, published, etc.)
-  --tag:    Filter by tag (must have this tag)
+  --kind:       Filter by node type (item, character, quest, etc.)
+  --status:     Filter by status (draft, published, etc.)
+  --tag:        Filter by tag (must have this tag)
+  --block-type: Filter by custom block type within content
+  --field:      Filter by block field value (key=value, repeatable)
 
 All filters and search are combined with AND logic.
 
 Examples:
-  deco query sword                    # Search for "sword" in title/summary
-  deco query --kind item              # List all items
-  deco query sword --kind item        # Search "sword" in items only
+  deco query sword                              # Search for "sword" in title/summary
+  deco query --kind item                        # List all items
+  deco query sword --kind item                  # Search "sword" in items only
   deco query --status draft --tag combat
-  deco query "health potion" --kind item --status published`,
+  deco query --block-type building              # List all building blocks
+  deco query --block-type building --field age=bronze  # Bronze age buildings`,
 		Args: cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Parse arguments: [search-term] [directory]
@@ -66,6 +71,8 @@ Examples:
 	cmd.Flags().StringVarP(&flags.kind, "kind", "k", "", "Filter by node kind")
 	cmd.Flags().StringVarP(&flags.status, "status", "s", "", "Filter by status")
 	cmd.Flags().StringVarP(&flags.tag, "tag", "t", "", "Filter by tag")
+	cmd.Flags().StringVarP(&flags.blockType, "block-type", "b", "", "Filter by block type within content")
+	cmd.Flags().StringArrayVarP(&flags.fields, "field", "f", nil, "Filter by block field (key=value, repeatable)")
 
 	return cmd
 }
@@ -115,9 +122,27 @@ func runQuery(flags *queryFlags) error {
 	if flags.tag != "" {
 		criteria.Tags = []string{flags.tag}
 	}
+	if flags.blockType != "" {
+		criteria.BlockType = &flags.blockType
+	}
+	if len(flags.fields) > 0 {
+		criteria.FieldFilters = parseFieldFilters(flags.fields)
+	}
 
-	// Apply filters and search
 	qe := query.New()
+
+	// Block-level query mode
+	if criteria.BlockType != nil {
+		blockResults := qe.FilterBlocks(nodes, criteria)
+		if len(blockResults) == 0 {
+			fmt.Println("No blocks found")
+			return nil
+		}
+		printBlocksTable(blockResults)
+		return nil
+	}
+
+	// Node-level query mode
 	results := qe.Filter(nodes, criteria)
 	if flags.searchTerm != "" {
 		results = qe.Search(results, flags.searchTerm)
@@ -131,4 +156,38 @@ func runQuery(flags *queryFlags) error {
 
 	printNodesTable(results)
 	return nil
+}
+
+// parseFieldFilters parses key=value pairs into a map.
+func parseFieldFilters(fields []string) map[string]string {
+	result := make(map[string]string)
+	for _, f := range fields {
+		parts := splitFirst(f, '=')
+		if len(parts) == 2 {
+			result[parts[0]] = parts[1]
+		}
+	}
+	return result
+}
+
+// splitFirst splits s on the first occurrence of sep.
+func splitFirst(s string, sep byte) []string {
+	for i := 0; i < len(s); i++ {
+		if s[i] == sep {
+			return []string{s[:i], s[i+1:]}
+		}
+	}
+	return []string{s}
+}
+
+// printBlocksTable displays block query results.
+func printBlocksTable(blocks []query.BlockMatch) {
+	fmt.Printf("Found %d block(s):\n\n", len(blocks))
+	for _, b := range blocks {
+		fmt.Printf("  [%s > %s] type: %s\n", b.NodeID, b.SectionName, b.Block.Type)
+		for k, v := range b.Block.Data {
+			fmt.Printf("    %s: %v\n", k, v)
+		}
+		fmt.Println()
+	}
 }

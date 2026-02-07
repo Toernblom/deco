@@ -367,11 +367,97 @@ func (bv *BlockValidator) formatLocation(nodeID, sectionName string, blockIdx in
 	return fmt.Sprintf("in node %q, section %q, block %d", nodeID, sectionName, blockIdx)
 }
 
-// validateCustomType validates a block against a custom type's required fields.
+// validateCustomType validates a block against a custom type's required fields,
+// field type constraints, and enum constraints.
 func (bv *BlockValidator) validateCustomType(block *domain.Block, cfg *config.BlockTypeConfig, nodeID, sectionName string, blockIdx int, location *domain.Location, collector *errors.Collector) {
+	// Check required fields from RequiredFields list (backward compat)
 	for _, field := range cfg.RequiredFields {
 		bv.requireField(block, field, nodeID, sectionName, blockIdx, location, collector)
 	}
+
+	// Check fields from Fields definitions
+	if cfg.Fields != nil {
+		for fieldName, fieldDef := range cfg.Fields {
+			// Check required
+			if fieldDef.Required {
+				bv.requireField(block, fieldName, nodeID, sectionName, blockIdx, location, collector)
+			}
+
+			// Check type and enum only if field is present
+			if val, ok := block.Data[fieldName]; ok {
+				bv.validateFieldType(block, fieldName, val, fieldDef, nodeID, sectionName, blockIdx, location, collector)
+				bv.validateFieldEnum(block, fieldName, val, fieldDef, nodeID, sectionName, blockIdx, location, collector)
+			}
+		}
+	}
+}
+
+// validateFieldType checks that a field value matches the declared type.
+func (bv *BlockValidator) validateFieldType(block *domain.Block, fieldName string, val interface{}, fieldDef config.FieldDef, nodeID, sectionName string, blockIdx int, location *domain.Location, collector *errors.Collector) {
+	if fieldDef.Type == "" {
+		return
+	}
+
+	valid := false
+	switch fieldDef.Type {
+	case "string":
+		_, valid = val.(string)
+	case "number":
+		switch val.(type) {
+		case int, int64, float64:
+			valid = true
+		}
+	case "list":
+		_, valid = val.([]interface{})
+	case "bool":
+		_, valid = val.(bool)
+	default:
+		return // unknown type declaration, skip validation
+	}
+
+	if !valid {
+		collector.Add(domain.DecoError{
+			Code:    "E052",
+			Summary: fmt.Sprintf("Field %q in %s block has wrong type: expected %s, got %T", fieldName, block.Type, fieldDef.Type, val),
+			Detail:  bv.formatLocation(nodeID, sectionName, blockIdx),
+			Location: location,
+		})
+	}
+}
+
+// validateFieldEnum checks that a field value is one of the allowed enum values.
+func (bv *BlockValidator) validateFieldEnum(block *domain.Block, fieldName string, val interface{}, fieldDef config.FieldDef, nodeID, sectionName string, blockIdx int, location *domain.Location, collector *errors.Collector) {
+	if len(fieldDef.Enum) == 0 {
+		return
+	}
+
+	strVal, ok := val.(string)
+	if !ok {
+		return // enum only applies to string values; type check catches non-strings
+	}
+
+	for _, allowed := range fieldDef.Enum {
+		if strVal == allowed {
+			return
+		}
+	}
+
+	err := domain.DecoError{
+		Code:    "E053",
+		Summary: fmt.Sprintf("Field %q in %s block has invalid value %q", fieldName, block.Type, strVal),
+		Detail:  bv.formatLocation(nodeID, sectionName, blockIdx),
+		Location: location,
+	}
+
+	// Generate did-you-mean suggestion
+	suggs := bv.suggester.Suggest(strVal, fieldDef.Enum)
+	if len(suggs) > 0 {
+		err.Suggestion = fmt.Sprintf("Did you mean %q? Allowed values: %v", suggs[0], fieldDef.Enum)
+	} else {
+		err.Suggestion = fmt.Sprintf("Allowed values: %v", fieldDef.Enum)
+	}
+
+	collector.Add(err)
 }
 
 func (bv *BlockValidator) allowedFieldsForBlock(blockType string, isBuiltIn bool, cfg *config.BlockTypeConfig) map[string]bool {
@@ -386,6 +472,9 @@ func (bv *BlockValidator) allowedFieldsForBlock(blockType string, isBuiltIn bool
 			allowed[field] = true
 		}
 		for _, field := range cfg.OptionalFields {
+			allowed[field] = true
+		}
+		for field := range cfg.Fields {
 			allowed[field] = true
 		}
 	}

@@ -1426,3 +1426,583 @@ func TestBlockValidator_TableColumnShowsContents(t *testing.T) {
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && (s[0:len(substr)] == substr || contains(s[1:], substr)))
 }
+
+// ===== FIELD TYPE AND ENUM CONSTRAINT TESTS =====
+
+func TestBlockValidator_FieldDef_StringType_Valid(t *testing.T) {
+	customTypes := map[string]config.BlockTypeConfig{
+		"building": {
+			Fields: map[string]config.FieldDef{
+				"name": {Type: "string", Required: true},
+			},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Buildings",
+					Blocks: []domain.Block{
+						{
+							Type: "building",
+							Data: map[string]interface{}{
+								"name": "Smithy",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for valid string field, got: %v", collector.Errors())
+	}
+}
+
+func TestBlockValidator_FieldDef_StringType_Invalid(t *testing.T) {
+	customTypes := map[string]config.BlockTypeConfig{
+		"building": {
+			Fields: map[string]config.FieldDef{
+				"name": {Type: "string", Required: true},
+			},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Buildings",
+					Blocks: []domain.Block{
+						{
+							Type: "building",
+							Data: map[string]interface{}{
+								"name": 42, // not a string
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for non-string field value")
+	}
+	errs := collector.Errors()
+	foundE052 := false
+	for _, err := range errs {
+		if err.Code == "E052" {
+			foundE052 = true
+		}
+	}
+	if !foundE052 {
+		t.Errorf("expected E052 for field type mismatch, got codes: %v", errorCodes(errs))
+	}
+}
+
+func TestBlockValidator_FieldDef_NumberType_Valid(t *testing.T) {
+	customTypes := map[string]config.BlockTypeConfig{
+		"resource": {
+			Fields: map[string]config.FieldDef{
+				"tier": {Type: "number", Required: true},
+			},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Resources",
+					Blocks: []domain.Block{
+						{
+							Type: "resource",
+							Data: map[string]interface{}{
+								"tier": 3,
+							},
+						},
+						{
+							Type: "resource",
+							Data: map[string]interface{}{
+								"tier": 2.5, // float is also a number
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for valid number fields, got: %v", collector.Errors())
+	}
+}
+
+func TestBlockValidator_FieldDef_NumberType_Invalid(t *testing.T) {
+	customTypes := map[string]config.BlockTypeConfig{
+		"resource": {
+			Fields: map[string]config.FieldDef{
+				"tier": {Type: "number", Required: true},
+			},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Resources",
+					Blocks: []domain.Block{
+						{
+							Type: "resource",
+							Data: map[string]interface{}{
+								"tier": "three", // not a number
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for non-number field value")
+	}
+	errs := collector.Errors()
+	foundE052 := false
+	for _, err := range errs {
+		if err.Code == "E052" {
+			foundE052 = true
+		}
+	}
+	if !foundE052 {
+		t.Errorf("expected E052 for field type mismatch, got codes: %v", errorCodes(errs))
+	}
+}
+
+func TestBlockValidator_FieldDef_ListType_Valid(t *testing.T) {
+	customTypes := map[string]config.BlockTypeConfig{
+		"building": {
+			Fields: map[string]config.FieldDef{
+				"materials": {Type: "list"},
+			},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Buildings",
+					Blocks: []domain.Block{
+						{
+							Type: "building",
+							Data: map[string]interface{}{
+								"materials": []interface{}{"Stone", "Bronze"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for valid list field, got: %v", collector.Errors())
+	}
+}
+
+func TestBlockValidator_FieldDef_ListType_Invalid(t *testing.T) {
+	customTypes := map[string]config.BlockTypeConfig{
+		"building": {
+			Fields: map[string]config.FieldDef{
+				"materials": {Type: "list", Required: true},
+			},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Buildings",
+					Blocks: []domain.Block{
+						{
+							Type: "building",
+							Data: map[string]interface{}{
+								"materials": "Stone", // not a list
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for non-list field value")
+	}
+	errs := collector.Errors()
+	foundE052 := false
+	for _, err := range errs {
+		if err.Code == "E052" {
+			foundE052 = true
+		}
+	}
+	if !foundE052 {
+		t.Errorf("expected E052 for field type mismatch, got codes: %v", errorCodes(errs))
+	}
+}
+
+func TestBlockValidator_FieldDef_BoolType_Valid(t *testing.T) {
+	customTypes := map[string]config.BlockTypeConfig{
+		"terrain": {
+			Fields: map[string]config.FieldDef{
+				"building_allowed": {Type: "bool", Required: true},
+			},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Terrain",
+					Blocks: []domain.Block{
+						{
+							Type: "terrain",
+							Data: map[string]interface{}{
+								"building_allowed": true,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for valid bool field, got: %v", collector.Errors())
+	}
+}
+
+func TestBlockValidator_FieldDef_BoolType_Invalid(t *testing.T) {
+	customTypes := map[string]config.BlockTypeConfig{
+		"terrain": {
+			Fields: map[string]config.FieldDef{
+				"building_allowed": {Type: "bool", Required: true},
+			},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Terrain",
+					Blocks: []domain.Block{
+						{
+							Type: "terrain",
+							Data: map[string]interface{}{
+								"building_allowed": "yes", // not a bool
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for non-bool field value")
+	}
+	errs := collector.Errors()
+	foundE052 := false
+	for _, err := range errs {
+		if err.Code == "E052" {
+			foundE052 = true
+		}
+	}
+	if !foundE052 {
+		t.Errorf("expected E052 for field type mismatch, got codes: %v", errorCodes(errs))
+	}
+}
+
+func TestBlockValidator_FieldDef_Enum_Valid(t *testing.T) {
+	customTypes := map[string]config.BlockTypeConfig{
+		"building": {
+			Fields: map[string]config.FieldDef{
+				"age": {Type: "string", Required: true, Enum: []string{"stone", "bronze", "iron", "classical", "medieval"}},
+			},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Buildings",
+					Blocks: []domain.Block{
+						{
+							Type: "building",
+							Data: map[string]interface{}{
+								"age": "bronze",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for valid enum value, got: %v", collector.Errors())
+	}
+}
+
+func TestBlockValidator_FieldDef_Enum_Invalid_WithSuggestion(t *testing.T) {
+	customTypes := map[string]config.BlockTypeConfig{
+		"building": {
+			Fields: map[string]config.FieldDef{
+				"age": {Type: "string", Required: true, Enum: []string{"stone", "bronze", "iron", "classical", "medieval"}},
+			},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Buildings",
+					Blocks: []domain.Block{
+						{
+							Type: "building",
+							Data: map[string]interface{}{
+								"age": "brnze", // typo
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for invalid enum value")
+	}
+	errs := collector.Errors()
+	foundE053 := false
+	for _, err := range errs {
+		if err.Code == "E053" {
+			foundE053 = true
+			if err.Suggestion == "" {
+				t.Error("expected did-you-mean suggestion for enum typo")
+			}
+		}
+	}
+	if !foundE053 {
+		t.Errorf("expected E053 for invalid enum value, got codes: %v", errorCodes(errs))
+	}
+}
+
+func TestBlockValidator_FieldDef_BackwardCompat(t *testing.T) {
+	// Old-style config with required_fields/optional_fields should still work
+	customTypes := map[string]config.BlockTypeConfig{
+		"quest": {
+			RequiredFields: []string{"name", "reward"},
+			OptionalFields: []string{"description"},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Quests",
+					Blocks: []domain.Block{
+						{
+							Type: "quest",
+							Data: map[string]interface{}{
+								"name":   "Main Quest",
+								"reward": "100 gold",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if collector.HasErrors() {
+		t.Errorf("expected no errors for backward-compatible config, got: %v", collector.Errors())
+	}
+}
+
+func TestBlockValidator_FieldDef_RequiredFromFields(t *testing.T) {
+	// Fields with Required: true should be enforced
+	customTypes := map[string]config.BlockTypeConfig{
+		"building": {
+			Fields: map[string]config.FieldDef{
+				"name":     {Type: "string", Required: true},
+				"age":      {Type: "string", Required: true},
+				"category": {Type: "string"},
+			},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Buildings",
+					Blocks: []domain.Block{
+						{
+							Type: "building",
+							Data: map[string]interface{}{
+								"name": "Smithy",
+								// missing "age" which is required
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for missing required field from Fields definition")
+	}
+	errs := collector.Errors()
+	foundE047 := false
+	for _, err := range errs {
+		if err.Code == "E047" {
+			foundE047 = true
+		}
+	}
+	if !foundE047 {
+		t.Errorf("expected E047 for missing required field, got codes: %v", errorCodes(errs))
+	}
+}
+
+func TestBlockValidator_FieldDef_UnknownFieldRejected(t *testing.T) {
+	// Fields definition should also enforce allowed fields
+	customTypes := map[string]config.BlockTypeConfig{
+		"building": {
+			Fields: map[string]config.FieldDef{
+				"name": {Type: "string", Required: true},
+				"age":  {Type: "string", Required: true},
+			},
+		},
+	}
+	validator := NewBlockValidatorWithConfig(customTypes)
+	collector := errors.NewCollectorWithLimit(100)
+
+	node := domain.Node{
+		ID: "test-node",
+		Content: &domain.Content{
+			Sections: []domain.Section{
+				{
+					Name: "Buildings",
+					Blocks: []domain.Block{
+						{
+							Type: "building",
+							Data: map[string]interface{}{
+								"name":  "Smithy",
+								"age":   "bronze",
+								"naame": "typo", // unknown field
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator.Validate(&node, collector)
+
+	if !collector.HasErrors() {
+		t.Fatal("expected error for unknown field when Fields is defined")
+	}
+	errs := collector.Errors()
+	foundE049 := false
+	for _, err := range errs {
+		if err.Code == "E049" {
+			foundE049 = true
+		}
+	}
+	if !foundE049 {
+		t.Errorf("expected E049 for unknown field, got codes: %v", errorCodes(errs))
+	}
+}
+
+// errorCodes extracts just the error codes from a slice of DecoErrors
+func errorCodes(errs []domain.DecoError) []string {
+	codes := make([]string, len(errs))
+	for i, err := range errs {
+		codes[i] = err.Code
+	}
+	return codes
+}

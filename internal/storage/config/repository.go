@@ -2,12 +2,29 @@ package config
 
 import "path/filepath"
 
+// RefConstraint declares that a field references values from another block type.
+type RefConstraint struct {
+	BlockType string `yaml:"block_type" json:"block_type"` // the referenced block type
+	Field     string `yaml:"field" json:"field"`           // the field name to match against
+}
+
+// FieldDef defines a field with type, required, and constraint information.
+type FieldDef struct {
+	Type     string         `yaml:"type" json:"type"`                       // string, number, list, bool
+	Required bool           `yaml:"required" json:"required"`               // whether the field must be present
+	Enum     []string       `yaml:"enum,omitempty" json:"enum,omitempty"`   // allowed values (for string fields)
+	Ref      *RefConstraint `yaml:"ref,omitempty" json:"ref,omitempty"`     // cross-reference constraint
+}
+
 // BlockTypeConfig defines validation rules for a custom block type.
 type BlockTypeConfig struct {
 	// RequiredFields lists field names that must be present in block.Data.
 	RequiredFields []string `yaml:"required_fields" json:"required_fields"`
 	// OptionalFields lists additional allowed fields for the block type.
 	OptionalFields []string `yaml:"optional_fields,omitempty" json:"optional_fields,omitempty"`
+	// Fields defines typed field definitions with constraints.
+	// When set, provides type checking, enum validation, and required enforcement.
+	Fields map[string]FieldDef `yaml:"fields,omitempty" json:"fields,omitempty"`
 }
 
 // SchemaRuleConfig defines validation rules for nodes of a specific kind.

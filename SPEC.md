@@ -133,7 +133,7 @@ history_path: .deco/history.jsonl
 version: 1
 required_approvals: 2  # For review workflow
 
-# Define custom block types with validation
+# Define custom block types with validation (simple syntax)
 custom_block_types:
   endpoint:
     required_fields:
@@ -143,6 +143,26 @@ custom_block_types:
     optional_fields:
       - auth
       - rate_limit
+
+# Define custom block types with typed fields (advanced syntax)
+# Supports type checking, enum validation, and cross-references
+custom_block_types:
+  building:
+    fields:
+      name: {type: string, required: true}
+      size: {type: string, required: true}
+      age: {type: string, required: true, enum: [stone, bronze, iron]}
+      category: {type: string, required: true, enum: [production, military]}
+      materials: {type: list, ref: {block_type: resource, field: name}}
+  resource:
+    fields:
+      name: {type: string, required: true}
+      tier: {type: number, required: true}
+  recipe:
+    fields:
+      output: {type: string, required: true, ref: {block_type: resource, field: name}}
+      building: {type: string, required: true, ref: {block_type: building, field: name}}
+      inputs: {type: list, ref: {block_type: resource, field: name}}
 
 # Define per-kind schema rules for nodes
 schema_rules:
@@ -156,9 +176,19 @@ schema_rules:
       - dependencies
 ```
 
-Custom block types extend the built-in types (rule, table, param, mechanic, list). When a custom type shares a name with a built-in type, both validations apply. Custom block types allow `required_fields` + `optional_fields` + `id`.
+Custom block types extend the built-in types (rule, table, param, mechanic, list). When a custom type shares a name with a built-in type, both validations apply.
 
-Block fields are strictly validated: unknown block fields (including table column keys outside `key`, `type`, `enum`, `display`) produce validation errors with suggestions.
+**Simple syntax**: `required_fields` + `optional_fields` + `id`. Validates field presence only.
+
+**Advanced syntax**: `fields` map with typed field definitions. Supports:
+- **Type checking**: `type` can be `string`, `number`, `list`, or `bool` (error E052)
+- **Enum validation**: `enum` constrains string values with did-you-mean suggestions (error E053)
+- **Cross-references**: `ref: {block_type, field}` validates values exist in another block type (error E054)
+- **Required enforcement**: `required: true` ensures the field is present (error E047)
+
+Both syntaxes can coexist. Block fields are strictly validated: unknown block fields produce validation errors with suggestions (E049).
+
+**Block-level queries**: `deco query --block-type building --field age=bronze` filters blocks across all nodes.
 
 Schema rules enforce required custom fields per node kind. The `required_fields` must be present in the node's `custom:` section. Nodes with kinds not listed in schema_rules are not constrained.
 
