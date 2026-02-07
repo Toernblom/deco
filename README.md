@@ -108,12 +108,6 @@ issues:
     description: "Define refresh token rotation policy"
     severity: medium
     resolved: false
-
-contracts:
-  - name: "Unauthorized access returns 401"
-    given: ["no Authorization header present"]
-    when: ["GET /users/123 is called"]
-    then: ["response status is 401"]
 ```
 
 See [docs/SPEC.md](docs/SPEC.md) for the full node format, including constraints, custom fields, and LLM context.
