@@ -1,0 +1,31 @@
+Deco — Structured Documentation for Complex Systems
+Copyright (C) 2026 Anton Törnblom
+
+This program is licensed under the GNU Affero General Public License v3.0
+or later (AGPL-3.0-or-later). See the LICENSE file for the full license text.
+
+DUAL LICENSING
+==============
+
+Deco is available under two licensing options:
+
+1. AGPL-3.0-or-later (Open Source)
+   For open source use, self-hosting, and community contributions.
+   The full license text is in the LICENSE file.
+
+2. Commercial License
+   For organizations that cannot comply with AGPL requirements
+   (e.g., proprietary SaaS offerings, enterprise deployments with
+   IP restrictions), a commercial license is available.
+   Contact: tornblomanton@gmail.com
+
+CONTRIBUTOR LICENSE AGREEMENT
+=============================
+
+By submitting contributions to this project, you agree to the
+Developer Certificate of Origin (DCO). Sign off your commits with:
+
+    git commit -s -m "Your commit message"
+
+This certifies that you have the right to submit the contribution
+and agree to license it under the same terms as the project.

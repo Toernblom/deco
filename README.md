@@ -449,4 +449,8 @@ go install github.com/anthropics/deco/cmd/deco@latest
 
 ## License
 
-Open source (license TBD)
+Deco is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-or-later).
+
+You are free to use, modify, and distribute this software under the terms of the AGPL. If you modify Deco and offer it as a network service, you must make your source code available to users of that service.
+
+A commercial license is available for organizations that cannot comply with AGPL requirements. See [NOTICE](NOTICE) for details.
