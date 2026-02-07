@@ -1,4 +1,5 @@
-# bv (beads viewer) local config and caches
+# Beads / bv local data
+.beads/
 .bv/
 
 # Go build artifacts
