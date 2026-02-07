@@ -987,3 +987,103 @@ tags:
 		t.Fatalf("Failed to create node: %v", err)
 	}
 }
+
+func TestComputeContentHashWithDir_IncludesDocFiles(t *testing.T) {
+	dir := t.TempDir()
+	mdPath := filepath.Join(dir, "narrative.md")
+	os.WriteFile(mdPath, []byte("The story begins."), 0644)
+
+	node := domain.Node{
+		ID:      "test/node",
+		Kind:    "system",
+		Version: 1,
+		Status:  "draft",
+		Title:   "Test",
+		Docs: []domain.DocRef{
+			{Path: "narrative.md"},
+		},
+	}
+
+	t.Run("hash changes when doc file content changes", func(t *testing.T) {
+		hash1 := ComputeContentHashWithDir(node, dir)
+
+		// Change the .md file content
+		os.WriteFile(mdPath, []byte("The story continues with a twist."), 0644)
+
+		hash2 := ComputeContentHashWithDir(node, dir)
+
+		if hash1 == hash2 {
+			t.Error("expected hash to change when doc file content changes")
+		}
+	})
+
+	t.Run("hash is consistent for same content", func(t *testing.T) {
+		hash1 := ComputeContentHashWithDir(node, dir)
+		hash2 := ComputeContentHashWithDir(node, dir)
+		if hash1 != hash2 {
+			t.Errorf("expected consistent hash, got %s and %s", hash1, hash2)
+		}
+	})
+
+	t.Run("missing doc file is silently skipped", func(t *testing.T) {
+		nodeWithMissing := domain.Node{
+			ID:      "test/node2",
+			Kind:    "system",
+			Version: 1,
+			Status:  "draft",
+			Title:   "Test",
+			Docs: []domain.DocRef{
+				{Path: "nonexistent.md"},
+			},
+		}
+
+		hash := ComputeContentHashWithDir(nodeWithMissing, dir)
+		if hash == "" {
+			t.Error("expected non-empty hash even with missing doc file")
+		}
+	})
+
+	t.Run("includes doc block file paths in hash", func(t *testing.T) {
+		blockMdPath := filepath.Join(dir, "scene.md")
+		os.WriteFile(blockMdPath, []byte("A dark and stormy night."), 0644)
+
+		nodeWithDocBlock := domain.Node{
+			ID:      "test/blocks",
+			Kind:    "system",
+			Version: 1,
+			Status:  "draft",
+			Title:   "Test",
+			Content: &domain.Content{
+				Sections: []domain.Section{
+					{
+						Name: "Narrative",
+						Blocks: []domain.Block{
+							{
+								Type: "doc",
+								Data: map[string]interface{}{
+									"path": "scene.md",
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		hash1 := ComputeContentHashWithDir(nodeWithDocBlock, dir)
+		os.WriteFile(blockMdPath, []byte("A bright and sunny morning."), 0644)
+		hash2 := ComputeContentHashWithDir(nodeWithDocBlock, dir)
+
+		if hash1 == hash2 {
+			t.Error("expected hash to change when doc block file changes")
+		}
+	})
+
+	t.Run("without projectRoot falls back to yaml-only hash", func(t *testing.T) {
+		hash1 := ComputeContentHash(node)
+		hash2 := ComputeContentHashWithDir(node, "")
+		if hash1 != hash2 {
+			t.Errorf("expected same hash without project root, got %s and %s", hash1, hash2)
+		}
+	})
+}

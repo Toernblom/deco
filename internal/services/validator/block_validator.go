@@ -16,6 +16,7 @@ var knownBlockTypes = map[string]bool{
 	"param":    true,
 	"mechanic": true,
 	"list":     true,
+	"doc":      true,
 }
 
 var builtInBlockFields = map[string][]string{
@@ -24,6 +25,7 @@ var builtInBlockFields = map[string][]string{
 	"param":    {"id", "name", "datatype", "min", "max", "default", "unit", "description"},
 	"mechanic": {"id", "name", "description", "conditions", "outputs", "inputs"},
 	"list":     {"id", "items"},
+	"doc":      {"id", "path", "keywords", "context"},
 }
 
 var allowedTableColumnFields = map[string]bool{
@@ -138,6 +140,8 @@ func (bv *BlockValidator) validateBlock(block *domain.Block, nodeID, sectionName
 			bv.validateMechanic(block, nodeID, sectionName, blockIdx, location, collector)
 		case "list":
 			bv.validateList(block, nodeID, sectionName, blockIdx, location, collector)
+		case "doc":
+			bv.validateDoc(block, nodeID, sectionName, blockIdx, location, collector)
 		}
 	}
 
@@ -342,6 +346,12 @@ func (bv *BlockValidator) validateParam(block *domain.Block, nodeID, sectionName
 func (bv *BlockValidator) validateMechanic(block *domain.Block, nodeID, sectionName string, blockIdx int, location *domain.Location, collector *errors.Collector) {
 	bv.requireField(block, "name", nodeID, sectionName, blockIdx, location, collector)
 	bv.requireField(block, "description", nodeID, sectionName, blockIdx, location, collector)
+}
+
+// validateDoc checks that doc blocks have required fields.
+// Required: path
+func (bv *BlockValidator) validateDoc(block *domain.Block, nodeID, sectionName string, blockIdx int, location *domain.Location, collector *errors.Collector) {
+	bv.requireField(block, "path", nodeID, sectionName, blockIdx, location, collector)
 }
 
 // validateList checks that list blocks have required fields.

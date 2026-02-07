@@ -160,7 +160,7 @@ func runSync(flags *syncFlags) (int, error) {
 		// Check if this node has history
 		if latestHashes[currentNode.ID] == "" {
 			// No history - this is either a new node or a renamed node
-			contentHash := ComputeContentHash(currentNode)
+			contentHash := ComputeContentHashWithDir(currentNode, flags.targetDir)
 			orphanNodes[contentHash] = currentNode
 		}
 	}
@@ -275,7 +275,7 @@ func runSync(flags *syncFlags) (int, error) {
 	var baselinedNodes []string
 
 	for _, currentNode := range allNodes {
-		currentHash := ComputeContentHash(currentNode)
+		currentHash := ComputeContentHashWithDir(currentNode, flags.targetDir)
 		lastHash := latestHashes[currentNode.ID]
 
 		if lastHash == "" {

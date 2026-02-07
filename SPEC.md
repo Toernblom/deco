@@ -42,15 +42,21 @@ References (`refs`):
 - `vocabulary`: Shared term definitions
 
 Content (`content.sections`):
-- Blocks of type: table, rule, param, mechanic, list
+- Blocks of type: table, rule, param, mechanic, list, doc
 - Custom block types can be defined in project config
 - Block fields are strictly validated; unknown fields are errors (table columns allow only `key`, `type`, `enum`, `display`)
+
+External docs (`docs`):
+- Reference external `.md` files with `path` (required), `keywords` (optional), `context` (optional)
+- Available as node-level field (`docs:`) and as block type (`type: doc`) in content sections
+- `deco validate` checks file existence (E055) and keyword presence (E056, case-insensitive)
+- `deco sync` includes referenced `.md` file contents in content hash; changes trigger version bumps and review resets
 
 Issues (`issues`):
 - Tracked TBDs with id, description, severity (low/medium/high/critical), location, resolved
 
 Optional/extensible:
-- `tags`, `summary`, `glossary`, `contracts`, `llm_context`, `constraints`, `reviewers`, `custom`
+- `tags`, `summary`, `glossary`, `contracts`, `llm_context`, `constraints`, `reviewers`, `docs`, `custom`
 
 ## CLI Commands
 
@@ -176,7 +182,7 @@ schema_rules:
       - dependencies
 ```
 
-Custom block types extend the built-in types (rule, table, param, mechanic, list). When a custom type shares a name with a built-in type, both validations apply.
+Custom block types extend the built-in types (rule, table, param, mechanic, list, doc). When a custom type shares a name with a built-in type, both validations apply.
 
 **Simple syntax**: `required_fields` + `optional_fields` + `id`. Validates field presence only.
 

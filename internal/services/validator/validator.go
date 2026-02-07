@@ -635,6 +635,7 @@ var knownTopLevelKeys = map[string]bool{
 	"contracts":   true,
 	"llm_context": true,
 	"constraints": true,
+	"docs":        true, // External doc references
 	"reviewers":   true, // Review workflow approvals
 	"custom":      true, // Explicit extension namespace
 }
@@ -676,6 +677,13 @@ var knownContractKeys = map[string]bool{
 	"given":    true,
 	"when":     true,
 	"then":     true,
+}
+
+// knownDocRefKeys defines the valid keys in a doc reference entry.
+var knownDocRefKeys = map[string]bool{
+	"path":     true,
+	"keywords": true,
+	"context":  true,
 }
 
 // knownContentKeys defines the valid keys in the content section.
@@ -846,6 +854,16 @@ func (uf *UnknownFieldValidator) ValidateNestedFields(nodeID string, filePath st
 		}
 	}
 
+	// Validate docs[] entries
+	if docs, ok := rawMap["docs"].([]interface{}); ok {
+		for i, entry := range docs {
+			if entryMap, ok := entry.(map[string]interface{}); ok {
+				path := fmt.Sprintf("docs[%d]", i)
+				uf.validateMapKeys(nodeID, path, entryMap, knownDocRefKeys, location, collector)
+			}
+		}
+	}
+
 	// Validate content section
 	if content, ok := rawMap["content"].(map[string]interface{}); ok {
 		uf.validateMapKeys(nodeID, "content", content, knownContentKeys, location, collector)
@@ -1012,6 +1030,7 @@ type Orchestrator struct {
 	blockValidator        *BlockValidator
 	approvalValidator     *ApprovalValidator
 	crossRefValidator     *CrossRefValidator
+	docValidator          *DocValidator
 }
 
 // NewOrchestratorWithConfig creates a validator orchestrator with config-based settings.
@@ -1026,6 +1045,7 @@ func NewOrchestratorWithConfig(requiredApprovals int) *Orchestrator {
 		contractValidator:     NewContractValidator(),
 		blockValidator:        NewBlockValidator(),
 		approvalValidator:     NewApprovalValidator(requiredApprovals),
+		docValidator:          NewDocValidator(),
 	}
 }
 
@@ -1044,6 +1064,7 @@ func NewOrchestratorWithFullConfig(requiredApprovals int, customBlockTypes map[s
 		blockValidator:        NewBlockValidatorWithConfig(customBlockTypes),
 		approvalValidator:     NewApprovalValidator(requiredApprovals),
 		crossRefValidator:     NewCrossRefValidator(customBlockTypes),
+		docValidator:          NewDocValidator(),
 	}
 }
 
@@ -1114,6 +1135,23 @@ func (o *Orchestrator) ValidateAllWithDir(nodes []domain.Node, rootDir string) *
 
 	// Check for unknown top-level fields in YAML files
 	o.unknownFieldValidator.ValidateDirectory(rootDir, collector)
+
+	// Validate doc references (node-level docs and doc blocks)
+	if o.docValidator != nil {
+		for i := range nodes {
+			o.docValidator.ValidateNodeDocs(&nodes[i], rootDir, collector)
+			// Validate doc blocks within content
+			if nodes[i].Content != nil {
+				for _, section := range nodes[i].Content.Sections {
+					for blockIdx, block := range section.Blocks {
+						if block.Type == "doc" {
+							o.docValidator.ValidateDocBlock(&block, nodes[i].ID, section.Name, blockIdx, rootDir, collector)
+						}
+					}
+				}
+			}
+		}
+	}
 
 	return collector
 }

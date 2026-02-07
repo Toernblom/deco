@@ -130,6 +130,22 @@ func outputHuman(node *domain.Node, referencedBy []string) {
 		fmt.Printf("%s    %s\n", style.Muted.Sprint("Tags:"), style.Info.Sprint(strings.Join(node.Tags, ", ")))
 	}
 
+	// Docs
+	if len(node.Docs) > 0 {
+		fmt.Println()
+		fmt.Println(style.Header.Sprint("Docs:"))
+		for _, doc := range node.Docs {
+			if len(doc.Keywords) > 0 {
+				fmt.Printf("  %s %s %s\n", style.SymbolBullet, doc.Path, style.Muted.Sprintf("(keywords: %s)", strings.Join(doc.Keywords, ", ")))
+			} else {
+				fmt.Printf("  %s %s\n", style.SymbolBullet, doc.Path)
+			}
+			if doc.Context != "" {
+				fmt.Printf("    %s\n", style.Muted.Sprint(doc.Context))
+			}
+		}
+	}
+
 	// Content
 	if node.Content != nil && len(node.Content.Sections) > 0 {
 		fmt.Println()

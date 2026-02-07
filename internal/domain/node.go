@@ -34,6 +34,9 @@ type Node struct {
 	// Tracked TBDs and questions
 	Issues []Issue `json:"issues,omitempty" yaml:"issues,omitempty"`
 
+	// External doc references
+	Docs []DocRef `json:"docs,omitempty" yaml:"docs,omitempty"`
+
 	// Optional fields
 	Summary     string                 `json:"summary,omitempty" yaml:"summary,omitempty"`
 	Glossary    map[string]string      `json:"glossary,omitempty" yaml:"glossary,omitempty"`
@@ -137,6 +140,13 @@ func (b Block) MarshalYAML() (interface{}, error) {
 	return node, nil
 }
 
+// DocRef represents a reference to an external markdown file.
+type DocRef struct {
+	Path     string   `json:"path" yaml:"path"`
+	Keywords []string `json:"keywords,omitempty" yaml:"keywords,omitempty"`
+	Context  string   `json:"context,omitempty" yaml:"context,omitempty"`
+}
+
 // Contract represents a Gherkin-style scenario or acceptance criteria.
 type Contract struct {
 	Name     string   `json:"name" yaml:"name"`
@@ -231,6 +241,7 @@ type nodeForMarshal struct {
 	Title       string             `yaml:"title"`
 	Tags        []string           `yaml:"tags,omitempty"`
 	Refs        Ref                `yaml:"refs,omitempty"`
+	Docs        []DocRef           `yaml:"docs,omitempty"`
 	Content     *Content           `yaml:"content,omitempty"`
 	Issues      []Issue            `yaml:"issues,omitempty"`
 	Summary     string             `yaml:"summary,omitempty"`
@@ -253,6 +264,7 @@ func (n Node) MarshalYAML() (interface{}, error) {
 		Title:       n.Title,
 		Tags:        n.Tags,
 		Refs:        n.Refs,
+		Docs:        n.Docs,
 		Content:     n.Content,
 		Issues:      n.Issues,
 		Summary:     n.Summary,

@@ -26,44 +26,61 @@ func printLLMReference() {
 
 const llmReference = `# Deco LLM Quick Reference
 
-Deco manages documentation as validated YAML nodes with references and history.
+Deco manages structured documentation as validated YAML nodes with typed blocks, cross-references, and history.
 
 ## Workflow
 
-Edit YAML files directly, then run 'deco sync' to detect changes and update history.
+Edit YAML files directly in .deco/nodes/, then run 'deco sync' to detect changes and update history.
+Run 'deco validate' after edits to catch errors. All validation errors include error codes (E0xx).
 
 ## Commands
 
-Reading:
-  deco list [--kind X] [--status X]   List nodes
-  deco show <id>                      Show node + reverse refs
-  deco query [--kind X] [--tag X]     Search/filter nodes
-  deco validate                       Check all nodes
-  deco issues                         List open TBDs by severity
-  deco stats                          Project health overview
-  deco graph --ascii                  Show dependency graph
+Reading & Querying:
+  deco list [--kind X] [--status X] [--tag X]   List nodes
+  deco show <id> [--json]                        Show node + reverse refs
+  deco query [term] [--kind X] [--tag X]         Search/filter nodes
+  deco query --block-type X [--field key=val]    Query blocks within nodes
+  deco validate [--quiet]                        Check all nodes
+  deco issues [--severity X] [--node X]          List open TBDs
+  deco stats                                     Project health overview
+  deco graph [--format dot|mermaid|ascii]        Show dependency graph
 
-History:
-  deco sync                           Detect edits, bump versions, track history
-  deco history [<id>]                 Show audit log
-  deco diff <id>                      Show changes over time
+History & Sync:
+  deco sync [--dry-run]                          Detect edits, bump versions, track history
+  deco history [--node <id>]                     Show audit log
+  deco diff <id> [--since 2h]                    Show changes over time
 
 Review:
-  deco review submit <id>             Submit for review
-  deco review approve <id>            Approve node
-  deco review reject <id>             Reject node
-  deco review status [<id>]           Check review status
+  deco review submit <id>                        Submit for review
+  deco review approve <id> [--note "msg"]        Approve node
+  deco review reject <id> --note "reason"        Reject node
+  deco review status [<id>]                      Check review status
 
 Setup:
-  deco init                           Initialize new project
-  deco migrate                        Migrate from older format
+  deco init                                      Initialize new project
+  deco migrate                                   Migrate from older format
+
+## Querying
+
+Node-level (default): filters and searches across nodes.
+  deco query "sword"                     # Search title/summary
+  deco query --kind item --tag combat    # Filter by kind + tag
+  deco query "sword" --kind item         # Combine search + filter
+
+Block-level: filters blocks within node content. Activated by --block-type.
+  deco query --block-type building                         # All building blocks
+  deco query --block-type building --field age=bronze      # Filter by field value
+  deco query --block-type recipe --field output=Bronze     # Multiple --field uses AND logic
+  deco query --kind system --block-type building           # Combine node + block filters
+
+Returns block data with context: [node_id > section_name] type + all fields.
 
 ## Node Structure (YAML)
 
 Required fields:
-  id: systems/example      # Matches file path
+  id: systems/example      # Must match file path (systems/example.yaml)
   kind: system             # system, component, feature, item, etc.
-  version: 1               # Auto-incremented
+  version: 1               # Auto-incremented by sync
   status: draft            # draft, review, approved, published, deprecated
   title: Example System
 
@@ -77,23 +94,43 @@ Optional fields:
         context: Why this dependency
     related:
       - target: another/node
+    emits_events:
+      - events/some_event
+    vocabulary:
+      - glossaries/terms
   content:
     sections:
       - name: Section Name
         blocks:
-          - type: rule|table|param|mechanic|list
-            # block-specific fields
+          - type: rule|table|param|mechanic|list|doc|<custom>
+            # block-specific fields below
+  docs:
+    - path: narratives/chapter-1.md       # Relative to project root
+      keywords: [protagonist, betrayal]   # Must appear in file (case-insensitive)
+      context: Main narrative             # Optional description
   issues:
     - id: tbd_1
       description: Unresolved question
       severity: medium        # low, medium, high, critical
       location: content.sections[0]
       resolved: false
+  contracts:
+    - name: Contract name
+      scenario: Description
+      given: [preconditions]
+      when: [actions]
+      then: [expected results]
+  constraints:
+    - expr: "version > 0"        # CEL expression
+      message: "Version must be positive"
+      scope: all                 # all or specific kind
   glossary:
     term: Definition
   llm_context: Extra context for AI
+  custom:
+    any_key: any_value
 
-## Block Types
+## Built-in Block Types
 
 rule:
   - type: rule
@@ -128,32 +165,114 @@ list:
   - type: list
     items: [item1, item2]
 
+doc:
+  - type: doc
+    path: narratives/scene.md           # Required: relative to project root
+    keywords: [storm, arrival]          # Optional: validated against file content
+    context: Opening scene              # Optional: description
+
+## External Doc References
+
+Reference .md files from nodes (node-level) or blocks (doc block type).
+Deco validates that files exist and contain declared keywords.
+
+Node-level docs:
+  docs:
+    - path: narratives/chapter-1.md
+      keywords: [protagonist, betrayal]
+      context: Full chapter narrative
+
+Block-level doc (in content sections):
+  - type: doc
+    path: narratives/opening-scene.md
+    keywords: [storm, mysterious stranger]
+
+Validation:
+  E055 - Doc file not found (path doesn't resolve)
+  E056 - Missing keyword in doc (case-insensitive substring match)
+
+Sync integration:
+  Changes to referenced .md files trigger version bumps and review resets,
+  just like editing the YAML itself. This creates a feedback loop:
+  .md changes -> sync bumps version -> review needed -> check keywords still match.
+
 ## Custom Block Types
 
-Define in .deco/config.yaml:
+Define in .deco/config.yaml. Two syntaxes supported:
 
-custom_block_types:
-  endpoint:                    # Block type name
-    required_fields:
-      - method
-      - path
-      - response
-    optional_fields:
-      - auth
-      - rate_limit
+Simple syntax (field presence validation only):
+  custom_block_types:
+    endpoint:
+      required_fields: [method, path, response]
+      optional_fields: [auth, rate_limit]
+
+Advanced syntax (typed fields with constraints and cross-references):
+  custom_block_types:
+    building:
+      fields:
+        name: {type: string, required: true}
+        age: {type: string, required: true, enum: [stone, bronze, iron]}
+        category: {type: string, enum: [production, military, residential]}
+        materials: {type: list, ref: {block_type: resource, field: name}}
+    resource:
+      fields:
+        name: {type: string, required: true}
+        tier: {type: number, required: true}
+    recipe:
+      fields:
+        output: {type: string, required: true, ref: {block_type: resource, field: name}}
+        inputs: {type: list, ref: {block_type: resource, field: name}}
+
+Field definition options:
+  type:      string, number, list, bool (validated at E052)
+  required:  true/false - field must be present (validated at E047)
+  enum:      [val1, val2] - restrict to allowed values (validated at E053, suggests typo fixes)
+  ref:       {block_type: X, field: Y} - value must exist in another block type (validated at E054)
 
 Usage in nodes:
-  - type: endpoint
-    method: POST
-    path: /api/users
-    response: User object
-    auth: bearer
+  - type: building
+    name: Smithy
+    age: bronze
+    category: production
+    materials: [Iron, Wood]
+  - type: resource
+    name: Iron
+    tier: 2
+
+Cross-references are validated across ALL nodes. If materials references
+resource.name, then every value in materials must match a name field in some
+resource block somewhere in the project.
+
+## Schema Rules
+
+Define per-kind field requirements in .deco/config.yaml:
+  schema_rules:
+    requirement:
+      required_fields: [priority, acceptance_criteria]
+    component:
+      required_fields: [owner]
+
+## Validation Error Codes
+
+Key errors you'll encounter:
+  E008  Missing required node field (id, kind, version, status, title)
+  E010  Unknown field in node or nested structure (typo detection with suggestions)
+  E020  Reference target not found
+  E047  Missing required block field
+  E048  Unknown block type (not built-in or custom)
+  E049  Unknown field in block (strict validation, no extra fields allowed)
+  E051  Missing required schema rule field
+  E052  Field type mismatch (e.g., string where number expected)
+  E053  Invalid enum value (with did-you-mean suggestions)
+  E054  Cross-reference not found (value doesn't exist in referenced block type)
+  E055  Doc file not found (referenced .md file missing)
+  E056  Missing keyword in doc (keyword not in .md file content)
 
 ## File Layout
 
 .deco/
-  config.yaml
-  history.jsonl
+  config.yaml              # Project config, custom block types, schema rules
+  history.jsonl            # Append-only audit log
   nodes/
     systems/core.yaml      # id: systems/core
     items/food.yaml        # id: items/food
@@ -162,10 +281,13 @@ Usage in nodes:
 
 1. Edit YAML directly: Create/modify files in .deco/nodes/, then run 'deco sync'
 2. Always read before edit: Use 'deco show <id>' or read the YAML file
-3. Validate after changes: Run 'deco validate' to catch errors
-4. Use issues for TBDs: Don't leave unresolved questions in content
-5. Reference other nodes: Use refs.uses for dependencies
-6. Keep nodes focused: One concept per node, link related concepts
-7. Match id to path: systems/auth.yaml must have id: systems/auth
-8. Sync detects changes: Version auto-increments, history is tracked
+3. Validate after changes: Run 'deco validate' to catch errors early
+4. Use block-level queries: 'deco query --block-type X --field k=v' to find specific data
+5. Define typed blocks: Use advanced custom_block_types with type/enum/ref for data integrity
+6. Cross-reference blocks: Use ref constraints to link block types (e.g., recipe -> resource)
+7. Use doc references: Put prose in .md files, reference with docs or doc blocks
+8. Use issues for TBDs: Don't leave unresolved questions in content
+9. Reference other nodes: Use refs.uses for dependencies between nodes
+10. Keep nodes focused: One concept per node, link related concepts
+11. Match id to path: systems/auth.yaml must have id: systems/auth
 `
