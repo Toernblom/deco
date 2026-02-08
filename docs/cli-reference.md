@@ -275,6 +275,52 @@ Updates nodes to match the current schema structure.
 
 ---
 
+## Export
+
+### `deco export`
+
+Export nodes as markdown documents.
+
+```bash
+deco export systems/combat              # Single node to markdown (stdout)
+deco export                             # All nodes to stdout
+deco export --output docs/              # Write one .md per node to directory
+```
+
+| Flag | Description |
+|------|-------------|
+| `--format` | Export format (default: `markdown`) |
+| `--output` | Output directory or file path |
+
+### Compact Export (LLM-optimized)
+
+Compact mode produces dense, token-efficient output designed for LLM context windows.
+
+```bash
+deco export --compact --kind system              # All systems, compact
+deco export --compact systems/combat             # Single node, compact
+deco export --compact systems/combat --follow    # Node + direct dependencies
+deco export --compact --kind system --follow uses --depth 2
+deco export --compact --output context.md --kind system --follow all
+```
+
+| Flag | Description |
+|------|-------------|
+| `--compact` | LLM-optimized compact output |
+| `--follow [uses\|related\|all]` | Follow node refs to include dependencies (default: `uses` when flag is bare) |
+| `--depth N` | How many levels deep to follow refs (default: 1, 0=unlimited) |
+| `-k, --kind` | Filter by node kind |
+| `-s, --status` | Filter by status |
+| `-t, --tag` | Filter by tag |
+
+**Notes:**
+- `--follow` and `--depth` require `--compact`
+- `--follow` with no value defaults to `uses`
+- `--depth 0` means unlimited (follow all reachable nodes)
+- `--output` in compact mode writes all output to a single file
+
+---
+
 ## Configuration
 
 Project configuration in `.deco/config.yaml`:
