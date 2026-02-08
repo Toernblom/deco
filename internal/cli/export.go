@@ -33,6 +33,7 @@ type exportFlags struct {
 	output    string
 	targetDir string
 	compact   bool
+	obsidian  bool
 	follow    string
 	depth     int
 	kind      string
@@ -73,10 +74,15 @@ Examples:
 					nodeID = args[0]
 					flags.targetDir = args[1]
 				} else if len(args) == 1 {
-					// Could be a node ID or a directory
-					// Try as node ID first (default target dir is ".")
-					nodeID = args[0]
-					flags.targetDir = "."
+					if flags.obsidian {
+						// --obsidian doesn't take a node ID, single arg is directory
+						flags.targetDir = args[0]
+					} else {
+						// Could be a node ID or a directory
+						// Try as node ID first (default target dir is ".")
+						nodeID = args[0]
+						flags.targetDir = "."
+					}
 				}
 			} else {
 				flags.targetDir = "."
@@ -88,6 +94,7 @@ Examples:
 	cmd.Flags().StringVar(&flags.format, "format", "markdown", "Export format (markdown)")
 	cmd.Flags().StringVar(&flags.output, "output", "", "Output directory (writes one .md per node)")
 	cmd.Flags().BoolVar(&flags.compact, "compact", false, "LLM-optimized compact output")
+	cmd.Flags().BoolVar(&flags.obsidian, "obsidian", false, "Export as Obsidian vault to .deco/vault/")
 	cmd.Flags().StringVar(&flags.follow, "follow", "", "Follow node refs (uses, related, all)")
 	cmd.Flags().IntVar(&flags.depth, "depth", 1, "How many levels deep to follow refs (0=unlimited)")
 	cmd.Flags().StringVarP(&flags.kind, "kind", "k", "", "Filter by node kind")
@@ -102,6 +109,10 @@ func runExport(nodeID string, flags *exportFlags) error {
 	// Validate that --follow and --depth require --compact
 	if !flags.compact && (flags.follow != "" || flags.depth != 1) {
 		return fmt.Errorf("--follow and --depth require --compact")
+	}
+
+	if flags.obsidian {
+		return runObsidianExport(flags)
 	}
 
 	if flags.compact {
